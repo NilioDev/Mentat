@@ -1,0 +1,30 @@
+# Build output
+/build*/
+/out/
+CMakeUserPresets.json
+.cache/
+compile_commands.json
+
+# Editors
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Original game data: never commit
+/gamedata/*
+!/gamedata/README.md
+*.EXE
+*.exe
+*.DAT
+*.dat
+*.HSQ
+*.hsq
+*.HNM
+*.hnm
+*.VOC
+*.voc
+*.iso
+*.ISO
+*.7z
+*.zip
