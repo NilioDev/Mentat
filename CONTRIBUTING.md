@@ -2,7 +2,7 @@
 
 ## Clean-room rules
 
-Melange is an independent, from-scratch implementation.
+Mentat is an independent, from-scratch implementation.
 
 1. **Write your own code.** Do not copy or adapt code from other
    reimplementations, remakes or tools for the original game, whatever their
@@ -18,7 +18,7 @@ Melange is an independent, from-scratch implementation.
    not present.
 4. **No trademarks.** Do not use the original game's title, its publisher's
    names or logos in the program, the packages or the store pages. Saying
-   which game Melange plays, in plain text in the README, is fine.
+   which game Mentat plays, in plain text in the README, is fine.
 
 ## Layout
 
@@ -31,7 +31,7 @@ Melange is an independent, from-scratch implementation.
 
 ## Code style
 
-C++20. Warnings are errors in CI (`-DMLG_WARNINGS_AS_ERRORS=ON`). Every source
+C++20. Warnings are errors in CI (`-DMTT_WARNINGS_AS_ERRORS=ON`). Every source
 file starts with `// SPDX-License-Identifier: GPL-3.0-or-later`.
 
 ## Building
@@ -43,4 +43,4 @@ ctest --test-dir build --output-on-failure
 ```
 
 SDL3 is used from the system when found, otherwise the pinned release is
-downloaded and built (`-DMLG_USE_SYSTEM_SDL3=OFF` forces that).
+downloaded and built (`-DMTT_USE_SYSTEM_SDL3=OFF` forces that).

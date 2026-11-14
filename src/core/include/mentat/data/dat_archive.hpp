@@ -15,7 +15,7 @@
 #include <string_view>
 #include <vector>
 
-namespace melange {
+namespace mentat {
 
 struct DatEntry {
     std::string name; // upper case, folders separated by '\'
@@ -64,4 +64,4 @@ private:
     DatDirectory directory_;
 };
 
-} // namespace melange
+} // namespace mentat

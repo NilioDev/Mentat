@@ -1,14 +1,14 @@
 # Provides the SDL3::SDL3 target.
 #
-# Uses an installed SDL3 when one is found (set MLG_USE_SYSTEM_SDL3=OFF to skip
+# Uses an installed SDL3 when one is found (set MTT_USE_SYSTEM_SDL3=OFF to skip
 # that), otherwise downloads and builds the pinned release below.
 # The Android build passes FETCHCONTENT_SOURCE_DIR_SDL3 so that the Java glue
 # code and the native library come from the same SDL checkout.
 
-set(MLG_SDL3_TAG "release-3.4.20" CACHE STRING "SDL3 release to build when no installed SDL3 is used")
-option(MLG_USE_SYSTEM_SDL3 "Prefer an installed SDL3" ON)
+set(MTT_SDL3_TAG "release-3.4.20" CACHE STRING "SDL3 release to build when no installed SDL3 is used")
+option(MTT_USE_SYSTEM_SDL3 "Prefer an installed SDL3" ON)
 
-if(MLG_USE_SYSTEM_SDL3 AND NOT ANDROID)
+if(MTT_USE_SYSTEM_SDL3 AND NOT ANDROID)
     find_package(SDL3 3.2 CONFIG QUIET)
 endif()
 
@@ -16,7 +16,7 @@ if(SDL3_FOUND)
     message(STATUS "Using installed SDL3 ${SDL3_VERSION}")
 else()
     include(FetchContent)
-    message(STATUS "Building SDL3 ${MLG_SDL3_TAG} from source")
+    message(STATUS "Building SDL3 ${MTT_SDL3_TAG} from source")
     set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
     set(SDL_TESTS OFF CACHE BOOL "" FORCE)
     set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -31,7 +31,7 @@ else()
     endif()
     FetchContent_Declare(SDL3
         GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-        GIT_TAG ${MLG_SDL3_TAG}
+        GIT_TAG ${MTT_SDL3_TAG}
         GIT_SHALLOW TRUE
         GIT_PROGRESS TRUE)
     FetchContent_MakeAvailable(SDL3)

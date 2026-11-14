@@ -1,20 +1,20 @@
-# Melange
+# Mentat
 
 **Play the 1992 adventure-strategy classic *Dune* (CD version) on today's
 computers, phones and tablets, without an emulator.**
 
-Melange is a free, open-source, from-scratch engine for the original game.
-Bring your own copy of the CD version: Melange reads its `DUNE.DAT` and plays
+Mentat is a free, open-source, from-scratch engine for the original game.
+Bring your own copy of the CD version: Mentat reads its `DUNE.DAT` and plays
 the game exactly as the original does, with the same story, screens, music
 and voices, scaled sharply to any screen and with gamepad, mouse, keyboard
 and touch controls.
 
 > [!NOTE]
-> **Status: just started.** Melange finds and opens your `DUNE.DAT`, reads
+> **Status: just started.** Mentat finds and opens your `DUNE.DAT`, reads
 > its list of files and unpacks the compressed ones. It opens a window, but
 > shows nothing of the game yet.
 
-Melange is not affiliated with or endorsed by the makers or publishers of the
+Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the
 original game's files: you need your own copy.
 
@@ -30,14 +30,14 @@ original game's files: you need your own copy.
 ## Add your game
 
 Copy `DUNE.DAT` from the root of your CD into a folder named `gamedata` next
-to the program, or start it with the folder: `./Melange path/to/folder`.
-Without it, Melange says what is missing.
+to the program, or start it with the folder: `./Mentat path/to/folder`.
+Without it, Mentat says what is missing.
 
 ## Controls
 
 | Action | Mouse | Keyboard | Gamepad |
 | --- | --- | --- | --- |
-| Close Melange | Window's close button | Esc | B or Back |
+| Close Mentat | Window's close button | Esc | B or Back |
 
 ## Build from source
 

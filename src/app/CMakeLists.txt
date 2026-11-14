@@ -1,20 +1,20 @@
-set(MLG_APP_SOURCES
+set(MTT_APP_SOURCES
     main.cpp
 )
 
 if(ANDROID)
     # SDLActivity loads the game as libmain.so.
-    add_library(mlg_app SHARED ${MLG_APP_SOURCES})
-    set_target_properties(mlg_app PROPERTIES OUTPUT_NAME main)
+    add_library(mtt_app SHARED ${MTT_APP_SOURCES})
+    set_target_properties(mtt_app PROPERTIES OUTPUT_NAME main)
 else()
-    add_executable(mlg_app WIN32 MACOSX_BUNDLE ${MLG_APP_SOURCES})
-    set_target_properties(mlg_app PROPERTIES
-        OUTPUT_NAME Melange
-        MACOSX_BUNDLE_GUI_IDENTIFIER io.github.niliodev.melange
-        MACOSX_BUNDLE_BUNDLE_NAME Melange
+    add_executable(mtt_app WIN32 MACOSX_BUNDLE ${MTT_APP_SOURCES})
+    set_target_properties(mtt_app PROPERTIES
+        OUTPUT_NAME Mentat
+        MACOSX_BUNDLE_GUI_IDENTIFIER io.github.niliodev.mentat
+        MACOSX_BUNDLE_BUNDLE_NAME Mentat
         MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
         MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION})
 endif()
 
-target_link_libraries(mlg_app PRIVATE melange::core SDL3::SDL3)
-mlg_set_warnings(mlg_app)
+target_link_libraries(mtt_app PRIVATE mentat::core SDL3::SDL3)
+mtt_set_warnings(mtt_app)

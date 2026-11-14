@@ -3,12 +3,12 @@
 ## Reporting a problem
 
 Please do not open a public issue for a security problem. Use
-[private vulnerability reporting](https://github.com/NilioDev/Melange/security/advisories/new)
+[private vulnerability reporting](https://github.com/NilioDev/Mentat/security/advisories/new)
 instead. You get an answer within a week.
 
 ## What counts
 
-Melange reads files it did not make: the original game files (DUNE.DAT, savegames) and,
+Mentat reads files it did not make: the original game files (DUNE.DAT, savegames) and,
 later, mods that people share. A file that makes the program crash, read or
 write outside a buffer, hang, or touch files outside its own folders is a
 security problem, even if it needs a specially made file.

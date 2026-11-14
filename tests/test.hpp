@@ -3,14 +3,14 @@
 // A deliberately tiny test harness, so the core can be tested without
 // third-party dependencies.
 //
-//   MLG_TEST(name) { MLG_CHECK(1 + 1 == 2); }
+//   MTT_TEST(name) { MTT_CHECK(1 + 1 == 2); }
 #pragma once
 
 #include <functional>
 #include <string_view>
 #include <vector>
 
-namespace melange::test {
+namespace mentat::test {
 
 struct Case {
     std::string_view name;
@@ -27,28 +27,28 @@ struct Registrar {
     }
 };
 
-} // namespace melange::test
+} // namespace mentat::test
 
-#define MLG_TEST_CONCAT_INNER(a, b) a##b
-#define MLG_TEST_CONCAT(a, b) MLG_TEST_CONCAT_INNER(a, b)
+#define MTT_TEST_CONCAT_INNER(a, b) a##b
+#define MTT_TEST_CONCAT(a, b) MTT_TEST_CONCAT_INNER(a, b)
 
-#define MLG_TEST(name)                                                                     \
-    static void MLG_TEST_CONCAT(hgm_test_fn_, __LINE__)();                                 \
-    static const ::melange::test::Registrar MLG_TEST_CONCAT(hgm_test_reg_, __LINE__){          \
-        name, &MLG_TEST_CONCAT(hgm_test_fn_, __LINE__)};                                   \
-    static void MLG_TEST_CONCAT(hgm_test_fn_, __LINE__)()
+#define MTT_TEST(name)                                                                     \
+    static void MTT_TEST_CONCAT(hgm_test_fn_, __LINE__)();                                 \
+    static const ::mentat::test::Registrar MTT_TEST_CONCAT(hgm_test_reg_, __LINE__){          \
+        name, &MTT_TEST_CONCAT(hgm_test_fn_, __LINE__)};                                   \
+    static void MTT_TEST_CONCAT(hgm_test_fn_, __LINE__)()
 
-#define MLG_CHECK(...)                                                              \
+#define MTT_CHECK(...)                                                              \
     do {                                                                                   \
         if (!(__VA_ARGS__)) {                                                               \
-            ::melange::test::reportFailure(__FILE__, __LINE__, #__VA_ARGS__);                   \
+            ::mentat::test::reportFailure(__FILE__, __LINE__, #__VA_ARGS__);                   \
         }                                                                                  \
     } while (false)
 
 // Ends the current test early and reports it as skipped, for tests that need
 // files which are not always present (such as the original game data).
-#define MLG_SKIP(reason)                                                                   \
+#define MTT_SKIP(reason)                                                                   \
     do {                                                                                   \
-        ::melange::test::reportSkip(reason);                                                   \
+        ::mentat::test::reportSkip(reason);                                                   \
         return;                                                                            \
     } while (false)

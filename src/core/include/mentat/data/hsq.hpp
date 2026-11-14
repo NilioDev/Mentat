@@ -7,7 +7,7 @@
 #include <span>
 #include <vector>
 
-namespace melange {
+namespace mentat {
 
 // True when the bytes start with a valid HSQ header (the check byte adds up).
 bool isHsq(std::span<const std::uint8_t> packed);
@@ -16,4 +16,4 @@ bool isHsq(std::span<const std::uint8_t> packed);
 // out or a stream that is damaged.
 std::vector<std::uint8_t> unpackHsq(std::span<const std::uint8_t> packed);
 
-} // namespace melange
+} // namespace mentat

@@ -15,4 +15,4 @@ developer changes go in `CONTRIBUTING.md` or `docs/`.
 - Don't put version numbers in the README.
 - Never add screenshots or anything else made from the original game.
 - Don't use the original game's title as our name, in the UI or in package
-  names. The README may say in plain text which game Melange plays.
+  names. The README may say in plain text which game Mentat plays.

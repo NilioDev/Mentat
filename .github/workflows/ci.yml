@@ -46,7 +46,7 @@ jobs:
             libdbus-1-dev libibus-1.0-dev libudev-dev
 
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMLG_WARNINGS_AS_ERRORS=ON -DMLG_USE_SYSTEM_SDL3=OFF
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMTT_WARNINGS_AS_ERRORS=ON -DMTT_USE_SYSTEM_SDL3=OFF
 
       - name: Build
         run: cmake --build build --config Release --parallel
@@ -57,11 +57,11 @@ jobs:
       - name: Upload build
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: Melange-${{ matrix.name }}
+          name: Mentat-${{ matrix.name }}
           path: |
-            build/src/app/Melange
-            build/src/app/Release/Melange.exe
-            build/src/app/Melange.app
+            build/src/app/Mentat
+            build/src/app/Release/Mentat.exe
+            build/src/app/Mentat.app
           if-no-files-found: ignore
 
   sanitizers:
@@ -77,8 +77,8 @@ jobs:
       # AddressSanitizer and UndefinedBehaviorSanitizer.
       - name: Configure
         run: >
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DMLG_BUILD_APP=OFF
-          -DMLG_WARNINGS_AS_ERRORS=ON -DCMAKE_CXX_COMPILER=clang++
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DMTT_BUILD_APP=OFF
+          -DMTT_WARNINGS_AS_ERRORS=ON -DCMAKE_CXX_COMPILER=clang++
           "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-sanitize-recover=all"
 
       - name: Build

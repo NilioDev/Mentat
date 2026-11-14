@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <exception>
 
-namespace melange::test {
+namespace mentat::test {
 
 namespace {
 int failures = 0;
@@ -23,10 +23,10 @@ void reportFailure(const char* file, int line, const char* expression) {
 
 void reportSkip(const char* reason) { skipReason = reason; }
 
-} // namespace melange::test
+} // namespace mentat::test
 
 int main() {
-    using namespace melange::test;
+    using namespace mentat::test;
     int failedCases = 0;
     int skippedCases = 0;
     for (const auto& testCase : registry()) {

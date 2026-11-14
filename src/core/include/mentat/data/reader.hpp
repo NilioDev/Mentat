@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace melange {
+namespace mentat {
 
 class FormatError : public std::runtime_error {
 public:
@@ -77,4 +77,4 @@ private:
     std::size_t pos_ = 0;
 };
 
-} // namespace melange
+} // namespace mentat

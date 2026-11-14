@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The Melange app. For now it opens a window, looks for the player's
+// The Mentat app. For now it opens a window, looks for the player's
 // DUNE.DAT, opens it, and shows a 320×200 picture scaled sharply to the
 // window. Esc, the window's close button or B / Back on a gamepad close it.
 #define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
-#include "melange/data/dat_archive.hpp"
-#include "melange/data/reader.hpp"
-#include "melange/game_files.hpp"
-#include "melange/version.hpp"
+#include "mentat/data/dat_archive.hpp"
+#include "mentat/data/reader.hpp"
+#include "mentat/game_files.hpp"
+#include "mentat/version.hpp"
 
 #include <filesystem>
 #include <memory>
@@ -26,7 +26,7 @@ constexpr int kScreenH = 200;
 struct App {
     SDL_Window* window = nullptr;
     SDL_Renderer* renderer = nullptr;
-    std::optional<melange::DatArchive> archive;
+    std::optional<mentat::DatArchive> archive;
     std::string problem;
 };
 
@@ -40,7 +40,7 @@ std::vector<std::filesystem::path> gameFolders(int argc, char** argv) {
         folders.emplace_back(base);
     }
     folders.emplace_back("gamedata");
-    if (char* pref = SDL_GetPrefPath("NilioDev", "Melange")) {
+    if (char* pref = SDL_GetPrefPath("NilioDev", "Mentat")) {
         folders.emplace_back(std::filesystem::path(pref) / "gamedata");
         SDL_free(pref);
     }
@@ -55,7 +55,7 @@ SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
         SDL_Log("SDL_Init failed: %s", SDL_GetError());
         return SDL_APP_FAILURE;
     }
-    const std::string title(melange::kProjectName);
+    const std::string title(mentat::kProjectName);
     if (!SDL_CreateWindowAndRenderer(title.c_str(), kScreenW * 4, kScreenH * 4, SDL_WINDOW_RESIZABLE,
                                      &app->window, &app->renderer)) {
         SDL_Log("cannot open a window: %s", SDL_GetError());
@@ -63,12 +63,12 @@ SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
     }
     SDL_SetRenderLogicalPresentation(app->renderer, kScreenW, kScreenH, SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
 
-    if (const auto files = melange::findGameFiles(gameFolders(argc, argv))) {
+    if (const auto files = mentat::findGameFiles(gameFolders(argc, argv))) {
         try {
-            app->archive = melange::DatArchive::open(files->dat);
+            app->archive = mentat::DatArchive::open(files->dat);
             SDL_Log("opened %s: %zu files", files->dat.string().c_str(),
                     app->archive->directory().entries().size());
-        } catch (const melange::FormatError& e) {
+        } catch (const mentat::FormatError& e) {
             app->problem = e.what();
         }
     } else {

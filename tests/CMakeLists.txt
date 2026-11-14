@@ -1,11 +1,11 @@
-add_executable(mlg_tests
+add_executable(mtt_tests
     test_main.cpp
     test_dat_archive.cpp
     test_hsq.cpp
     test_game_files.cpp
 )
-target_link_libraries(mlg_tests PRIVATE melange::core)
-target_compile_definitions(mlg_tests PRIVATE MELANGE_GAMEDATA_DIR="${PROJECT_SOURCE_DIR}/gamedata")
-mlg_set_warnings(mlg_tests)
+target_link_libraries(mtt_tests PRIVATE mentat::core)
+target_compile_definitions(mtt_tests PRIVATE MENTAT_GAMEDATA_DIR="${PROJECT_SOURCE_DIR}/gamedata")
+mtt_set_warnings(mtt_tests)
 
-add_test(NAME mlg_tests COMMAND mlg_tests)
+add_test(NAME mtt_tests COMMAND mtt_tests)

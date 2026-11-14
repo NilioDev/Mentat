@@ -7,7 +7,7 @@
 #include <optional>
 #include <vector>
 
-namespace melange {
+namespace mentat {
 
 struct GameFiles {
     std::filesystem::path dat; // DUNE.DAT
@@ -16,4 +16,4 @@ struct GameFiles {
 // Looks for DUNE.DAT (in any case) directly in each folder, in order.
 std::optional<GameFiles> findGameFiles(const std::vector<std::filesystem::path>& folders);
 
-} // namespace melange
+} // namespace mentat

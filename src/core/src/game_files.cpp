@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "melange/game_files.hpp"
+#include "mentat/game_files.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <string>
 
-namespace melange {
+namespace mentat {
 
 namespace {
 
@@ -33,4 +33,4 @@ std::optional<GameFiles> findGameFiles(const std::vector<std::filesystem::path>&
     return std::nullopt;
 }
 
-} // namespace melange
+} // namespace mentat

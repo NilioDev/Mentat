@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "melange/data/hsq.hpp"
+#include "mentat/data/hsq.hpp"
 
-#include "melange/data/reader.hpp"
+#include "mentat/data/reader.hpp"
 
-namespace melange {
+namespace mentat {
 
 namespace {
 
@@ -101,4 +101,4 @@ std::vector<std::uint8_t> unpackHsq(std::span<const std::uint8_t> packed) {
     return out;
 }
 
-} // namespace melange
+} // namespace mentat
