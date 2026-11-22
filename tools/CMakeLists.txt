@@ -9,3 +9,8 @@ add_executable(mtt_music music.cpp)
 set_target_properties(mtt_music PROPERTIES OUTPUT_NAME mentat-music)
 target_link_libraries(mtt_music PRIVATE mentat::core)
 mtt_set_warnings(mtt_music)
+
+add_executable(mtt_scene scene.cpp)
+set_target_properties(mtt_scene PROPERTIES OUTPUT_NAME mentat-scene)
+target_link_libraries(mtt_scene PRIVATE mentat::core)
+mtt_set_warnings(mtt_scene)

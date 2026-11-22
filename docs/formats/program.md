@@ -63,3 +63,14 @@ full-motion videos, drawn with each pixel in every second column and row.
 | 21–24 | `VIRGIN.HNM`, `CRYO.HNM`, `CRYO2.HNM`, `PRESENT.HNM` |
 | 25 | `IRULAN.HNM` |
 | 26–36 | `SEQA`, `SEQL`, `SEQM`, `SEQP`, `SEQG`, `SEQJ`, `SEQK`, `SEQI`, `SEQD`, `SEQN`, `SEQR` |
+
+### Scene drawing (data offsets `0x1470` and `0x2774`)
+
+At `0x1470`, four signed 16-bit numbers: the rectangle that lines in a
+scene are clipped to, as left, top, right and bottom, where right and
+bottom are one past the last column and row. In version 3.7 it is 0, 0,
+320, 152: the part of the screen above the control panel.
+
+At `0x2774`, eight 16-bit divisors in 8.8 fixed point for shrinking
+sprites in a scene; entry 0 is `0x100` (full size) and the others grow
+from there. See [scene.md](scene.md).
