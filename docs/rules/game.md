@@ -29,7 +29,8 @@ In this order:
 1. "SEE DUNE MAP".
 2. In a place's first room: during the war "MASSIVE ATTACK", "FIGHT FOR A
    WHOLE DAY" and "CALL A WORM" (greyed until the story has come to
-   `0x4F`); otherwise "TAKE AN ORNITHOPTER", greyed when the place has none.
+   `0x4F`); otherwise "TAKE AN ORNITHOPTER", greyed when the place has none
+   (it opens the cockpit, see [cockpit.md](cockpit.md)).
 3. In the palace: in room 8, when messages have come, "VIEW NEW MESSAGES"
    (greyed when none is new) and "Messages already seen" (greyed when every
    message is new); in room 9, Paul's room, "LOOK AT MIRROR".

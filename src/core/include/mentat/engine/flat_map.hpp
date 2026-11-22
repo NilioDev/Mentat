@@ -28,6 +28,9 @@ public:
         std::array<std::uint8_t, 8> fade{};    // left edge, then right edge
         std::array<std::uint8_t, 56> north{};  // latitudes 86 to 92: 4 rows of (side, middle)
         std::array<std::uint8_t, 56> south{};  // latitudes 87 to 93
+        // The small map's: how far in from each side the planet ends,
+        // for latitudes 70 to 87 north or south.
+        std::array<std::uint8_t, 18> poles{};
         static Edges fromDriver(std::span<const std::uint8_t> driver); // throws FormatError
     };
 
@@ -51,6 +54,13 @@ public:
     // `to`, its top-left corner at (x, y): kWidth × kHeight pixels. The
     // latitude is first kept within ±kMaxLatitude.
     void draw(Surface& to, int x, int y, std::uint16_t longitude, int latitude) const;
+
+    // The small map, as the ornithopter's cockpit shows it: a screen pixel
+    // to a map point, the map point's colour as it is, in the rectangle
+    // (left, top)..(right, bottom). Its middle row shows `latitude`, which
+    // is first kept so that no row goes past latitude 86; the latitude
+    // used is returned.
+    int drawSmall(Surface& to, int left, int top, int right, int bottom, std::uint16_t longitude, int latitude) const;
 
 private:
     struct Row {

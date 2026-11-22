@@ -62,6 +62,13 @@ public:
     // Where the map shows on the screen.
     ClipRect view() const;
 
+    // The map itself, for the other views of it.
+    FlatMap& flatMap() { return map(); }
+    // The sprite that marks place `record` of the state, counting from
+    // `first`: by its kind, and further on for a sietch further than Paul
+    // can see.
+    std::uint16_t placeSprite(std::size_t record, std::uint16_t first);
+
     // The map's point at the middle of the view.
     std::uint16_t longitude() const { return longitude_; }
     int latitude() const { return latitude_; }
