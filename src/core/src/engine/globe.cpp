@@ -237,6 +237,15 @@ void Globe::startPicture() {
 
 std::uint8_t Globe::colourAt(int index) const {
     const std::uint8_t m = map_[static_cast<std::size_t>(mapMiddle_ + index)];
+    if (holders_) {
+        // Bits 4 and 5: 01 and 10 move the colour up 16, 11 up 32.
+        const int holder = m & 0x30;
+        int c = (m & 0x0F) + 0x10;
+        if (holder >= 0x10) {
+            c += 0x10 + (((holder - 0x10) >> 1) & 0x10);
+        }
+        return static_cast<std::uint8_t>(c);
+    }
     int c = m & 0x0F;
     if ((m & 0x30) == 0x10 && c < 8) {
         c += 0x0C;

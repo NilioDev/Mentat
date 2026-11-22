@@ -44,6 +44,9 @@ public:
     void tilt(int steps);
     int rotation() const { return rotation_; }
     int tilt() const { return tilt_; }
+    // The results' colours: who holds each point instead of the spice
+    // fields found.
+    void showHolders(bool on) { holders_ = on; }
 
     // Where map point (longitude, latitude) shows on the screen, found the
     // program's way through the projection tables. False when the program
@@ -77,6 +80,7 @@ private:
     int mapMiddle_ = 0;
     int rotation_ = 0;
     int tilt_ = 0;
+    bool holders_ = false;
     // Where the drawing is.
     bool lowerHalf_ = false;
     std::size_t at_ = 0;

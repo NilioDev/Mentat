@@ -4,8 +4,8 @@ The planet in the left part of the map's panel (zone 0, action `0xB8C6`)
 opens the globe: the planet turning between the frescoes of the two
 houses, with Paul's place marked on it. The planet itself is drawn as on
 the story pages (see [globe.md](globe.md)). This page covers the globe as
-it is opened, turned and left; its results view and the loading and
-saving of games come later.
+it is opened, turned and left, and its results; the loading and saving of
+games come later.
 
 ## Opening the globe
 
@@ -97,8 +97,10 @@ latitudes.
 
 The globe's commands are kept at data offset `0x204A` (two bytes, then
 (phrase, action) pairs up to a phrase of 0): leaving the globe, the
-results, loading, saving and leaving the game. Only the first is built
-yet; the others are greyed.
+results, loading, saving and leaving the game. Loading, saving and
+leaving the game are not built yet and are greyed. The second line is
+phrase `0xB1` with action `0xB96B` (the results), or, while the results
+show, phrase `0xB2` with action `0xB961` (back to the standard view).
 
 While the mouse is over the planet's square, (96, 25) to (224, 134), the
 list is the one at data offset `0x2062`: a single lit line offering the
@@ -131,6 +133,95 @@ The planet turns towards Paul's position in pictures:
 3. The planet turns and tilts by those, is drawn whole and shown as
    above (turning a step more).
 4. When anything was cut, all of it is done again.
+
+## The results
+
+The second command slides the frescoes away and shows how Paul is doing.
+
+1. On the back buffer: the scene filled with `0xF0`, the planet's frame
+   and the planet as on opening, then the sprites of `FRESK.HSQ` listed at
+   data offset `0x2506` ((sprite, x, y) up to `0xFFFF`): the emblems of
+   the two houses.
+2. The results are counted (below) and written into their phrases.
+3. The phrases listed at data offset `0x2482` are written in the large
+   font, those at `0x2494` in the small one. Each entry is (phrase, x, y,
+   colours) up to a phrase of `0xFFFF`; the colours' low byte is the
+   letters', the high byte the background's (0: none). A byte `0x0D` starts
+   a new line at the same x, 10 rows lower in the large font and 7 in the
+   small; bytes from `0x80` show as '@'.
+4. The bars start at 0, and grow (below) every 12 ticks, the first time
+   at once, on the back buffer; after that on the screen.
+5. The scene is kept, and the frescoes slide out: with a shift of 0, −16,
+   −32 and on while it is above −`0x6A` (to −96), the kept scene comes
+   back, fresco 0 is drawn at (shift, 0) and fresco 1 at (`0xD6` − shift,
+   0), both cut to the scene, the ornament over them, and the scene goes
+   to the screen. The original goes as fast as it can draw; here each step
+   takes 4 ticks, and no timer runs meanwhile.
+6. The planet is drawn whole and shown in the colours of who holds each
+   point (see [globe.md](globe.md)), and the second command changes.
+
+The second command again removes the bars' timer and slides the frescoes
+back on the screen, 16 at a time up to 0, draws them at 0 on the back
+buffer, and shows the planet in its usual colours.
+
+### What is counted
+
+In the state (as words unless said):
+
+- **The areas held**: of the first `0xC5F9` map bytes, those whose bits
+  `0x30` are both set (held), and those with only one of them (partly
+  held). Each count c becomes a share of N = `0xC5F9` − `0x187`:
+  ⌊c × 65536 / N⌋ × 100, divided by 65536 and rounded from a half. The
+  held share goes to `0xA4`, the partly held one plus 1 to `0xA2`.
+- **The best spice stock**: `0xA0` + `0x1172` − `0x1170` (at least 0)
+  goes to `0xA6` when it is at least what `0xA6` holds.
+- **The men**: over the troops (from `0x8AA`, `0x1B` bytes each, the first
+  always and the others until one starts with 0) whose byte 3 does not
+  have bit `0x20`: the byte at `0x1A` adds to `0xAC` when byte `0x10` has
+  bit `0x80`, otherwise to `0xAA` when byte 3 does not have bit `0x80`.
+
+### Writing the numbers
+
+A number goes into the first run of digits found from a place in the
+phrases, which lie one after the other, each ended by `0xFF`; the search
+for the next number goes on from the end of that run, into the next
+phrases. The phrases keep what is written into them.
+
+- **Three digits**, ending just before the run's end: at most 999. A
+  hundreds digit of 0 becomes a space, and so does then a tens digit of
+  0; the units always show.
+- **Five digits**: the thousands as two digits, a leading 0 a space, and
+  when both are 0 both are spaces; then the last three as above, where the
+  spaces go on only while all before were spaces.
+
+The numbers:
+
+1. Phrase `0xC2`: the day, ((clock + 3) >> 4) + 1, in three digits, and
+   over the two bytes after them an ending from the four pairs at data
+   offset `0x251A` + 8 × language: the first pair when the tens are '1' or
+   the units 4 or more, also for units of 1 in the second language's
+   table unless the tens are a space; otherwise the pair of the units.
+2. Phrase `0xC3`: charisma, the state's byte `0x29` halved.
+3. From phrase `0xC4` on: `0xA4` and `0xA2` in three digits, then `0xA8`,
+   `0xA6`, `0xAC` and `0xAA` in five digits ending one before the run's
+   end, whose last digit becomes 0 (so they show ten times).
+
+Each of the six is kept at `0x115E` + 2i; when it differs from what was
+kept, the byte at `0x116A` + i becomes 1 (more) or 2 (less); it stays as
+it was when the same. The clock with its low four bits cleared goes to
+`0x115C`.
+
+### The bars
+
+Each bar goes to a byte: `0xA4` / 2 + 1, `0xA2` / 2 + 1, `0xA8` / 16 + 1,
+`0xA6` / 16 + 1, and the high bytes of `0xAC` and `0xAA` plus 1. Each step,
+every bar that is not there yet moves one towards it; with h its size
+(at most 30) and (x, y) from the six pairs at data offset `0x24EE`, sprite
+`0x37` (`0x38` for the odd bars) of the panel's picture file goes at
+(x, y − h) and sprite `0x39` at (x, y − h − 10). When the bar arrives, the
+byte at `0x116A` + i is written as a letter of the small font at
+(x + 4, y − h − 10), in colour `0x3F` (`0x25` for the odd bars), with no
+background.
 
 ## Leaving
 
