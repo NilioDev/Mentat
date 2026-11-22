@@ -17,6 +17,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace mentat {
@@ -71,6 +72,9 @@ public:
     // Plays track `n` (1..10); nothing changes when it plays already.
     void playTrack(int n);
     void stopMusic();
+    // Moves the music's volume to `volume` and `balance` (0x78 is the
+    // middle) over `ticks` timer ticks, as the player's fade does.
+    void fadeMusic(int ticks, std::uint8_t volume, std::uint8_t balance);
     bool musicPlaying() const;
     int musicMeasure() const;
     // 16 steps per measure; what the opening waits for.
@@ -103,6 +107,9 @@ public:
     // A part marked to repeat plays until stopSound().
     void playSound(int n);
     void stopSound();
+    // Plays the sound file `name` of DUNE.DAT on the digital channel.
+    // False when there is no such file.
+    bool playVoice(const std::string& name);
 
     // --- Videos (one at a time, like the original)
     // Opens video slot `index` and draws its first frame on the target;

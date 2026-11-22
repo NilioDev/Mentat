@@ -104,6 +104,13 @@ void Game::stopMusic() {
     }
 }
 
+void Game::fadeMusic(int ticks, std::uint8_t volume, std::uint8_t balance) {
+    if (music_ != nullptr) {
+        // The player takes no volume below 4.
+        music_->driver().fade(ticks, std::max<std::uint8_t>(volume, 4), balance);
+    }
+}
+
 bool Game::musicPlaying() const { return music_ != nullptr && music_->driver().status().playing(); }
 
 int Game::musicMeasure() const { return music_ != nullptr ? music_->driver().status().measure : 0; }
@@ -218,6 +225,19 @@ void Game::playSound(int n) {
             break;
         }
     }
+}
+
+bool Game::playVoice(const std::string& name) {
+    DatArchive& archive = resources_.archive();
+    if (archive.directory().find(name) == nullptr) {
+        return false;
+    }
+    const VocSound sound = Voc::parse(archive.read(name));
+    stopSound();
+    for (const VocPart& part : sound.parts) {
+        platform_.queueSound(SoundChannel::Digital, part.rate, part.samples);
+    }
+    return true;
 }
 
 void Game::stopSound() {

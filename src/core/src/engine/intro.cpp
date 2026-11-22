@@ -7,8 +7,14 @@
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/places.hpp"
 #include "mentat/engine/talker.hpp"
+#include "mentat/engine/text_box.hpp"
+#include "mentat/data/string_table.hpp"
+#include "mentat/gfx/font.hpp"
 #include "mentat/gfx/sprite_sheet.hpp"
 
+#include <algorithm>
+#include <optional>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -108,6 +114,45 @@ enum Action : std::uint16_t {
     kPicture15 = 0x076A,
 };
 
+// --- After the opening
+
+constexpr int kCreditsTrack = 3;
+constexpr int kStoryPages = 8;
+// Page n's words are entry kStoryText + n of the language's command text.
+constexpr std::size_t kStoryText = 0x116;
+// The narrator's recordings are named like a character's, as character 0x19.
+constexpr int kNarrator = 0x19;
+constexpr int kPageTicks = 0xFA0;
+// The music is quieter while a page shows and comes back after.
+constexpr int kQuietTicks = 0x64;
+constexpr std::uint8_t kQuietVolume = 0x8C;
+constexpr std::uint8_t kQuietBalance = 0x8C;
+constexpr int kLoudTicks = 0x190;
+constexpr std::uint8_t kLoudVolume = 0xE6;
+constexpr std::uint8_t kLoudBalance = 0x78;
+constexpr ClipRect kStoryTextBox{0, 0x99, 0x140, 0x99 + 0x2F};
+constexpr std::uint8_t kStoryTextColour = 6;
+// The game's clock when the story is told, and the sky it picks.
+constexpr int kStoryClock = 2;
+constexpr std::size_t kSkyOfTheHour = 0x2280;
+// The palace at dawn: a pause, the sky's fade to sprite 0x0C, a hold.
+constexpr int kDawnPause = 0xC8;
+constexpr int kDawnSky = 0x0C;
+constexpr int kDawnTicks = 0x4B0;
+constexpr int kDawnFadeSteps = 0x40;
+constexpr int kDawnFadeTicks = 0x10;
+
+// Which COMMAND file holds each language's text.
+int commandFile(int language) {
+    switch (language) {
+    case kFrench: return 1;
+    case kGerman: return 2;
+    case kItalian: return 4;
+    case kSpanish: return 5;
+    default: return 0;
+    }
+}
+
 struct Step {
     std::uint16_t musicBefore; // music position to wait for before preparing
     std::uint16_t prepare;     // what is drawn in the back buffer
@@ -173,6 +218,150 @@ public:
             }
         }
         return finish(IntroEnd::Finished);
+    }
+
+    void credits() {
+        resetStep();
+        d_.setOriginRows(0);
+        d_.targetBack();
+        d_.clear(d_.back());
+        g_.openVideo(video::kCredits);
+        d_.transition(Display::kFadeThroughBlack);
+        g_.playTrack(kCreditsTrack);
+        d_.targetBack();
+        for (;;) {
+            if (g_.pollInput()) {
+                break;
+            }
+            if (g_.videoStep()) {
+                d_.showBack();
+                if (g_.videoDone()) {
+                    break;
+                }
+            } else {
+                g_.platform().waitFrame();
+            }
+        }
+        g_.closeVideo();
+    }
+
+    StoryEnd story() {
+        font_.emplace(Font::parse(g_.resources().load(resource::kFont)));
+        text_.emplace(StringTable::parse(g_.resources().load(resource::kFirstCommands + commandFile(language_))));
+        d_.setOriginRows(0);
+        g_.playTrack(kCreditsTrack);
+        for (int page = 1; page <= kStoryPages; ++page) {
+            resetStep();
+            d_.beginPrepare();
+            d_.clear(d_.target());
+            drawPage(page);
+            drawTextBox(d_.target(), *font_, text_->at(kStoryText + static_cast<std::size_t>(page)), kStoryTextBox,
+                        kStoryTextColour);
+            d_.endPrepare();
+            d_.transition(Display::kFadeThroughBlack);
+            d_.targetBack();
+            g_.fadeMusic(kQuietTicks, kQuietVolume, kQuietBalance);
+            narrate(page);
+            const bool waited = !g_.pollInput() && g_.waitTicks(kPageTicks);
+            g_.stopSound();
+            g_.fadeMusic(kLoudTicks, kLoudVolume, kLoudBalance);
+            if (!waited) {
+                resetStep();
+                return StoryEnd::Skipped;
+            }
+        }
+        resetStep();
+        dawn();
+        return StoryEnd::Finished;
+    }
+
+private:
+    void drawPage(int page) {
+        switch (page) {
+        case 1: space(0); break;
+        case 2:
+        case 6: space(0x20); break;
+        case 3: desert(); break;
+        case 4:
+        case 7: act(kPaul); break;
+        case 5: act(kBaron); break;
+        default: showPicture(pictureFor(kPicture15)); break;
+        }
+    }
+
+    void narrate(int page) {
+        if (!g_.playVoice(Talker::voiceName(kNarrator, page, true))) {
+            g_.playVoice(Talker::voiceName(kNarrator, page, false));
+        }
+    }
+
+    // Sprite `n` of the sheet in use, drawn with its middle at (x, y).
+    void drawCentred(int n, int x, int y) {
+        const SpriteView v = g_.sheet().sprite(static_cast<std::size_t>(n));
+        const int w = v.header.widthAndFlags & SpriteHeader::kWidthMask;
+        drawAt(n, x - w / 2, y - v.header.height / 2);
+    }
+
+    void drawAt(int n, int x, int y) {
+        drawSpriteClipped(g_.canvas(), g_.sheet().sprite(static_cast<std::size_t>(n)), x, y,
+                          ClipRect{0, 0, Surface::kScreenWidth, Surface::kScreenHeight});
+    }
+
+    // Space: three strips of stars, the sun and two planets, all moved to
+    // the left by `c` × `c` / 2 (the planets further), so that a larger `c`
+    // shows a part further right.
+    void space(int c) {
+        g_.selectSheet(resource::kStars);
+        const auto shift = static_cast<std::int16_t>(-((c * c) >> 1));
+        drawAt(0, shift, 0);
+        drawAt(1, shift + 0x130, 0);
+        drawAt(2, shift + 0x260, 0);
+        drawCentred(0x24, static_cast<std::int16_t>(4 * shift + 0x45), 0x4E);
+        const int x = c <= 0x14 ? 4 * c + 0xF2 : static_cast<std::int16_t>(2 * shift + 0x3E2);
+        drawCentred((c >> 2) + 0x25, x, 0x67);
+        drawCentred(c + 3, ((static_cast<std::uint16_t>(-shift) & 0xFFFF) >> 4) + 0x80, 0x4F);
+    }
+
+    // The desert: the sky of the hour in rows of tiles, its colours set at
+    // once, and the dunes in front.
+    void desert() {
+        const int hour = kStoryClock;
+        const ProgramFile& program = g_.resources().program();
+        const int sky = program.dataU8(kSkyOfTheHour + static_cast<std::size_t>(hour & 0x0F)) + ((hour >> 2) & 0x1C);
+        g_.selectSheet(resource::kSky + 1);
+        loadSkyPalette(sky);
+        for (int i = 73; i < 73 + 151; ++i) {
+            d_.palette()[static_cast<std::size_t>(i)] = d_.spare()[static_cast<std::size_t>(i)];
+            d_.markChanged(i);
+        }
+        g_.selectSheet(resource::kSky);
+        for (int row = 0; row < 4; ++row) {
+            for (int x = 0; x < Surface::kScreenWidth; x += 0x28) {
+                g_.drawSprite(static_cast<std::uint16_t>(row), x, row * 0x14);
+            }
+        }
+        g_.selectSheet(resource::kDesert);
+        g_.drawSprite(0, 0, 0x3C);
+    }
+
+    // The palace at dawn: it dissolves in, then its sky's colours move
+    // towards the morning's (as seen from a room: colours 73 to 223), and it
+    // dissolves to black.
+    void dawn() {
+        d_.beginPrepare();
+        d_.clear(d_.target());
+        showPicture(resource::kDawnPalace);
+        d_.endPrepare();
+        d_.transition(Display::kDissolve);
+        d_.targetBack();
+        g_.waitTicks(kDawnPause);
+        loadSkyPalette(kDawnSky);
+        skyFadeLeft_ = kDawnFadeSteps;
+        g_.addTimer(kPaletteFadeTimer, kDawnFadeTicks, [this] { skyFadeTick(); });
+        g_.waitTicks(kDawnTicks);
+        g_.removeTimer(kPaletteFadeTimer);
+        d_.clear(d_.back());
+        d_.transition(Display::kDissolve);
     }
 
 private:
@@ -795,10 +984,16 @@ private:
     int sunriseIndex_ = 0;
     int fadeLeft_ = 0;
     int skyFadeLeft_ = 0;
+    std::optional<Font> font_;
+    std::optional<StringTable> text_;
 };
 
 } // namespace
 
 IntroEnd runIntro(Game& game, int language) { return Intro(game, language).run(); }
+
+void runCredits(Game& game) { Intro(game, kEnglish).credits(); }
+
+StoryEnd runStory(Game& game, int language) { return Intro(game, language).story(); }
 
 } // namespace mentat

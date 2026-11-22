@@ -8,11 +8,15 @@
 
 namespace mentat {
 
-Font Font::parse(std::span<const std::uint8_t> bytes) {
+Font Font::parse(std::span<const std::uint8_t> bytes, int height) {
     if (bytes.size() != kFileSize) {
         throw FormatError("font file has the wrong size");
     }
+    if (height < 1 || height > 16) {
+        throw FormatError("font: bad character height");
+    }
     Font f;
+    f.height_ = height;
     std::copy_n(bytes.begin(), 256, f.widths_.begin());
     std::copy_n(bytes.begin() + 256, 256 * 8, f.rows_.begin());
     return f;
@@ -29,7 +33,7 @@ int Font::width(std::string_view text) const {
 int Font::draw(Surface& to, int x, int y, std::string_view text, std::uint8_t colour) const {
     for (const char c : text) {
         const auto ch = static_cast<std::uint8_t>(c);
-        for (int row = 0; row < kHeight; ++row) {
+        for (int row = 0; row < height_; ++row) {
             const std::uint8_t bits = this->row(ch, row);
             for (int col = 0; col < 8; ++col) {
                 if (bits & (0x80 >> col)) {

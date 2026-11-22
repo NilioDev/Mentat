@@ -7,6 +7,9 @@
 #include "mentat/data/reader.hpp"
 #include "mentat/data/string_table.hpp"
 #include "mentat/data/voc.hpp"
+#include "mentat/engine/text_box.hpp"
+#include "mentat/gfx/font.hpp"
+#include "mentat/gfx/surface.hpp"
 
 #include <cstring>
 #include <string>
@@ -145,4 +148,47 @@ MTT_TEST("real data: the video table names every video") {
     MTT_CHECK(videoInfo(*program, video::kIrulan).spaced);
     MTT_CHECK(!videoInfo(*program, video::kTitle).spaced);
     MTT_CHECK_THROWS(videoInfo(*program, video::kCount));
+}
+
+namespace {
+
+Font evenFont() {
+    std::vector<std::uint8_t> file(Font::kFileSize, 0);
+    for (int c = 0; c < 256; ++c) {
+        file[static_cast<std::size_t>(c)] = 4;
+    }
+    return Font::parse(file);
+}
+
+} // namespace
+
+MTT_TEST("text box: words wrap and lines stretch to the width") {
+    const Font font = evenFont();
+    auto lines = layoutText(font, "aaaa bb cccc d", 40);
+    MTT_CHECK(lines.size() == 2);
+    MTT_CHECK(lines[0].words == 2 && lines[0].gap == 16 && lines[0].extra == 0);
+    MTT_CHECK(lines[1].words == 2 && lines[1].gap == 6); // the last line is not stretched
+    // A line break ends a line without stretching it.
+    lines = layoutText(font, "a b\rc", 40);
+    MTT_CHECK(lines.size() == 2 && lines[0].gap == 6 && lines[0].words == 2);
+    // A gap of 30 or more anywhere: no line is stretched.
+    lines = layoutText(font, "aaaa bbbbbbbbbbbbbbbb", 80);
+    MTT_CHECK(lines.size() == 2 && lines[0].gap == 6);
+    // A word wider than the box.
+    MTT_CHECK(layoutText(font, "aaaaaaaaaaaa", 40).empty());
+    Surface s(320, 200);
+    MTT_CHECK(!drawTextBox(s, font, "aaaaaaaaaaaa", ClipRect{0, 0, 40, 20}, 6));
+}
+
+MTT_TEST("real data: the last story page lays out as in the original") {
+    auto archive = test::openGameData();
+    if (!archive) {
+        MTT_SKIP("no game data");
+    }
+    const Font font = Font::parse(archive->load("DNCHAR.BIN"));
+    const auto text = StringTable::parse(archive->load("COMMAND1.HSQ"));
+    const auto lines = layoutText(font, text.at(0x11E), 320);
+    MTT_CHECK(lines.size() == 2);
+    MTT_CHECK(lines[0].words == 12 && lines[0].gap == 7 && lines[0].extra == 9);
+    MTT_CHECK(lines[1].words == 10 && lines[1].gap == 6 && lines[1].extra == 0);
 }
