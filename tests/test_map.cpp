@@ -4,7 +4,9 @@
 
 #include "mentat/data/program_tables.hpp"
 #include "mentat/engine/flat_map.hpp"
+#include "mentat/engine/fiber.hpp"
 #include "mentat/engine/game.hpp"
+#include "mentat/engine/globe_screen.hpp"
 #include "mentat/engine/intro.hpp"
 #include "mentat/engine/map_screen.hpp"
 #include "mentat/engine/panel.hpp"
@@ -155,4 +157,51 @@ MTT_TEST("map screen: opens on the palace and the arrows move it") {
     MTT_CHECK(!map.command(0x1234));
     map.leave();
     MTT_CHECK(!map.active() && !map.command(MapScreen::kUp));
+}
+
+MTT_TEST("globe screen: opens on the map's middle, turns with the arrows and goes back to Paul") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
+    World w(*program);
+    Panel panel(g, kEnglish);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    map.enter();
+    map.leave();
+    GlobeScreen globe(g, w, panel, map);
+    globe.enter(map.longitude(), map.latitude());
+    MTT_CHECK(globe.active());
+    // The planet's frame and the frescoes, with the planet's colours inside.
+    const Surface& back = g.display().back();
+    const int middle = back.at(160, 75);
+    MTT_CHECK(middle >= 0x10 && middle < 0x2C);
+    MTT_CHECK(panel.commands().size() == 5 && panel.commands()[0].action == GlobeScreen::kExit);
+    MTT_CHECK((panel.commands()[0].phrase & Command::kGrey) == 0 && (panel.commands()[2].phrase & Command::kGrey) != 0);
+    MTT_CHECK(panel.zones()[Panel::kArrows].action == GlobeScreen::kExit);
+    MTT_CHECK(panel.zones()[Panel::kArrows + 1].action == GlobeScreen::kUp);
+    // Over the planet the list offers the map of the area.
+    MTT_CHECK(globe.pointAt(160, 80) && panel.commands().size() == 1);
+    MTT_CHECK(!globe.pointAt(161, 80));
+    MTT_CHECK(globe.pointAt(20, 80) && panel.commands().size() == 5);
+    MTT_CHECK(globe.command(GlobeScreen::kUp) && globe.command(GlobeScreen::kLeft));
+    MTT_CHECK(!globe.command(0x1234));
+    MTT_CHECK(!globe.leaving);
+    Fiber fiber([&] { globe.command(GlobeScreen::kExit); });
+    p.fiber = &fiber;
+    while (!fiber.finished()) {
+        fiber.resume();
+        p.ticks += 3;
+    }
+    p.fiber = nullptr;
+    std::uint16_t lon = 0;
+    int lat = 0;
+    w.position(lon, lat);
+    MTT_CHECK(globe.leaving && globe.mapLongitude == lon && globe.mapLatitude == lat);
+    globe.leave();
+    MTT_CHECK(!globe.active() && !globe.command(GlobeScreen::kUp));
 }

@@ -55,7 +55,8 @@ Choosing "SEE DUNE MAP" (action `0x186B`) in a room:
    each a pixel further out, in colours `0xFC`, `0xFA`, `0xF8` and `0xF6`;
    the ornament fully open (see [panel.md](panel.md)); the view (below);
    the map's commands; the panel's layout at data offset `0x1C66` (a
-   small globe on the left) and the six zones of the arrows taken whole
+   small globe on the left, which opens the globe, see
+   [globe_screen.md](globe_screen.md)) and the six zones of the arrows taken whole
    from data offset `0x1CCA`.
 3. The music for the map plays (moment 2, see [game.md](game.md)).
 4. The whole screen dissolves in (transition `0x34`, see

@@ -289,8 +289,82 @@ void Display::dissolve(int rows) {
     }
 }
 
-void Display::transition(int type) {
+// The old picture moves up 8 rows a step with a band of colour 7 under it,
+// over the new one shown in place.
+void Display::rise() {
+    constexpr int kBand = 8;
+    constexpr std::uint8_t kBandColour = 7;
+    constexpr std::uint32_t kRiseTicks = 6;
+    const int w = Surface::kScreenWidth;
+    const std::size_t origin = static_cast<std::size_t>(originRows_ * w);
+    std::vector<std::uint8_t> old(screen_->data() + origin,
+                                  screen_->data() + origin + static_cast<std::size_t>(kSceneRows * w));
+    std::uint8_t* to = screen_->data() + origin;
+    const std::uint8_t* from = back_->data() + origin;
+    std::uint32_t due = platform_.ticks;
+    for (int s = kBand; s <= kSceneRows; s += kBand) {
+        const int kept = kSceneRows - s;
+        std::copy_n(old.begin() + s * w, kept * w, to);
+        std::fill_n(to + kept * w, kBand * w, kBandColour);
+        if (kept + kBand < kSceneRows) {
+            const auto at = static_cast<std::ptrdiff_t>((kept + kBand) * w);
+            std::copy(from + at, from + kSceneRows * w, to + at);
+        }
+        due = waitUntil(due + kRiseTicks);
+    }
+}
+
+// Blocks of 8 × 4 pixels of the new picture, in a square spiral out from
+// (156, 74): one side of the spiral a tick.
+void Display::spiral() {
+    const int w = Surface::kScreenWidth;
+    const int size = static_cast<int>(screen_->size());
+    int at = (originRows_ + 74) * w + 156;
+    std::uint32_t due = platform_.ticks;
+    auto run = [&](int blocks, int step) {
+        for (int b = 0; b < blocks; ++b) {
+            for (int row = 0; row < 4; ++row) {
+                for (int x = 0; x < 8; ++x) {
+                    const int p = at + row * w + x;
+                    if (p >= 0 && p < size) {
+                        screen_->data()[p] = back_->data()[p];
+                    }
+                }
+            }
+            at += step;
+        }
+        due = waitUntil(due + 1);
+    };
+    const int right = 8;
+    const int down = 4 * w;
+    run(1, right);
+    run(2, down);
+    for (int n = 2; n < 0x26; n += 2) {
+        at -= down + right;
+        run(n, -right);
+        at += right - down;
+        run(n, -down);
+        at += down + right;
+        if (n + 1 >= 0x26) {
+            break;
+        }
+        run(n + 1, right);
+        at += down - right;
+        run(n + 1, down);
+    }
+}
+
+void Display::transition(int type, int direction) {
     switch (type & 0xFE) {
+    case kRise:
+        if (direction >= 0) {
+            throw FormatError("display: the downward transition 0 is not built");
+        }
+        rise();
+        break;
+    case kSpiral:
+        spiral();
+        break;
     case kFadeThroughBlack:
         // Colours 1..254 of the new palette wait in the spare one while
         // the old picture fades out.

@@ -43,6 +43,19 @@ public:
     int room() const { return u16(kRoom); }
     int place() const { return u16(kPlace); }
     bool inside() const { return (place() & 0xFF) == 0x80; }
+    // Where Paul is on the map: inside a place, the place's point;
+    // otherwise the room word is the longitude and the place's low byte
+    // the latitude.
+    void position(std::uint16_t& longitude, int& latitude) const {
+        if (inside()) {
+            const std::size_t here = placeRecord(place() >> 8);
+            longitude = u16(here + 2);
+            latitude = static_cast<std::int16_t>(u16(here + 4));
+        } else {
+            longitude = static_cast<std::uint16_t>(room());
+            latitude = static_cast<std::int8_t>(place() & 0xFF);
+        }
+    }
     void goTo(int room, int place);
 
     struct Character {

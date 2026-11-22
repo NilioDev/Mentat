@@ -5,6 +5,7 @@
 #include "mentat/data/program_tables.hpp"
 #include "mentat/data/reader.hpp"
 #include "mentat/engine/game.hpp"
+#include "mentat/engine/globe_screen.hpp"
 #include "mentat/engine/map_screen.hpp"
 #include "mentat/engine/panel.hpp"
 #include "mentat/engine/places.hpp"
@@ -102,7 +103,8 @@ class Play : public TalkHost {
 public:
     Play(Game& game, int language)
         : g_(game), d_(game.display()), world_(game.resources().program()), panel_(game, language),
-          talk_(game, world_, panel_, *this, language), map_(game, world_, panel_) {
+          talk_(game, world_, panel_, *this, language), map_(game, world_, panel_),
+          globe_(game, world_, panel_, map_) {
         talk_.subtitles = subtitlesFor(language);
     }
 
@@ -180,6 +182,9 @@ private:
         Platform& p = g_.platform();
         const int x = p.mouseX;
         const int y = p.mouseY;
+        if (globe_.pointAt(x, y)) {
+            lit_ = -1;
+        }
         lightCommand(commandUnder(x, y));
         const bool down = (p.mouseButtons & 1) != 0;
         const bool clicked = down && !buttonWasDown_;
@@ -201,7 +206,7 @@ private:
             const Zone& z = panel_.zones()[static_cast<std::size_t>(repeatZone_)];
             if ((z.flags & Zone::kActive) && z.contains(x, y)) {
                 repeatSince_ = p.ticks;
-                map_.command(z.action);
+                screenCommand(z.action);
             }
         }
     }
@@ -216,7 +221,7 @@ private:
                 return line;
             }
         }
-        if (y < kSceneBottom && !map_.active()) {
+        if (y < kSceneBottom && !map_.active() && !globe_.active()) {
             const int c = g_.places().characterAt(x, y);
             if (c >= 0) {
                 const auto& commands = panel_.commands();
@@ -265,7 +270,14 @@ private:
         if (talk_.active()) {
             return;
         }
-        if (map_.active()) {
+        if (map_.active() || globe_.active()) {
+            // The map's panel keeps its globe, which opens the globe.
+            const Zone& globeZone = zones[0];
+            if (map_.active() && (globeZone.flags & Zone::kActive) && globeZone.contains(x, y) &&
+                globeZone.action == GlobeScreen::kOpen) {
+                openGlobe();
+                return;
+            }
             for (int i = 0; i < 6; ++i) {
                 const int n = Panel::kArrows + i;
                 const Zone& z = zones[static_cast<std::size_t>(n)];
@@ -274,8 +286,14 @@ private:
                         repeatZone_ = n;
                         repeatSince_ = g_.platform().ticks;
                     }
-                    map_.command(z.action);
+                    screenCommand(z.action);
                     return;
+                }
+            }
+            if (globe_.active() && y < kSceneBottom) {
+                globe_.click(x, y);
+                if (globe_.leaving) {
+                    backToMap();
                 }
             }
             return;
@@ -298,7 +316,7 @@ private:
             toggleMap();
             return;
         }
-        if (map_.command(action)) {
+        if (screenCommand(action)) {
             return;
         }
         const int c = Talk::characterOf(action);
@@ -313,6 +331,44 @@ private:
             }
             talk_.start(c, x, y);
         }
+    }
+
+    // A command for the map or the globe, whichever is shown.
+    bool screenCommand(std::uint16_t action) {
+        if (globe_.command(action)) {
+            if (globe_.leaving) {
+                backToMap();
+            }
+            return true;
+        }
+        return map_.command(action);
+    }
+
+    // The globe in the map's panel: the globe's picture is drawn behind,
+    // the map rises away from it and the planet starts turning.
+    void openGlobe() {
+        const std::uint16_t lon = map_.longitude();
+        const int lat = map_.latitude();
+        map_.leave();
+        globe_.enter(lon, lat);
+        chooseMusic();
+        globe_.show();
+        startWaitingMusic();
+        lit_ = -1;
+    }
+
+    // Back from the globe: the map's colours are sent at once, and the map
+    // spirals in around the middle.
+    void backToMap() {
+        globe_.leave();
+        g_.selectSheet(resource::kMapSprites);
+        d_.flush();
+        map_.enter(globe_.mapLongitude, globe_.mapLatitude);
+        chooseMusic();
+        d_.transition(Display::kSpiral);
+        startWaitingMusic();
+        g_.platform().cursorShown = true;
+        lit_ = -1;
     }
 
     // "SEE DUNE MAP" opens the map; "EXIT MAPS" goes back to the room,
@@ -489,7 +545,7 @@ private:
     // When the hour turns: the colours move to the new sky a little every
     // 16 ticks.
     void fadeSky() {
-        if (map_.active()) {
+        if (map_.active() || globe_.active()) {
             return; // the sky is not shown
         }
         const int n = skyOfTheHour();
@@ -505,7 +561,7 @@ private:
     }
 
     void skyFadeTick() {
-        if (map_.active()) {
+        if (map_.active() || globe_.active()) {
             skyFadeLeft_ = 0;
             g_.removeTimer(kSkyTimer);
             return;
@@ -524,6 +580,9 @@ private:
 
     // What kind of moment it is, for the music; see docs/rules/game.md.
     int musicMoment() const {
+        if (globe_.active()) {
+            return 1;
+        }
         if (map_.active()) {
             return 2;
         }
@@ -650,6 +709,7 @@ private:
     Panel panel_;
     Talk talk_;
     MapScreen map_;
+    GlobeScreen globe_;
     bool endTalk_ = false;
     Surface ornamentStrip_{320, 200};
     bool clockRunning_ = false;

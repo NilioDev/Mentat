@@ -131,3 +131,38 @@ MTT_TEST("real data: the planet fills a round area with map colours") {
     globe.turn(Globe::kTurn + 1);
     MTT_CHECK(globe.rotation() == 40);
 }
+
+MTT_TEST("real data: a point of the planet and the map point it shows find each other") {
+    auto archive = test::openGameData();
+    if (!archive) {
+        MTT_SKIP("no game data");
+    }
+    Globe globe(archive->load("TABLAT.BIN"), archive->load("GLOBDATA.HSQ"), archive->load("MAP.HSQ"));
+    globe.setView(44, -32);
+    globe.tilt(-200);
+    MTT_CHECK(globe.tilt() == -Globe::kMaxTilt);
+    globe.tilt(Globe::kMaxTilt - 32);
+    MTT_CHECK(globe.tilt() == -32);
+    std::uint16_t lon = 0;
+    int lat = 0;
+    MTT_CHECK(!globe.mapPoint(20, 80, lon, lat)); // beside the planet
+    MTT_CHECK(!globe.mapPoint(100, 30, lon, lat)); // in the corner of its square
+    int found = 0;
+    int near = 0;
+    for (int y = 40; y < 120; y += 8) {
+        for (int x = 120; x < 200; x += 8) {
+            if (!globe.mapPoint(x, y, lon, lat)) {
+                continue;
+            }
+            ++found;
+            MTT_CHECK(lat >= -Globe::kMaxTilt && lat <= Globe::kMaxTilt);
+            int sx = 0;
+            int sy = 0;
+            if (globe.screenPoint(lon, lat, sx, sy) && std::abs(sx - x) <= 3 && std::abs(sy - y) <= 3) {
+                ++near;
+            }
+        }
+    }
+    MTT_CHECK(found == 100);
+    MTT_CHECK(near * 10 >= found * 9);
+}

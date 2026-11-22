@@ -40,7 +40,17 @@ public:
     // (-98..98). The next line drawn starts a new picture.
     void setView(int rotation, int tilt);
     void turn(int steps);
+    // Tilts the planet further by `steps`, no further than the poles.
+    void tilt(int steps);
     int rotation() const { return rotation_; }
+    int tilt() const { return tilt_; }
+
+    // Where map point (longitude, latitude) shows on the screen, found the
+    // program's way through the projection tables. False when the program
+    // finds no place for it.
+    bool screenPoint(std::uint16_t longitude, int latitude, int& x, int& y) const;
+    // The map point at screen point (x, y). False when it is off the planet.
+    bool mapPoint(int x, int y, std::uint16_t& longitude, int& latitude) const;
 
     // Draws the next screen line of the picture. True when that was the
     // last one; the next call starts the picture over.
@@ -56,6 +66,10 @@ private:
 
     void startPicture();
     std::uint8_t colourAt(int index) const;
+    // What the sphere holds at height `u` of the tilted view: whether it is
+    // on the side the tilt brings up, and the row of the columns (negative
+    // past the pole). As the program keeps it, in one 16-bit word.
+    std::uint16_t heightEntry(int u) const;
 
     std::vector<Row> rows_;
     std::vector<std::uint8_t> projection_;
