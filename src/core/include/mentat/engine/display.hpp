@@ -79,6 +79,8 @@ public:
     // `level` 1 to 7 picks the enlargement (from 8/7 up to 8 times); the
     // part starts at (x, y). See docs/rules/display.md.
     void zoom(int level, int x, int y);
+    // The same from one buffer to another.
+    void zoom(int level, int x, int y, const Surface& from, Surface& to);
     // The size of the part each zoom level enlarges.
     static int zoomWidth(int level);
     static int zoomHeight(int level);

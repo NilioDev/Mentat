@@ -83,9 +83,11 @@ public:
     const std::vector<Command>& commands() const { return commands_; }
     void drawCommands();
 
+    // The language's command file: menu words, names and short texts.
+    const StringTable& phrases();
+
 private:
     void drawCommandLine(int line, std::uint16_t phrase);
-    const StringTable& phrases();
 
     Game& game_;
     int language_;

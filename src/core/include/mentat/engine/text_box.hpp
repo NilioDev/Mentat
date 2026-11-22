@@ -27,8 +27,14 @@ struct TextLine {
 // Breaks `text` into lines no wider than `width`. Each line is stretched
 // to the width unless it is the last, ends with a line break, or some line
 // would get a gap of 30 or more (then none is stretched). Empty when a
-// word alone is wider than the box.
-std::vector<TextLine> layoutText(const Font& font, std::string_view text, int width);
+// word alone is wider than the box. A byte from 0x80 on ends the text;
+// bytes 1 to 8 take no room, and with a `small` font byte 6 switches to it
+// and byte 8 back to `font`.
+std::vector<TextLine> layoutText(const Font& font, std::string_view text, int width, const Font* small = nullptr);
+
+// Draws laid-out lines from (x, y), 10 rows apart. Returns the y below them.
+int drawTextLines(Surface& to, const Font& font, std::string_view text, const std::vector<TextLine>& lines, int x, int y,
+                  std::uint8_t colour, const Font* small = nullptr);
 
 // Lays `text` out in `box` and draws it in `colour`, centred in the box's
 // height, with 10 rows a line. Returns false when it does not fit.

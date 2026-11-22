@@ -20,9 +20,11 @@ and touch controls.
 > the credits and the pages that tell the story, read by the narrator,
 > and the palace at dawn. The game itself has begun: you start in the
 > throne room with Leto, with the control panel, the clock that runs day
-> and night, the palace's music and the mouse pointer, and you can walk
-> through the palace with the arrows. Talking, the map and the rest of
-> the game are not there yet.
+> and night, the palace's music and the mouse pointer, you can walk
+> through the palace with the arrows, and you can talk with the people you
+> meet: their face over the room and their own recorded voice, saying
+> what fits how far the story has come. The map, travelling and the rest
+> of the game are not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the
@@ -49,6 +51,8 @@ Without it, Mentat says what is missing.
 | --- | --- | --- | --- |
 | Skip a video | Click | Any key | Any button |
 | Walk to another room | Click an arrow | | |
+| Talk to someone | Click the person or their name | | |
+| Hear more, ask again, stop talking | Click a line of the talk menu | | |
 | Close Mentat | Window's close button | | Back |
 
 ## Build from source

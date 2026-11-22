@@ -7,6 +7,7 @@
 #include "mentat/gfx/portrait.hpp"
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -29,8 +30,22 @@ public:
     void show(int character, int shiftRight, int variant, int mood);
 
     // Speaks phrase `phrase`: plays the character's recording of it and
-    // moves the mouth with it. False when there is no recording.
-    bool speak(int phrase);
+    // moves the mouth with it. False when there is no recording. `variant`
+    // picks one of the other recordings of the phrase (0 for the usual).
+    bool speak(int phrase, int variant = 0);
+
+    // Shows the face again from scratch: a new idle sequence (`mood` as in
+    // show()), all of it drawn.
+    void restart(int mood);
+    // Draws the face again whole, from the start of its idle sequence.
+    void redraw();
+    // Stops at once, without playing the animation on.
+    void halt();
+
+    // Called after a frame is drawn on the back buffer, before it is copied
+    // to the screen, with the rectangle that changed; for what lies over
+    // the face, such as subtitles.
+    std::function<void(const ClipRect&)> overlay;
 
     // Stops the voice, the animation and the timers.
     void stop();
@@ -72,6 +87,8 @@ private:
     bool restless_ = false; // the idle frames ran out: only short random movements now
     int framesLeft_ = 0;
     std::size_t next_ = 0;
+    std::size_t sequenceStart_ = 0;
+    int shiftRight_ = 0;
     bool timerRunning_ = false;
     std::vector<PortraitPiece> shownPieces_;
 

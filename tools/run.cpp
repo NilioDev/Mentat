@@ -28,7 +28,7 @@ using namespace mentat;
 int main(int argc, char** argv) {
     if (argc < 3) {
         std::fprintf(stderr, "usage: mentat-run GAME-FOLDER out-folder [--every S] [--until S] [--press S]...\n"
-                     "       [--mouse S,X,Y]... [--click S,X,Y]...\n");
+                     "       [--mouse S,X,Y]... [--click S,X,Y]... [--subtitles 0|1|2] [--seed N]\n");
         return 2;
     }
     double every = 2;
@@ -43,6 +43,8 @@ int main(int argc, char** argv) {
         bool click;
     };
     std::vector<MouseStep> mouse;
+    int subtitles = -1;
+    int seed = -1;
     for (int i = 3; i + 1 < argc; i += 2) {
         const std::string opt = argv[i];
         if (opt == "--mouse" || opt == "--click") {
@@ -63,6 +65,10 @@ int main(int argc, char** argv) {
             until = v;
         } else if (opt == "--press") {
             presses.push_back(v);
+        } else if (opt == "--seed") {
+            seed = static_cast<int>(v);
+        } else if (opt == "--subtitles") {
+            subtitles = static_cast<int>(v);
         }
     }
     try {
@@ -78,6 +84,8 @@ int main(int argc, char** argv) {
         Platform platform;
         platform.music = &music;
         Game game(platform, dat, program, displayTables, &music);
+        game.subtitles = subtitles;
+        game.fixedSeed = seed;
         IntroEnd end = IntroEnd::Finished;
         Fiber fiber([&] {
             while ((end = runIntro(game, kEnglish)) == IntroEnd::Finished) {
@@ -116,7 +124,7 @@ int main(int argc, char** argv) {
             fiber.resume();
             if (t >= nextShot) {
                 char name[32];
-                std::snprintf(name, sizeof name, "m%05.1f.png", t);
+                std::snprintf(name, sizeof name, every < 0.1 ? "m%06.2f.png" : "m%05.1f.png", t);
                 Surface shown = platform.screen;
                 if (platform.cursorShown) {
                     platform.cursor.draw(shown, platform.mouseX, platform.mouseY);
