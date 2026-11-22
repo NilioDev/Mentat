@@ -195,7 +195,7 @@ void MapScreen::drawPlaces() {
             int point = m.pointAt(longitude_, latitude);
             for (int px = x;;) {
                 const std::size_t at = static_cast<std::size_t>(start + point);
-                if ((bytes[at] & 0x30) == 0x10) {
+                if (at + 1 < bytes.size() && (bytes[at] & 0x30) == 0x10) {
                     // Placed a little off the point, by where it is in memory.
                     const std::uint16_t n = static_cast<std::uint16_t>(kSpiceMark + ((bytes[at + 1] & 0x30) == 0x10 ? 1 : 0));
                     const int jitterY = static_cast<int>(at & 3);
