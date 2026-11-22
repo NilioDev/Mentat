@@ -59,6 +59,7 @@ void Talker::show(int character, int shiftRight, int variant, int mood) {
     select();
     anim_ = PortraitAnimation::parse(game_.sheet());
     area_ = anim_->area();
+    shiftRight_ = shiftRight;
     if (area_.left < shiftRight) {
         area_.left += shiftRight;
         area_.right = std::min(area_.right + shiftRight, 320);
@@ -90,6 +91,7 @@ void Talker::startSequence() {
     if (variant_ != 0) {
         anim_->skipFrames(next_, kVariantSkip);
     }
+    sequenceStart_ = next_;
     if (!timerRunning_) {
         timerRunning_ = true;
         game_.addTimer(kAnimationTimer, kFrameTicks, [this] { tick(); });
@@ -156,6 +158,9 @@ void Talker::drawFrame(std::vector<PortraitPiece> frame, bool toScreen) {
     d.copyRect(d.saved(), d.back(), dirty);
     shownPieces_ = std::move(frame);
     drawPieces(shownPieces_, dirty, false);
+    if (overlay) {
+        overlay(dirty);
+    }
     if (toScreen) {
         d.copyRect(d.back(), d.screen(), dirty);
     }
@@ -223,15 +228,50 @@ double Talker::ticksPerMouthShape() {
     return mouthTicks_;
 }
 
-bool Talker::speak(int phrase) {
+void Talker::restart(int mood) {
+    if (character_ < 0) {
+        return;
+    }
+    shownPieces_.clear();
+    show(character_, shiftRight_, variant_, mood);
+}
+
+void Talker::redraw() {
+    if (character_ < 0 || !anim_) {
+        return;
+    }
+    select();
+    shownPieces_.clear();
+    framesLeft_ = mood_ * kFramesPerMood;
+    restless_ = false;
+    active_ = true;
+    next_ = sequenceStart_;
+    std::size_t at = next_;
+    drawFrame(anim_->readFrame(at), false);
+}
+
+void Talker::halt() {
+    endSpeech();
+    active_ = false;
+    restless_ = false;
+    framesLeft_ = 0;
+    if (timerRunning_) {
+        timerRunning_ = false;
+        game_.removeTimer(kAnimationTimer);
+    }
+    character_ = -1;
+    shownPieces_.clear();
+}
+
+bool Talker::speak(int phrase, int variant) {
     endSpeech();
     if (character_ < 0) {
         return false;
     }
     DatArchive& archive = game_.resources().archive();
-    std::string name = voiceName(character_, phrase, game_.indoors);
+    std::string name = voiceName(character_, phrase, game_.indoors, variant);
     if (archive.directory().find(name) == nullptr) {
-        name = voiceName(character_, phrase, !game_.indoors);
+        name = voiceName(character_, phrase, !game_.indoors, variant);
         if (archive.directory().find(name) == nullptr) {
             return false;
         }

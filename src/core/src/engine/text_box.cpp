@@ -13,11 +13,39 @@ constexpr int kWidestGap = 30;
 constexpr int kLineHeight = 10;
 constexpr char kLineBreak = 0x0D;
 
+constexpr char kSmallFont = 0x06;
+constexpr char kLargeFont = 0x08;
+constexpr unsigned char kLastControl = 0x08;
+
 bool isSpace(char c) { return c == ' ' || c == kLineBreak; }
+
+bool isControl(char c) { return c != 0 && static_cast<unsigned char>(c) <= kLastControl; }
+
+// The font after control byte `c`.
+const Font* switchFont(char c, const Font* current, const Font& large, const Font* small) {
+    if (small != nullptr && c == kSmallFont) {
+        return small;
+    }
+    if (c == kLargeFont) {
+        return &large;
+    }
+    return current;
+}
+
+std::string_view untilEnd(std::string_view text) {
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        if (static_cast<unsigned char>(text[i]) >= 0x80) {
+            return text.substr(0, i);
+        }
+    }
+    return text;
+}
 
 } // namespace
 
-std::vector<TextLine> layoutText(const Font& font, std::string_view text, int width) {
+std::vector<TextLine> layoutText(const Font& font, std::string_view text, int width, const Font* small) {
+    text = untilEnd(text);
+    const Font* current = &font;
     std::vector<TextLine> lines;
     TextLine line;
     int left = width; // room left after the words so far, each with a gap after it
@@ -58,8 +86,15 @@ std::vector<TextLine> layoutText(const Font& font, std::string_view text, int wi
         const std::size_t start = at;
         int w = 0;
         while (at < text.size() && !isSpace(text[at])) {
-            w += font.width(static_cast<std::uint8_t>(text[at]));
+            if (isControl(text[at])) {
+                current = switchFont(text[at], current, font, small);
+            } else {
+                w += current->width(static_cast<std::uint8_t>(text[at]));
+            }
             ++at;
+        }
+        if (w == 0) {
+            continue; // a word that takes no room is not one
         }
         for (;;) {
             if (line.words == 0) {
@@ -107,16 +142,11 @@ std::vector<TextLine> layoutText(const Font& font, std::string_view text, int wi
     return lines;
 }
 
-bool drawTextBox(Surface& to, const Font& font, std::string_view text, const ClipRect& box, std::uint8_t colour) {
-    const auto lines = layoutText(font, text, box.right - box.left);
-    if (lines.empty()) {
-        return false;
-    }
-    const int height = box.bottom - box.top;
-    const int used = static_cast<int>(lines.size()) * kLineHeight;
-    int y = box.top + (height > used ? (height - used) / 2 : 0);
+int drawTextLines(Surface& to, const Font& font, std::string_view text, const std::vector<TextLine>& lines, int x0, int y,
+                  std::uint8_t colour, const Font* small) {
+    const Font* current = &font;
     for (const auto& line : lines) {
-        int x = box.left;
+        int x = x0;
         int extra = line.extra;
         std::size_t at = line.start;
         while (at < line.end) {
@@ -129,10 +159,25 @@ bool drawTextBox(Surface& to, const Font& font, std::string_view text, const Cli
                 continue;
             }
             const char c = text[at++];
-            x = font.draw(to, x, y, std::string_view(&c, 1), colour);
+            if (isControl(c)) {
+                current = switchFont(c, current, font, small);
+                continue;
+            }
+            x = current->draw(to, x, y, std::string_view(&c, 1), colour);
         }
         y += kLineHeight;
     }
+    return y;
+}
+
+bool drawTextBox(Surface& to, const Font& font, std::string_view text, const ClipRect& box, std::uint8_t colour) {
+    const auto lines = layoutText(font, text, box.right - box.left);
+    if (lines.empty()) {
+        return false;
+    }
+    const int height = box.bottom - box.top;
+    const int used = static_cast<int>(lines.size()) * kLineHeight;
+    drawTextLines(to, font, text, lines, box.left, box.top + (height > used ? (height - used) / 2 : 0), colour);
     return true;
 }
 

@@ -48,9 +48,23 @@ public:
     int random(int mask);
     // A number from the original's second generator (all 16 bits).
     int random2();
+    // Starts the generators again from `seed`, as a new game does.
+    void seedRandom(std::uint16_t seed) {
+        randomSeed_ = seed;
+        randomSeed2_ = seed;
+    }
+    // When not negative, the seed a new game uses instead of the time of
+    // day (for comparing runs).
+    int fixedSeed = -1;
     // Whether the characters speak in a room (their recordings have an
     // inside and an outside version).
     bool indoors = true;
+    // The words of the last text laid out in a box; how long a face shown
+    // next stays calm goes by it.
+    int textWords = 0;
+    // How characters' lines reach the player: -1 as the original chooses,
+    // else 0 subtitles, 1 voice and text, 2 voice only.
+    int subtitles = -1;
 
     // --- Sprite sheets
     // Makes a picture file the one sprites are drawn from. Its palette goes

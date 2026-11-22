@@ -26,7 +26,10 @@ add_library(mtt_core STATIC
     src/engine/text_box.cpp
     src/engine/videos.cpp
     src/engine/world.cpp
+    src/engine/dialogue.cpp
+    src/engine/talk.cpp
     src/data/string_table.cpp
+    src/data/phrase_file.cpp
     src/data/voc.cpp
     src/gfx/font.cpp
     src/gfx/palette.cpp

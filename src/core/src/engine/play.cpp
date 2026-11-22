@@ -7,8 +7,12 @@
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/panel.hpp"
 #include "mentat/engine/places.hpp"
+#include "mentat/engine/talk.hpp"
+#include "mentat/engine/talker.hpp"
 #include "mentat/engine/world.hpp"
 
+#include <chrono>
+#include <cmath>
 #include <vector>
 
 namespace mentat {
@@ -80,15 +84,34 @@ constexpr int kSceneBottom = 152;
 constexpr int kMusicFadeTicks = 0x12C;
 constexpr std::uint8_t kMusicWaits = 0x80;
 
-class Play {
+// The ornament's part above the panel, which the ornament covers as it
+// closes, and the whole ornament.
+constexpr ClipRect kOrnamentStrip{150, 137, 170, 147};
+constexpr ClipRect kOrnamentArea{150, 137, 170, 160};
+
+std::uint16_t clockTicksToday() {
+    const auto now = std::chrono::system_clock::now().time_since_epoch();
+    const auto seconds = std::chrono::duration<double>(now).count();
+    return static_cast<std::uint16_t>(static_cast<long long>(std::fmod(seconds, 86400.0) * 1193182.0 / 65536.0));
+}
+
+class Play : public TalkHost {
 public:
-    Play(Game& game, int language) : g_(game), d_(game.display()), world_(game.resources().program()), panel_(game, language) {}
+    Play(Game& game, int language)
+        : g_(game), d_(game.display()), world_(game.resources().program()), panel_(game, language),
+          talk_(game, world_, panel_, *this, language) {
+        talk_.subtitles = subtitlesFor(language);
+    }
 
     void run() {
         start();
         for (;;) {
             g_.waitTicks(1);
             runClock();
+            if (endTalk_) {
+                endTalk_ = false;
+                leaveTalk();
+            }
             if (hoursPassed_ > 0) {
                 hoursPassed_ = 0;
                 newHour();
@@ -110,6 +133,11 @@ private:
         world_.goTo(kStartRoom, kStartPlace);
         world_.setClock(kStartClock);
         world_.setU8(kPalaceOrnithopters, static_cast<std::uint8_t>(world_.u8(kPalaceOrnithopters) + 1));
+        // The story's own lines run twice, and the dice start from the
+        // time of day, counted as the PC's clock does (18.2 a second).
+        talk_.runEvents();
+        talk_.runEvents();
+        g_.seedRandom(static_cast<std::uint16_t>(g_.fixedSeed >= 0 ? g_.fixedSeed : clockTicksToday()));
 
         d_.setOriginRows(0);
         d_.targetBack();
@@ -199,6 +227,20 @@ private:
 
     void click(int x, int y) {
         const auto& zones = panel_.zones();
+        const int line = commandUnder(x, y);
+        if (line >= 0) {
+            const auto& commands = panel_.commands();
+            if (static_cast<std::size_t>(line) < commands.size()) {
+                const Command c = commands[static_cast<std::size_t>(line)];
+                if (!(c.phrase & Command::kGrey)) {
+                    choose(c.action);
+                }
+            }
+            return;
+        }
+        if (talk_.active()) {
+            return;
+        }
         for (int i = 0; i < 4; ++i) {
             const Zone& z = zones[static_cast<std::size_t>(Panel::kArrows + 1 + i)];
             if ((z.flags & Zone::kActive) && z.contains(x, y)) {
@@ -206,6 +248,72 @@ private:
                 return;
             }
         }
+    }
+
+    // A command: one of the talk menu's, or talking to a person.
+    void choose(std::uint16_t action) {
+        if (talk_.command(action)) {
+            return;
+        }
+        const int c = Talk::characterOf(action);
+        if (c >= 0) {
+            int x = -1;
+            int y = -1;
+            for (const Places::Shown& s : g_.places().shown()) {
+                if (s.character == c) {
+                    x = s.rect.left;
+                    y = s.rect.top;
+                }
+            }
+            talk_.start(c, x, y);
+        }
+    }
+
+    // --- TalkHost
+
+    void showPointer(bool shown) override { g_.platform().cursorShown = shown; }
+    void menuChanged() override { lit_ = -1; }
+
+    // The ornament closes, a step every 8 ticks, over what lay behind it.
+    void closeOrnament() override {
+        while (panel_.ornament > 0) {
+            --panel_.ornament;
+            d_.copyRect(ornamentStrip_, d_.back(), kOrnamentStrip);
+            d_.targetBack();
+            panel_.drawOrnament();
+            d_.copyRect(d_.back(), d_.screen(), kOrnamentArea);
+            g_.waitTicks(kOrnamentTicks);
+        }
+    }
+
+    void keepOrnamentBackground() override { d_.copyRect(d_.back(), ornamentStrip_, kOrnamentStrip); }
+
+    void openOrnament() override {
+        while (panel_.ornament < kOrnamentSteps) {
+            ++panel_.ornament;
+            d_.targetBack();
+            panel_.drawOrnament();
+            d_.targetScreen();
+            panel_.drawOrnament();
+            d_.targetBack();
+            g_.waitTicks(kOrnamentTicks);
+        }
+    }
+
+    void drawOrnament() override {
+        d_.targetBack();
+        panel_.drawOrnament();
+    }
+
+    // Talking ends inside a command; the room comes back once it returns.
+    void backToRoom() override { endTalk_ = true; }
+
+    void leaveTalk() {
+        d_.targetBack();
+        drawView();
+        d_.showBack();
+        d_.flush();
+        openOrnament();
     }
 
     // Through one of the room's ways out, to the next room of the place.
@@ -449,22 +557,22 @@ private:
         return world_.u8(record + 0x15);
     }
 
-    void openOrnament() {
-        while (panel_.ornament < kOrnamentSteps) {
-            ++panel_.ornament;
-            d_.targetBack();
-            panel_.drawOrnament();
-            d_.targetScreen();
-            panel_.drawOrnament();
-            d_.targetBack();
-            g_.waitTicks(kOrnamentTicks);
+    // With the player's voices in English the characters speak without
+    // subtitles, as the original does with a sound card.
+    Talk::Subtitles subtitlesFor(int language) const {
+        if (g_.subtitles >= 0) {
+            return static_cast<Talk::Subtitles>(g_.subtitles);
         }
+        return language == 0 || language == 3 ? Talk::Subtitles::None : Talk::Subtitles::Below;
     }
 
     Game& g_;
     Display& d_;
     World world_;
     Panel panel_;
+    Talk talk_;
+    bool endTalk_ = false;
+    Surface ornamentStrip_{320, 200};
     bool clockRunning_ = false;
     std::uint32_t lastTick_ = 0;
     int countdown_ = 0;

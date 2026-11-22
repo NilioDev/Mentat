@@ -137,20 +137,22 @@ std::vector<int> zoomMap(const std::vector<int>& group, int in, int lastTimes, i
 int Display::zoomWidth(int level) { return zoomPattern(level).width; }
 int Display::zoomHeight(int level) { return zoomPattern(level).height; }
 
-void Display::zoom(int level, int x, int y) {
+void Display::zoom(int level, int x, int y) { zoom(level, x, y, *back_, *screen_); }
+
+void Display::zoom(int level, int x, int y, const Surface& from, Surface& to) {
     const ZoomPattern& p = zoomPattern(level);
     const auto cols = zoomMap(p.group, p.in, p.lastTimes, p.width, Surface::kScreenWidth);
     const auto rows = zoomMap(p.rowGroup, p.rowIn, p.rowLastTimes, p.height, kSceneRows);
     for (std::size_t r = 0; r < rows.size(); ++r) {
-        const int from = y + rows[r] + originRows_;
-        const int to = static_cast<int>(r) + originRows_;
+        const int fromRow = y + rows[r] + originRows_;
+        const int row = static_cast<int>(r) + originRows_;
         for (std::size_t c = 0; c < cols.size(); ++c) {
             const int fx = x + cols[c];
             // The original reads straight through memory, so a part that
             // runs off the right edge goes on at the next row.
-            const int linear = from * Surface::kScreenWidth + fx;
-            if (linear >= 0 && static_cast<std::size_t>(linear) < back_->size()) {
-                screen_->set(static_cast<int>(c), to, back_->data()[linear]);
+            const int linear = fromRow * Surface::kScreenWidth + fx;
+            if (linear >= 0 && static_cast<std::size_t>(linear) < from.size()) {
+                to.set(static_cast<int>(c), row, from.data()[linear]);
             }
         }
     }

@@ -20,6 +20,8 @@ public:
 
     // A new game, from the player's program.
     explicit World(const ProgramFile& program);
+    // A state of zeros, for tests.
+    World() : bytes_(kSize, 0) {}
 
     std::uint8_t u8(std::size_t offset) const; // throws FormatError past the end
     std::uint16_t u16(std::size_t offset) const;

@@ -253,8 +253,12 @@ public:
             d_.beginPrepare();
             d_.clear(d_.target());
             drawPage(page);
-            drawTextBox(d_.target(), *font_, text_->at(kStoryText + static_cast<std::size_t>(page)), kStoryTextBox,
-                        kStoryTextColour);
+            const std::string& words = text_->at(kStoryText + static_cast<std::size_t>(page));
+            drawTextBox(d_.target(), *font_, words, kStoryTextBox, kStoryTextColour);
+            g_.textWords = 0;
+            for (const TextLine& line : layoutText(*font_, words, kStoryTextBox.right - kStoryTextBox.left)) {
+                g_.textWords += line.words;
+            }
             d_.endPrepare();
             d_.transition(Display::kFadeThroughBlack);
             d_.targetBack();
