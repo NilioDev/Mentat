@@ -83,6 +83,20 @@ constexpr int kSkyRefadeSteps = 0x30;
 constexpr std::size_t kMusicForMoment = 0x375C;
 // The mouse pointer: the arrow.
 constexpr std::size_t kArrowPointer = 0x2584;
+// The pointer's other shapes: a hand over the map or the planet, and
+// arrows just outside the map's view, towards each side.
+constexpr std::size_t kHandPointer = 0x25C8;
+constexpr std::size_t kLeftPointer = 0x26D8;
+constexpr std::size_t kRightPointer = 0x2650;
+constexpr std::size_t kUpPointer = 0x260C;
+constexpr std::size_t kDownPointer = 0x2694;
+// Where the hand shows on the globe: the planet.
+constexpr std::size_t kPlanetRect = 0x2448;
+// Below this row, over the panel, the pointer is an arrow.
+constexpr int kPanelTop = 0x9B;
+// How near the view the side arrows show.
+constexpr int kSideReachX = 50;
+constexpr int kSideReachY = 25;
 // A zone that repeats acts again this often while the button is held.
 constexpr std::uint32_t kRepeatTicks = 50;
 constexpr int kSceneBottom = 152;
@@ -170,6 +184,12 @@ private:
     // --- The mouse
 
     void showPointer(std::size_t at) {
+        setPointerShape(at);
+        g_.platform().cursorShown = true;
+    }
+
+    void setPointerShape(std::size_t at) {
+        pointer_ = at;
         const ProgramFile& program = g_.resources().program();
         MouseCursor& c = g_.platform().cursor;
         c.hotX = static_cast<std::int16_t>(program.dataU16(at));
@@ -178,13 +198,56 @@ private:
             c.keep[row] = program.dataU16(at + 4 + 2 * row);
             c.bits[row] = program.dataU16(at + 36 + 2 * row);
         }
-        g_.platform().cursorShown = true;
+    }
+
+    // The pointer's shape for where the mouse is.
+    std::size_t pointerFor(int x, int y) const {
+        ClipRect r;
+        if (map_.active()) {
+            r = map_.view();
+        } else if (globe_.active()) {
+            const ProgramFile& program = g_.resources().program();
+            r = ClipRect{program.dataU16(kPlanetRect), program.dataU16(kPlanetRect + 2), program.dataU16(kPlanetRect + 4),
+                         program.dataU16(kPlanetRect + 6)};
+        } else {
+            return kArrowPointer;
+        }
+        if (y >= kPanelTop) {
+            return kArrowPointer;
+        }
+        const int left = r.left;
+        const int top = r.top;
+        const int right = r.right;
+        const int bottom = r.bottom;
+        if (x > left && x < right && y > top && y < bottom) {
+            return kHandPointer;
+        }
+        if (y >= top && y < bottom) {
+            if (left - x >= 0 && left - x < kSideReachX) {
+                return kLeftPointer;
+            }
+            if (x - right >= 0 && x - right < kSideReachX) {
+                return kRightPointer;
+            }
+        } else if (x >= left && x < right) {
+            if (top - y >= 0 && top - y < kSideReachY) {
+                return kUpPointer;
+            }
+            if (y - bottom >= 0 && y - bottom < kSideReachY) {
+                return kDownPointer;
+            }
+        }
+        return kArrowPointer;
     }
 
     void followMouse() {
         Platform& p = g_.platform();
         const int x = p.mouseX;
         const int y = p.mouseY;
+        const std::size_t shape = pointerFor(x, y);
+        if (shape != pointer_) {
+            setPointerShape(shape);
+        }
         if (globe_.pointAt(x, y)) {
             lit_ = -1;
         }
@@ -737,6 +800,7 @@ private:
     int waitingTrack_ = 0;
     int lit_ = -1;
     bool buttonWasDown_ = false;
+    std::size_t pointer_ = kArrowPointer;
     int repeatZone_ = -1;
     std::uint32_t repeatSince_ = 0;
 };

@@ -7,6 +7,7 @@
 
 #include "mentat/engine/flat_map.hpp"
 #include "mentat/engine/panel.hpp"
+#include "mentat/gfx/scene.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -58,6 +59,8 @@ public:
 
     // The map's points as they are now (with the marks the game adds).
     std::vector<std::uint8_t>& mapBytes() { return map().bytes(); }
+    // Where the map shows on the screen.
+    ClipRect view() const;
 
     // The map's point at the middle of the view.
     std::uint16_t longitude() const { return longitude_; }

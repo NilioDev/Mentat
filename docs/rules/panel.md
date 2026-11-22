@@ -113,3 +113,17 @@ the point (x, y), 16 words of screen pixels to keep (bit 15 the leftmost),
 and 16 words of the pointer's own bits. A pixel not kept is colour `0x0F`
 where the pointer's bit is set and 0 where it is not. The first pointer is
 the arrow.
+
+Its shape follows the mouse. In a room it is the arrow. On the map, the
+rectangle is the map's view; on the globe, it is the planet's square at
+data offset `0x2448`. With (x, y) the mouse:
+
+- Over the panel, from row `0x9B` down, it is the arrow.
+- Strictly inside the rectangle, it is the hand (`0x25C8`).
+- In the rectangle's rows: at most 49 pixels left of its left edge (or on
+  it), it is the left arrow (`0x26D8`). At most 49 pixels right of its
+  right edge (or on it), it is the right arrow (`0x2650`).
+- Otherwise, in its columns: up to 24 rows above its top (or on it), it is
+  the up arrow (`0x260C`). Up to 24 rows below its bottom (or on it), it
+  is the down arrow (`0x2694`).
+- Anywhere else, it is the arrow.
