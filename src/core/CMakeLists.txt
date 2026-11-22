@@ -4,6 +4,13 @@ add_library(mtt_core STATIC
     src/game_files.cpp
     src/data/dat_archive.cpp
     src/data/hsq.cpp
+    src/data/hnm.cpp
+    src/gfx/font.cpp
+    src/gfx/palette.cpp
+    src/gfx/sprite.cpp
+    src/gfx/sprite_sheet.cpp
+    src/gfx/surface.cpp
+    src/gfx/png.cpp
 )
 add_library(mentat::core ALIAS mtt_core)
 

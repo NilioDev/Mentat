@@ -10,9 +10,9 @@ and voices, scaled sharply to any screen and with gamepad, mouse, keyboard
 and touch controls.
 
 > [!NOTE]
-> **Status: just started.** Mentat finds and opens your `DUNE.DAT`, reads
-> its list of files and unpacks the compressed ones. It opens a window, but
-> shows nothing of the game yet.
+> **Status: early work.** Mentat finds and opens your `DUNE.DAT` and can
+> read its pictures, fonts and videos. It opens a window, but does not play
+> the game yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the

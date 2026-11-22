@@ -3,6 +3,8 @@ add_executable(mtt_tests
     test_dat_archive.cpp
     test_hsq.cpp
     test_game_files.cpp
+    test_gfx.cpp
+    test_hnm.cpp
 )
 target_link_libraries(mtt_tests PRIVATE mentat::core)
 target_compile_definitions(mtt_tests PRIVATE MENTAT_GAMEDATA_DIR="${PROJECT_SOURCE_DIR}/gamedata")
