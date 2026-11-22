@@ -10,8 +10,9 @@ and voices, scaled sharply to any screen and with gamepad, mouse, keyboard
 and touch controls.
 
 > [!NOTE]
-> **Status: early work.** Mentat plays the opening videos, with Irulan's
-> spoken introduction, and then closes. It does not play the game yet.
+> **Status: early work.** Mentat plays the opening videos with their AdLib
+> music, then Irulan's spoken introduction, and then closes. It does not
+> play the game yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the

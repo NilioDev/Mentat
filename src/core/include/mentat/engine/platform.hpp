@@ -6,6 +6,7 @@
 // See docs/rules/timing.md for the clock.
 #pragma once
 
+#include "mentat/audio/opl.hpp"
 #include "mentat/engine/fiber.hpp"
 #include "mentat/gfx/palette.hpp"
 #include "mentat/gfx/surface.hpp"
@@ -26,6 +27,7 @@ struct KeyPress {
 
 enum class SoundChannel : std::uint8_t {
     Digital, // voices, video sound and effects: one at a time, like the original
+    Music,   // the FM chip, 16-bit samples at Opl::kRate
     Count,
 };
 
@@ -33,7 +35,8 @@ struct SoundCommand {
     SoundChannel channel = SoundChannel::Digital;
     bool stop = false; // drop what is queued on the channel first
     int rate = 0;
-    std::vector<std::uint8_t> samples; // unsigned 8-bit mono
+    std::vector<std::uint8_t> samples; // unsigned 8-bit mono (Digital)
+    std::vector<std::int16_t> wide;    // signed 16-bit mono (Music)
 };
 
 struct Platform {
@@ -52,6 +55,8 @@ struct Platform {
     std::vector<SoundCommand> sound;
 
     Fiber* fiber = nullptr;
+    // The music player, run on the timer; null when there is no music.
+    MusicSystem* music = nullptr;
 
 private:
     std::uint8_t lastButtons_ = 0;
@@ -61,8 +66,23 @@ public:
     // Waits for the next frame of the app. Throws StopRequested when the app
     // is closing.
     void waitFrame() {
+        runMusic();
         if (fiber != nullptr) {
             fiber->yield();
+        }
+    }
+
+    // Plays the music up to the current tick.
+    void runMusic() {
+        if (music == nullptr) {
+            return;
+        }
+        SoundCommand command;
+        command.channel = SoundChannel::Music;
+        command.rate = Opl::kRate;
+        music->runTo(ticks, command.wide);
+        if (!command.wide.empty()) {
+            sound.push_back(std::move(command));
         }
     }
 
@@ -76,7 +96,7 @@ public:
     }
 
     void queueSound(SoundChannel channel, int rate, std::vector<std::uint8_t> samples, bool stopFirst = false) {
-        sound.push_back(SoundCommand{channel, stopFirst, rate, std::move(samples)});
+        sound.push_back(SoundCommand{channel, stopFirst, rate, std::move(samples), {}});
         // Count it at once, so the game sees it as queued before the app has run.
         if (rate > 0) {
             soundQueued[static_cast<int>(channel)] += static_cast<double>(sound.back().samples.size()) / rate;
@@ -84,7 +104,7 @@ public:
     }
 
     void stopSound(SoundChannel channel) {
-        sound.push_back(SoundCommand{channel, true, 0, {}});
+        sound.push_back(SoundCommand{channel, true, 0, {}, {}});
         soundQueued[static_cast<int>(channel)] = 0;
     }
 };

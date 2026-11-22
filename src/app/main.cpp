@@ -9,6 +9,8 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
+#include "mentat/audio/music.hpp"
+#include "mentat/audio/opl.hpp"
 #include "mentat/data/dat_archive.hpp"
 #include "mentat/data/program_file.hpp"
 #include "mentat/data/program_tables.hpp"
@@ -103,19 +105,28 @@ void openAudio(App& app) {
         return;
     }
     for (int i = 0; i < kChannels; ++i) {
-        const SDL_AudioSpec spec{SDL_AUDIO_U8, 1, 11025};
+        const bool music = i == static_cast<int>(mentat::SoundChannel::Music);
+        const SDL_AudioSpec spec = music ? SDL_AudioSpec{SDL_AUDIO_S16, 1, mentat::Opl::kRate}
+                                         : SDL_AudioSpec{SDL_AUDIO_U8, 1, 11025};
         app.streams[static_cast<std::size_t>(i)] = SDL_CreateAudioStream(&spec, nullptr);
         app.streamRates[static_cast<std::size_t>(i)] = spec.freq;
         SDL_BindAudioStream(app.audio, app.streams[static_cast<std::size_t>(i)]);
     }
 }
 
-// The game: for now the opening videos, one after the other.
+// The game: for now the opening videos, one after the other, with the
+// music the original starts with them.
 void runGame(App& app) {
     using namespace mentat;
-    for (const int index : {video::kVirgin, video::kCryo, video::kCryo2, video::kPresent, video::kIrulan}) {
+    MusicSystem music(MusicTables::fromPlayer(app.archive->load("DNADP.HSQ")));
+    app.platform.music = &music;
+    music.driver().start(music.opl(), std::make_shared<const Song>(Song::parse(app.archive->load("MORNING.HSQ"))), 0);
+    for (const int index : {video::kVirgin, video::kCryo, video::kCryo2, video::kPresent}) {
         playVideo(app.platform, *app.archive, *app.program, index);
     }
+    music.driver().stop(music.opl());
+    playVideo(app.platform, *app.archive, *app.program, video::kIrulan);
+    app.platform.music = nullptr;
 }
 
 void playQueuedSound(App& app) {
@@ -127,6 +138,20 @@ void playQueuedSound(App& app) {
         }
         if (command.stop) {
             SDL_ClearAudioStream(stream);
+        }
+        if (command.channel == mentat::SoundChannel::Music) {
+            // The game makes music as its clock runs, so the stream is kept a
+            // little ahead to cover uneven frames.
+            constexpr int kAhead = mentat::Opl::kRate / 20 * 2;
+            const int queued = SDL_GetAudioStreamQueued(stream);
+            if (queued < kAhead / 4) {
+                const std::vector<Sint16> silence(static_cast<std::size_t>(kAhead / 2 - queued / 2), 0);
+                SDL_PutAudioStreamData(stream, silence.data(), static_cast<int>(silence.size() * 2));
+            } else if (queued > kAhead * 6) {
+                SDL_ClearAudioStream(stream);
+            }
+            SDL_PutAudioStreamData(stream, command.wide.data(), static_cast<int>(command.wide.size() * 2));
+            continue;
         }
         if (command.rate > 0 && !command.samples.empty()) {
             if (command.rate != app.streamRates[channel]) {

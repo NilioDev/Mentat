@@ -4,3 +4,8 @@ add_executable(mtt_dump dump.cpp)
 set_target_properties(mtt_dump PROPERTIES OUTPUT_NAME mentat-dump)
 target_link_libraries(mtt_dump PRIVATE mentat::core)
 mtt_set_warnings(mtt_dump)
+
+add_executable(mtt_music music.cpp)
+set_target_properties(mtt_music PROPERTIES OUTPUT_NAME mentat-music)
+target_link_libraries(mtt_music PRIVATE mentat::core)
+mtt_set_warnings(mtt_music)
