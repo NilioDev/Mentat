@@ -1,17 +1,26 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The Mentat app. For now it opens a window, looks for the player's
-// DUNE.DAT, opens it, and shows a 320×200 picture scaled sharply to the
-// window. Esc, the window's close button or B / Back on a gamepad close it.
+// The Mentat app: the SDL3 platform layer. It opens a window and the sound
+// device, finds the player's game files, and runs the game on its own thread
+// (see mentat/engine/fiber.hpp), one step per frame. Each frame it hands the
+// game the clock, mouse and keys, then shows the game's screen scaled sharply
+// to the window and plays the sound the game queued.
 #define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
 #include "mentat/data/dat_archive.hpp"
+#include "mentat/data/program_file.hpp"
+#include "mentat/data/program_tables.hpp"
 #include "mentat/data/reader.hpp"
+#include "mentat/engine/fiber.hpp"
+#include "mentat/engine/platform.hpp"
+#include "mentat/engine/videos.hpp"
 #include "mentat/game_files.hpp"
 #include "mentat/version.hpp"
 
+#include <array>
+#include <cmath>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -22,12 +31,34 @@ namespace {
 
 constexpr int kScreenW = 320;
 constexpr int kScreenH = 200;
+constexpr int kChannels = static_cast<int>(mentat::SoundChannel::Count);
 
 struct App {
     SDL_Window* window = nullptr;
     SDL_Renderer* renderer = nullptr;
+    SDL_Texture* texture = nullptr;
+    SDL_AudioDeviceID audio = 0;
+    std::array<SDL_AudioStream*, kChannels> streams{};
+    std::array<int, kChannels> streamRates{};
     std::optional<mentat::DatArchive> archive;
+    std::optional<mentat::ProgramFile> program;
     std::string problem;
+    mentat::Platform platform;
+    std::unique_ptr<mentat::Fiber> game;
+    Uint64 startNs = 0;
+    std::vector<Uint32> rgba = std::vector<Uint32>(static_cast<std::size_t>(kScreenW) * kScreenH);
+
+    ~App() {
+        game.reset(); // stop the game thread before what it uses goes away
+        for (auto* stream : streams) {
+            if (stream != nullptr) {
+                SDL_DestroyAudioStream(stream);
+            }
+        }
+        if (audio != 0) {
+            SDL_CloseAudioDevice(audio);
+        }
+    }
 };
 
 std::vector<std::filesystem::path> gameFolders(int argc, char** argv) {
@@ -47,11 +78,109 @@ std::vector<std::filesystem::path> gameFolders(int argc, char** argv) {
     return folders;
 }
 
+void openGameFiles(App& app, int argc, char** argv) {
+    const auto files = mentat::findGameFiles(gameFolders(argc, argv));
+    if (!files) {
+        app.problem = "DUNE.DAT not found: put it in a folder named gamedata next to the program";
+        return;
+    }
+    if (files->program.empty()) {
+        app.problem = "DNCDPRG.EXE not found: copy it from the CD next to DUNE.DAT";
+        return;
+    }
+    try {
+        app.archive = mentat::DatArchive::open(files->dat);
+        app.program = mentat::ProgramFile::open(files->program);
+    } catch (const mentat::FormatError& e) {
+        app.problem = e.what();
+    }
+}
+
+void openAudio(App& app) {
+    app.audio = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, nullptr);
+    if (app.audio == 0) {
+        SDL_Log("no sound: %s", SDL_GetError());
+        return;
+    }
+    for (int i = 0; i < kChannels; ++i) {
+        const SDL_AudioSpec spec{SDL_AUDIO_U8, 1, 11025};
+        app.streams[static_cast<std::size_t>(i)] = SDL_CreateAudioStream(&spec, nullptr);
+        app.streamRates[static_cast<std::size_t>(i)] = spec.freq;
+        SDL_BindAudioStream(app.audio, app.streams[static_cast<std::size_t>(i)]);
+    }
+}
+
+// The game: for now the opening videos, one after the other.
+void runGame(App& app) {
+    using namespace mentat;
+    for (const int index : {video::kVirgin, video::kCryo, video::kCryo2, video::kPresent, video::kIrulan}) {
+        playVideo(app.platform, *app.archive, *app.program, index);
+    }
+}
+
+void playQueuedSound(App& app) {
+    for (auto& command : app.platform.sound) {
+        const auto channel = static_cast<std::size_t>(command.channel);
+        SDL_AudioStream* stream = app.streams[channel];
+        if (stream == nullptr) {
+            continue;
+        }
+        if (command.stop) {
+            SDL_ClearAudioStream(stream);
+        }
+        if (command.rate > 0 && !command.samples.empty()) {
+            if (command.rate != app.streamRates[channel]) {
+                const SDL_AudioSpec spec{SDL_AUDIO_U8, 1, command.rate};
+                SDL_SetAudioStreamFormat(stream, &spec, nullptr);
+                app.streamRates[channel] = command.rate;
+            }
+            SDL_PutAudioStreamData(stream, command.samples.data(), static_cast<int>(command.samples.size()));
+        }
+    }
+    app.platform.sound.clear();
+}
+
+void updateInput(App& app) {
+    using namespace mentat;
+    auto& p = app.platform;
+    p.ticks = static_cast<std::uint32_t>(static_cast<double>(SDL_GetTicksNS() - app.startNs) * kTicksPerSecond / 1e9);
+    float x = 0;
+    float y = 0;
+    const SDL_MouseButtonFlags buttons = SDL_GetMouseState(&x, &y);
+    SDL_RenderCoordinatesFromWindow(app.renderer, x, y, &x, &y);
+    p.mouseX = static_cast<int>(std::floor(x));
+    p.mouseY = static_cast<int>(std::floor(y));
+    p.mouseButtons = static_cast<std::uint8_t>(((buttons & SDL_BUTTON_LMASK) != 0 ? 1 : 0) |
+                                               ((buttons & SDL_BUTTON_RMASK) != 0 ? 2 : 0));
+    for (int i = 0; i < kChannels; ++i) {
+        SDL_AudioStream* stream = app.streams[static_cast<std::size_t>(i)];
+        const int rate = app.streamRates[static_cast<std::size_t>(i)];
+        p.soundQueued[i] = stream != nullptr && rate > 0 ? SDL_GetAudioStreamQueued(stream) / static_cast<double>(rate)
+                                                         : 0.0;
+    }
+}
+
+void drawScreen(App& app) {
+    const auto& screen = app.platform.screen;
+    const auto& palette = app.platform.palette;
+    std::array<Uint32, 256> colours{};
+    for (std::size_t i = 0; i < colours.size(); ++i) {
+        const auto& c = palette[i];
+        colours[i] = 0xFF000000u | (static_cast<Uint32>(mentat::Palette::to8Bit(c.r)) << 16) |
+                     (static_cast<Uint32>(mentat::Palette::to8Bit(c.g)) << 8) | mentat::Palette::to8Bit(c.b);
+    }
+    for (std::size_t i = 0; i < app.rgba.size(); ++i) {
+        app.rgba[i] = colours[screen.data()[i]];
+    }
+    SDL_UpdateTexture(app.texture, nullptr, app.rgba.data(), kScreenW * 4);
+    SDL_RenderTexture(app.renderer, app.texture, nullptr, nullptr);
+}
+
 } // namespace
 
 SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
     auto app = std::make_unique<App>();
-    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD)) {
         SDL_Log("SDL_Init failed: %s", SDL_GetError());
         return SDL_APP_FAILURE;
     }
@@ -61,39 +190,46 @@ SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
         SDL_Log("cannot open a window: %s", SDL_GetError());
         return SDL_APP_FAILURE;
     }
-    SDL_SetRenderLogicalPresentation(app->renderer, kScreenW, kScreenH, SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
+    SDL_SetRenderLogicalPresentation(app->renderer, kScreenW, kScreenH, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+    SDL_SetRenderVSync(app->renderer, 1);
+    app->texture =
+        SDL_CreateTexture(app->renderer, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, kScreenW, kScreenH);
+    SDL_SetTextureScaleMode(app->texture, SDL_SCALEMODE_NEAREST);
+    openAudio(*app);
 
-    if (const auto files = mentat::findGameFiles(gameFolders(argc, argv))) {
-        try {
-            app->archive = mentat::DatArchive::open(files->dat);
-            SDL_Log("opened %s: %zu files", files->dat.string().c_str(),
-                    app->archive->directory().entries().size());
-        } catch (const mentat::FormatError& e) {
-            app->problem = e.what();
-        }
+    openGameFiles(*app, argc, argv);
+    if (app->problem.empty()) {
+        App* raw = app.get();
+        app->game = std::make_unique<mentat::Fiber>([raw] { runGame(*raw); });
+        app->platform.fiber = app->game.get();
     } else {
-        app->problem = "DUNE.DAT not found: put it in a folder named gamedata next to the program";
-    }
-    if (!app->problem.empty()) {
         SDL_Log("%s", app->problem.c_str());
     }
+    app->startNs = SDL_GetTicksNS();
     *state = app.release();
     return SDL_APP_CONTINUE;
 }
 
-SDL_AppResult SDL_AppEvent(void*, SDL_Event* event) {
+SDL_AppResult SDL_AppEvent(void* state, SDL_Event* event) {
+    auto* app = static_cast<App*>(state);
     switch (event->type) {
     case SDL_EVENT_QUIT:
         return SDL_APP_SUCCESS;
     case SDL_EVENT_KEY_DOWN:
-        return event->key.key == SDLK_ESCAPE ? SDL_APP_SUCCESS : SDL_APP_CONTINUE;
+        if (event->key.key == SDLK_ESCAPE && app->game == nullptr) {
+            return SDL_APP_SUCCESS;
+        }
+        app->platform.keys.push_back(mentat::KeyPress{static_cast<std::uint8_t>(event->key.raw), 0});
+        return SDL_APP_CONTINUE;
     case SDL_EVENT_GAMEPAD_ADDED:
         SDL_OpenGamepad(event->gdevice.which);
         return SDL_APP_CONTINUE;
     case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
-        return event->gbutton.button == SDL_GAMEPAD_BUTTON_EAST || event->gbutton.button == SDL_GAMEPAD_BUTTON_BACK
-                   ? SDL_APP_SUCCESS
-                   : SDL_APP_CONTINUE;
+        if (event->gbutton.button == SDL_GAMEPAD_BUTTON_BACK) {
+            return SDL_APP_SUCCESS;
+        }
+        app->platform.keys.push_back(mentat::KeyPress{0x39, ' '});
+        return SDL_APP_CONTINUE;
     default:
         return SDL_APP_CONTINUE;
     }
@@ -101,16 +237,29 @@ SDL_AppResult SDL_AppEvent(void*, SDL_Event* event) {
 
 SDL_AppResult SDL_AppIterate(void* state) {
     auto* app = static_cast<App*>(state);
+    if (app->game != nullptr) {
+        updateInput(*app);
+        try {
+            app->game->resume();
+        } catch (const std::exception& e) {
+            SDL_Log("the game stopped: %s", e.what());
+            return SDL_APP_FAILURE;
+        }
+        playQueuedSound(*app);
+        if (app->game->finished()) {
+            return SDL_APP_SUCCESS;
+        }
+    }
     SDL_SetRenderDrawColor(app->renderer, 0, 0, 0, 255);
     SDL_RenderClear(app->renderer);
-    // Our own colours: sand when the files opened, red when something is missing.
-    if (app->archive) {
-        SDL_SetRenderDrawColor(app->renderer, 0xD8, 0xA8, 0x60, 255);
+    if (app->game != nullptr) {
+        drawScreen(*app);
     } else {
+        // Our own colour: red when something is missing.
         SDL_SetRenderDrawColor(app->renderer, 0xA0, 0x30, 0x30, 255);
+        const SDL_FRect bar{0, kScreenH - 8.0f, kScreenW, 8.0f};
+        SDL_RenderFillRect(app->renderer, &bar);
     }
-    const SDL_FRect bar{0, kScreenH - 8.0f, kScreenW, 8.0f};
-    SDL_RenderFillRect(app->renderer, &bar);
     SDL_RenderPresent(app->renderer);
     return SDL_APP_CONTINUE;
 }

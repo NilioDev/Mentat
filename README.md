@@ -4,15 +4,14 @@
 computers, phones and tablets, without an emulator.**
 
 Mentat is a free, open-source, from-scratch engine for the original game.
-Bring your own copy of the CD version: Mentat reads its `DUNE.DAT` and plays
-the game exactly as the original does, with the same story, screens, music
+Bring your own copy of the CD version: Mentat reads its `DUNE.DAT` and
+`DNCDPRG.EXE` and plays the game exactly as the original does, with the same story, screens, music
 and voices, scaled sharply to any screen and with gamepad, mouse, keyboard
 and touch controls.
 
 > [!NOTE]
-> **Status: early work.** Mentat finds and opens your `DUNE.DAT` and can
-> read its pictures, fonts and videos. It opens a window, but does not play
-> the game yet.
+> **Status: early work.** Mentat plays the opening videos, with Irulan's
+> spoken introduction, and then closes. It does not play the game yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the
@@ -29,15 +28,16 @@ original game's files: you need your own copy.
 
 ## Add your game
 
-Copy `DUNE.DAT` from the root of your CD into a folder named `gamedata` next
-to the program, or start it with the folder: `./Mentat path/to/folder`.
+Copy `DUNE.DAT` and `DNCDPRG.EXE` from the root of your CD into a folder
+named `gamedata` next to the program, or start it with the folder: `./Mentat path/to/folder`.
 Without it, Mentat says what is missing.
 
 ## Controls
 
 | Action | Mouse | Keyboard | Gamepad |
 | --- | --- | --- | --- |
-| Close Mentat | Window's close button | Esc | B or Back |
+| Skip a video | Click | Any key | Any button |
+| Close Mentat | Window's close button | | Back |
 
 ## Build from source
 
