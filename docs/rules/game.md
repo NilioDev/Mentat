@@ -56,7 +56,8 @@ is (clock + 3) / 16 modulo 365, plus 1, so a day begins three parts before
 the count of 16 comes round.
 
 When the part changes, the clock on the panel is drawn again and the sky
-moves to the new part's colours.
+moves to the new part's colours. While flying the clock goes by the
+flight's steps instead (see [flight.md](flight.md)).
 
 ## The sky
 
@@ -83,6 +84,7 @@ offset `0x375C`:
 | 1 | the globe is shown (see [globe_screen.md](globe_screen.md)) |
 | 2 | the map is shown (see [map.md](map.md)) |
 | 5 | outside, or in a place's first room |
+| 6 | flying, from taking off (see [flight.md](flight.md)) |
 | 8, 9 | in a sietch (8 for the first seven kinds of sietch) |
 | `0x0A` | in room 3 of the palace |
 | `0x0B` | elsewhere in the palace |

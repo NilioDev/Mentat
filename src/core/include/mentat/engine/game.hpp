@@ -118,9 +118,16 @@ public:
 
     // --- Sound effects
     // Plays effect `n` (resource 0xAE + n) on the digital channel.
-    // A part marked to repeat plays until stopSound().
+    // A part marked to repeat plays its count, or until stopSound() when
+    // it has none.
     void playSound(int n);
+    // The part repeating now ends after the play queued, and the next part
+    // follows.
+    void endSoundRepeat();
     void stopSound();
+    // Waits until the digital channel has played everything queued. False
+    // when the player pressed something.
+    bool waitSound();
     // Plays the sound file `name` of DUNE.DAT on the digital channel.
     // False when there is no such file.
     bool playVoice(const std::string& name);
@@ -160,7 +167,10 @@ private:
     std::unique_ptr<HnmPlayer> video_;
     std::uint16_t randomSeed_ = 0;
     std::uint16_t randomSeed2_ = 0;
-    VocPart looping_;
+    bool repeating() const { return soundPart_ < soundParts_.size(); }
+    std::vector<VocPart> soundParts_;
+    std::size_t soundPart_ = 0;
+    int playsLeft_ = 0;
     std::unique_ptr<Talker> talker_;
     std::unique_ptr<Places> places_;
 };

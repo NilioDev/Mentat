@@ -7,6 +7,7 @@
 #pragma once
 
 #include "mentat/engine/panel.hpp"
+#include "mentat/engine/small_map.hpp"
 #include "mentat/gfx/font.hpp"
 #include "mentat/gfx/scene.hpp"
 
@@ -49,6 +50,11 @@ public:
     // The mouse is at (x, y): the line above the map names what it points
     // at.
     void pointAt(int x, int y);
+    // A click at (x, y): the record of the place to fly to, or 0 when the
+    // click chooses none (not a place, or the place Paul is in).
+    std::size_t destinationAt(int x, int y);
+    // The place's name blinks while the cockpit's voice names it.
+    void confirm(std::size_t record);
 
     bool leaving = false;
 
@@ -60,32 +66,23 @@ private:
         int direction = -1;    // 0 north, then clockwise in eighths; -1 for none
         bool operator==(const Target&) const = default;
     };
-    struct Shown {
-        std::size_t record = 0;
-        int x = 0;
-        int y = 0;
-    };
 
-    void drawPlaces();
     void placeMark();
     void blink();
     void startTyping();
     void stopTyping();
     void typeNext();
     void writeTarget();
+    void say(int phrase);
     int drawText(int x, const std::string& text, std::uint8_t colour);
     void clearLineFrom(int x);
     Target targetAt(int x, int y) const;
-    bool toScreen(std::uint16_t longitude, int latitude, int& x, int& y);
 
     Game& g_;
     World& world_;
     Panel& panel_;
-    MapScreen& map_;
+    SmallMap small_;
     bool active_ = false;
-    std::uint16_t longitude_ = 0;
-    int latitude_ = 0;
-    std::vector<Shown> shown_;
     // Paul's mark: where it is drawn, and whether it is on the map.
     bool markShown_ = false;
     ClipRect mark_{};

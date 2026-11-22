@@ -6,6 +6,7 @@
 #include "mentat/engine/cockpit.hpp"
 #include "mentat/engine/dialogue.hpp"
 #include "mentat/engine/flat_map.hpp"
+#include "mentat/engine/flight.hpp"
 #include "mentat/engine/fiber.hpp"
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/globe_screen.hpp"
@@ -225,6 +226,14 @@ MTT_TEST("places: the palace's entrance looks outside, with its ornithopter in f
     // The folded wings reach past the scene's right edge, and are cut there
     // rather than going on at the left.
     MTT_CHECK(changed(0, 75, 60, 120) == 0);
+    // Taking off, it rises and goes; at the last step nothing of it is left.
+    Surface& target = g.display().back();
+    target = before;
+    places.drawTakeOff(1, false, 16, 1);
+    MTT_CHECK(changed(0, 0, 320, 152) > 500);
+    target = before;
+    places.drawTakeOff(1, false, 32, 1);
+    MTT_CHECK(changed(0, 0, 320, 152) == 0);
 }
 
 MTT_TEST("cockpit: the map around Paul, the names of what the mouse points at, and Cancel") {
@@ -374,4 +383,132 @@ MTT_TEST("globe screen: opens on the map's middle, turns with the arrows and goe
     MTT_CHECK(globe.leaving && globe.mapLongitude == lon && globe.mapLatitude == lat);
     globe.leave();
     MTT_CHECK(!globe.active() && !globe.command(GlobeScreen::kUp));
+}
+
+MTT_TEST("game: an effect's parts play their counts, and a repeat can end early") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
+    // Plays the effect out, the queue played at once each time, and
+    // returns how many plays of sound were queued.
+    auto plays = [&](int endAfter) {
+        p.sound.clear();
+        g.playSound(6);
+        int n = 0;
+        for (int i = 0; i < 1000; ++i) {
+            for (const SoundCommand& c : p.sound) {
+                n += c.channel == SoundChannel::Digital && !c.samples.empty() ? 1 : 0;
+            }
+            p.sound.clear();
+            if (i == endAfter) {
+                g.endSoundRepeat();
+            }
+            p.soundQueued[static_cast<int>(SoundChannel::Digital)] = 0;
+            g.pollInput();
+        }
+        return n;
+    };
+    const int whole = plays(-1);
+    MTT_CHECK(whole > 3);
+    // Ending the first repeat early leaves out its other plays.
+    MTT_CHECK(plays(0) < whole);
+}
+
+MTT_TEST("flight: to a place a step at a time, the corner's map over the video, and landing") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
+    World w(*program);
+    w.goTo(0x2001, 0x0180);
+    Panel panel(g, kEnglish);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    // The nearest place shown on the map, other than the palace.
+    const std::size_t palace = World::placeRecord(1);
+    std::size_t to = 0;
+    int best = 1 << 30;
+    for (std::size_t r = World::kPlaces + World::kPlaceSize; w.u16(r) != 0xFFFF; r += World::kPlaceSize) {
+        if (w.u8(r + 0x0A) & 0x80) {
+            continue;
+        }
+        const int d = std::abs(static_cast<std::int16_t>(w.u16(r + 2) - w.u16(palace + 2))) / 128 +
+                      std::abs(static_cast<std::int16_t>(w.u16(r + 4)) - static_cast<std::int16_t>(w.u16(palace + 4)));
+        if (d < best) {
+            best = d;
+            to = r;
+        }
+    }
+    MTT_CHECK(to != 0);
+    const int ornithopters = w.u8(to + 0x15);
+    Flight f(g, w, panel, map);
+    f.setDestination(to);
+    f.begin();
+    MTT_CHECK(f.active() && w.flying() && w.placeHere() == 0);
+    f.show();
+    MTT_CHECK(panel.commands().size() == 2 && panel.commands()[0].action == Flight::kSkip &&
+              panel.commands()[1].action == Flight::kChange);
+    MTT_CHECK(f.videoSlot() == 2);
+    // The corner: the small map framed, over the video's frame.
+    const Surface& back = g.display().back();
+    MTT_CHECK(back.at(200, 0) == 0xF6 && back.at(203, 3) == 0xFC);
+    int mapColours = 0;
+    for (int y = 6; y < 58; y += 4) {
+        for (int x = 206; x < 314; x += 4) {
+            mapColours += back.at(x, y) >= 16 && back.at(x, y) < 32 ? 1 : 0;
+        }
+    }
+    MTT_CHECK(mapColours > 13 * 27 * 3 / 4);
+    // Each step comes nearer, and the place is reached.
+    int steps = 0;
+    while (!f.arrived && steps < 500) {
+        f.step();
+        ++steps;
+    }
+    MTT_CHECK(f.arrived && f.approach && steps > 1 && steps < 500);
+    f.land();
+    MTT_CHECK(!f.active() && !w.flying() && w.inside() && (w.room() & 0xFF) == 1);
+    MTT_CHECK(World::placeRecord(w.place() >> 8) == to && w.home() == to && w.placeHere() == to);
+    MTT_CHECK(w.u8(to + 0x15) == ornithopters + 1);
+    MTT_CHECK(f.approachVideo() >= 6 && f.approachVideo() <= 10);
+
+    // Skipping goes straight there.
+    w.goTo(0x2001, 0x0180);
+    f.setDestination(to);
+    f.begin();
+    f.show();
+    const int clock = w.clock();
+    MTT_CHECK(f.command(Flight::kSkip) && f.arrived && !f.approach);
+    MTT_CHECK(w.clock() >= clock);
+    f.land();
+    MTT_CHECK(World::placeRecord(w.place() >> 8) == to);
+    MTT_CHECK(!f.command(Flight::kSkip));
+}
+
+MTT_TEST("world: flying takes the followers along, and landing finds a hidden place") {
+    World w;
+    w.goTo(0x2001, 0x0180);
+    // Character 0 goes with the player; character 1 stays.
+    w.setU16(0xFD8, 0x2001);
+    w.setU16(0xFD8 + 2, 0x0180);
+    w.setU8(0xFD8 + 0x0F, 0x40);
+    w.setU16(0xFE8, 0x2001);
+    w.setU16(0xFE8 + 2, 0x0180);
+    w.flyOver(0x1234, -5);
+    MTT_CHECK(w.flying() && !w.inside() && w.room() == 0x1234 && static_cast<std::int16_t>(w.place()) == -5);
+    MTT_CHECK(w.character(0).room == 0x1234 && w.character(1).room == 0x2001);
+    const std::size_t record = World::placeRecord(3);
+    w.setU8(record + 8, 0x05);
+    w.setU8(record + 0x0A, 0x80);
+    w.enterPlace(record);
+    MTT_CHECK(!w.flying() && w.room() == 0x0501 && w.place() == 0x0380 && w.home() == record);
+    MTT_CHECK((w.u8(record + 0x0A) & 0x80) == 0 && w.u8(0x27) == 1);
+    MTT_CHECK(w.character(0).room == 0x0501 && w.character(0).place == 0x0380);
 }

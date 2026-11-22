@@ -60,6 +60,9 @@ public:
     void drawOutside(int kind, int firstName);
     // The ornithopters kept at a place, in front of its first room.
     void drawOrnithopters(int count, bool sietch);
+    // The first of them taking off (`side` 1) or landing (`side` -1),
+    // `state` steps from standing (0) to gone (32), the others parked.
+    void drawTakeOff(int count, bool sietch, int state, int side);
 
     // Where each character was drawn by the last drawView(), for the mouse.
     struct Shown {
@@ -85,6 +88,8 @@ private:
     void loadScenes();
     std::size_t roomRecord() const;
     void drawPerson(int character, const PersonSlot& slot);
+    void drawOrnithopter(int x, int y, int state);
+    void drawRow(int first, int count, bool sietch);
 
     Game& game_;
     std::vector<PlaceRecord> records_;

@@ -1,0 +1,537 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "mentat/engine/flight.hpp"
+
+#include "mentat/data/program_file.hpp"
+#include "mentat/engine/flat_map.hpp"
+#include "mentat/engine/game.hpp"
+#include "mentat/engine/map_screen.hpp"
+#include "mentat/engine/panel.hpp"
+#include "mentat/engine/world.hpp"
+#include "mentat/gfx/sprite_sheet.hpp"
+
+#include <cstdlib>
+#include <vector>
+
+namespace mentat {
+
+namespace {
+
+constexpr int kPanelSheet = 0;
+
+// A step every 768 ticks; every 16 steps a part of the day passes.
+constexpr std::uint32_t kStepTicks = 0x300;
+constexpr int kStepsPerHour = 16;
+// The latitude where the flight turns back from a pole.
+constexpr int kPoleTurn = 0x60;
+
+// The commands while flying to a place, and the arrows (none).
+constexpr std::size_t kSkipCommand = 0x21FC;
+constexpr std::size_t kChangeCommand = 0x21F8;
+constexpr std::size_t kFlightArrows = 0x1D1E;
+
+// The corner: the small map's rectangle, and the part of the screen the
+// corner covers, from the third buffer, over each frame of the videos.
+constexpr std::size_t kCornerMap = 0x148A;
+constexpr std::size_t kCornerArea = 0x1492;
+// Its frame: four rings, from the map outwards.
+constexpr std::uint8_t kFrameColours[4] = {0xFC, 0xFA, 0xF8, 0xF6};
+// Sprites of the panel's picture file: the destination, a point of the
+// trail, the player.
+constexpr std::uint16_t kDestinationSprite = 0x2E;
+constexpr std::uint16_t kTrailSprite = 0x2F;
+constexpr std::uint16_t kPlayerSprite = 0x30;
+// While the player is inside this rectangle the map stays; once out of
+// it, the map is drawn again around the player at the next step.
+constexpr ClipRect kKeepCentred{0xD6, 0x0A, 0x132, 0x36};
+// Trail points are drawn when they fall within this rectangle.
+constexpr ClipRect kTrailArea{0xCC, 0x04, 0x13A, 0x3A};
+
+// The videos of the desert going by: dunes in slots 2 and 5, rocks in 3
+// and 4; a map point of rocks has its low four bits at 8 or more.
+constexpr int kFirstDunes = 2;
+constexpr int kRocks = 8;
+// Seven steps ahead are looked at to choose the next video.
+constexpr int kLookAhead = 6;
+// The approach: a sietch's video or a palace's, after this frame of the
+// first video of dunes.
+constexpr int kFirstApproach = 6;
+constexpr int kFirstLanding = 8;
+constexpr int kSietchApproachFrame = 0x3C;
+constexpr int kOtherApproachFrame = 0x16;
+// A place's kind (byte 8): from these on, the next kind of approach.
+constexpr int kKindSteps[4] = {0x20, 0x21, 0x28, 0x30};
+
+// "SKIP TO DESTINATION" goes at most this many steps.
+constexpr int kSkipSteps = 200;
+
+std::int16_t s16(std::uint16_t v) { return static_cast<std::int16_t>(v); }
+
+// The heading's direction as (across, down), each from -32 to 32.
+void vectorOf(int heading, int& across, int& down) {
+    const int turned = (heading + 0x20) & 0xFF;
+    int a = heading & 0xFF;
+    if ((turned & 0x7F) >= 0x40) {
+        across = 0x20;
+        a = (a - 0x40) & 0xFF;
+        if (turned & 0x80) {
+            across = -0x20;
+            a = -((a - 0x80) & 0xFF) & 0xFF;
+        }
+        down = static_cast<std::int8_t>(a);
+    } else {
+        down = -0x20;
+        if (turned & 0x80) {
+            a = -((a - 0x80) & 0xFF) & 0xFF;
+            down = 0x20;
+        }
+        across = static_cast<std::int8_t>(a);
+    }
+}
+
+} // namespace
+
+Flight::Flight(Game& game, World& world, Panel& panel, MapScreen& map)
+    : g_(game), world_(world), panel_(panel), map_(map), small_(game, world, map) {}
+
+// --- Where to
+
+bool Flight::headingTo(std::uint16_t longitude, int latitude, std::size_t record, int& heading) const {
+    int down = s16(world_.u16(record + 4)) - latitude;
+    int across = s16(static_cast<std::uint16_t>(world_.u16(record + 2) - longitude));
+    if (down < -0x80 || down >= 0x80) {
+        down >>= 1;
+        across >>= 1;
+    }
+    // The latitudes count 256 times as much as the longitudes.
+    const int scaledDown = s16(static_cast<std::uint16_t>((down & 0xFF) << 8));
+    const int downSize = std::abs(scaledDown);
+    const int acrossSize = std::abs(across);
+    int angle = 0;
+    if (acrossSize >= downSize) {
+        if (acrossSize < 1) {
+            return false;
+        }
+        angle = 0x20 * scaledDown / across + (across >= 0 ? 0x40 : 0xC0);
+    } else {
+        if (downSize < 1) {
+            return false;
+        }
+        angle = 0x20 * across / scaledDown;
+        if (scaledDown >= 0) {
+            angle -= 0x80;
+        }
+        angle = -angle;
+    }
+    heading = angle & 0xFF;
+    return true;
+}
+
+void Flight::setDestination(std::size_t record) {
+    destination_ = record;
+    std::uint16_t lon = 0;
+    int lat = 0;
+    world_.position(lon, lat);
+    int h = 0;
+    heading_ = headingTo(lon, lat, record, h) ? h : 0;
+    fraction_ = 0x80;
+}
+
+// The heading toward the destination from where the player is.
+void Flight::steer() {
+    std::uint16_t lon = 0;
+    int lat = 0;
+    world_.position(lon, lat);
+    int h = 0;
+    if (headingTo(lon, lat, destination_, h)) {
+        heading_ = h;
+    }
+}
+
+void Flight::move(std::uint16_t& longitude, int& latitude) {
+    steer();
+    // A step goes a map point's width at the equator, and the same
+    // distance in longitude units nearer the poles.
+    const int speed = map_.flatMap().pointSize(std::abs(latitude));
+    int across = 0;
+    int down = 0;
+    vectorOf(heading_, across, down);
+    int alongStep = speed * across / 32;
+    const int downStep = down * speed / 32;
+    // A latitude at most a step: what is left over waits for the next.
+    int total = std::abs(downStep) + fraction_;
+    if ((total >> 8) > 1) {
+        alongStep = alongStep * 256 / total;
+        total = 0x100;
+    }
+    fraction_ = total & 0xFF;
+    const int downMove = downStep < 0 ? -(total >> 8) : (total >> 8);
+    latitude += downMove;
+    longitude = static_cast<std::uint16_t>(longitude + alongStep);
+    // Near a pole the flight turns round, over to the other side.
+    if (latitude < -kPoleTurn || latitude >= kPoleTurn) {
+        heading_ = (heading_ + 0x80) & 0xFF;
+        longitude = static_cast<std::uint16_t>(longitude + 0x8000);
+    }
+}
+
+int Flight::pointIndex(std::uint16_t longitude, int latitude) const {
+    const FlatMap& m = map_.flatMap();
+    return m.rowStart(latitude) + m.pointAt(longitude, latitude);
+}
+
+int Flight::terrain(std::uint16_t longitude, int latitude) const {
+    const auto& bytes = map_.flatMap().bytes();
+    const int at = pointIndex(longitude, latitude);
+    return at >= 0 && static_cast<std::size_t>(at) < bytes.size() ? bytes[static_cast<std::size_t>(at)] : 0;
+}
+
+// --- Flying
+
+void Flight::begin() {
+    active_ = true;
+    arrived = false;
+    approach = false;
+    changing = false;
+    paused = false;
+    hoursPassed = 0;
+    steps_ = 0;
+    base_ = kFirstDunes;
+    slot_ = 0;
+    next_ = kFirstDunes;
+    trailUsed_.fill(false);
+    trailNext_ = 0;
+    // The first step leaves the place at once; the next follows at the
+    // first look.
+    std::uint16_t lon = 0;
+    int lat = 0;
+    advance(lon, lat);
+    lastStep_ = g_.platform().ticks - kStepTicks;
+}
+
+void Flight::show() {
+    Display& d = g_.display();
+    const ProgramFile& program = g_.resources().program();
+    paused = false;
+    d.targetBack();
+    auto commandAt = [&](std::size_t at) { return Command{program.dataU16(at), program.dataU16(at + 2)}; };
+    panel_.setCommands({commandAt(kSkipCommand), commandAt(kChangeCommand)});
+    panel_.drawCommands();
+    panel_.setArrowZones(kFlightArrows);
+    corner_ = 0;
+    std::uint16_t lon = 0;
+    int lat = 0;
+    world_.position(lon, lat);
+    small_.longitude = lon;
+    small_.latitude = lat;
+    drawCorner();
+    drawTrail();
+    slot_ = base_;
+    d.targetBack();
+    g_.openVideo(slot_);
+    showFrame();
+    d.showBack();
+    d.flush();
+}
+
+void Flight::tick() {
+    if (!active_ || paused || arrived) {
+        return;
+    }
+    Display& d = g_.display();
+    d.targetBack();
+    if (g_.videoDone()) {
+        nextVideo();
+    } else if (g_.videoStep()) {
+        showFrame();
+    }
+    if (g_.platform().ticks - lastStep_ >= kStepTicks) {
+        lastStep_ = g_.platform().ticks;
+        step();
+    }
+}
+
+// The corner over the frame just drawn, and the scene on the screen.
+void Flight::showFrame() {
+    Display& d = g_.display();
+    if (corner_ >= 0) {
+        const ProgramFile& program = g_.resources().program();
+        auto at = [&](std::size_t o) { return static_cast<int>(s16(program.dataU16(kCornerArea + o))); };
+        d.copyRect(d.aux(), d.back(), ClipRect{at(0), at(2), at(4), at(6)});
+    }
+    d.copyRect(d.back(), d.screen(), g_.sceneTables().lineClip);
+}
+
+void Flight::nextVideo() {
+    slot_ = next_;
+    Display& d = g_.display();
+    d.targetBack();
+    g_.openVideo(slot_);
+    d.flush();
+    showFrame();
+}
+
+// The video after this one goes by what lies ahead: dunes or rocks.
+void Flight::chooseNextVideo(int ground) {
+    if (base_ < kFirstDunes) {
+        next_ = base_;
+        return;
+    }
+    if ((ground & 0x0F) < kRocks) {
+        if (slot_ <= 2) {
+            next_ = base_;
+        } else if (slot_ <= 4) {
+            next_ = 5;
+        } else {
+            base_ = kFirstDunes;
+            next_ = kFirstDunes;
+        }
+    } else {
+        next_ = slot_ <= 2 || slot_ == 5 ? 3 : 4;
+    }
+}
+
+void Flight::lookAhead() {
+    std::uint16_t lon = 0;
+    int lat = 0;
+    world_.position(lon, lat);
+    const int keep = fraction_;
+    for (int i = 0; i < kLookAhead; ++i) {
+        move(lon, lat);
+    }
+    const int sixth = terrain(lon, lat);
+    move(lon, lat);
+    fraction_ = keep;
+    const int seventh = terrain(lon, lat);
+    chooseNextVideo(((sixth + seventh) & 0xFF) >> 1);
+}
+
+// A step on the map, the clock moving on with the steps.
+void Flight::advance(std::uint16_t& lon, int& lat) {
+    if ((++steps_ % kStepsPerHour) == 0) {
+        world_.setClock(world_.clock() + 1);
+        ++hoursPassed;
+    }
+    world_.position(lon, lat);
+    move(lon, lat);
+    world_.flyOver(lon, lat);
+}
+
+void Flight::step() {
+    std::uint16_t lon = 0;
+    int lat = 0;
+    advance(lon, lat);
+
+    // The trail: a point where the player was, then where the player is.
+    if (corner_ >= 0 && trailUsed_[(trailNext_ + kTrailLength - 1) % kTrailLength]) {
+        const auto& [tLon, tLat] = trail_[(trailNext_ + kTrailLength - 1) % kTrailLength];
+        int x = 0;
+        int y = 0;
+        if (small_.toScreen(tLon, tLat, x, y)) {
+            drawCornerSprite(kTrailSprite, x - 1, y - 1);
+        }
+    }
+    addToTrail(lon, lat);
+
+    if (pointIndex(lon, lat) == world_.u16(destination_ + 6)) {
+        arrived = true;
+        approach = true;
+        return;
+    }
+    if (corner_ >= 0) {
+        if (corner_ == 1) {
+            corner_ = 0;
+            small_.longitude = lon;
+            small_.latitude = lat;
+            drawCorner();
+            drawTrail();
+        }
+        int x = 0;
+        int y = 0;
+        if (small_.toScreen(lon, lat, x, y)) {
+            if (x < kKeepCentred.left || y < kKeepCentred.top || x >= kKeepCentred.right || y >= kKeepCentred.bottom) {
+                corner_ = 1;
+            } else {
+                drawCornerSprite(kPlayerSprite, x - 1, y - 1);
+            }
+        }
+    }
+    lookAhead();
+}
+
+void Flight::addToTrail(std::uint16_t longitude, int latitude) {
+    trail_[trailNext_] = {longitude, latitude};
+    trailUsed_[trailNext_] = true;
+    trailNext_ = (trailNext_ + 1) % kTrailLength;
+}
+
+// --- The corner
+
+void Flight::drawCornerSprite(std::uint16_t sprite, int x, int y) {
+    Display& d = g_.display();
+    d.targetAux();
+    g_.selectSheet(kPanelSheet);
+    drawSpriteClipped(g_.canvas(), g_.sheet().sprite(sprite), x, y, small_.view);
+    d.targetBack();
+}
+
+// The small map around its middle, its frame, the places and the
+// destination, in the third buffer.
+void Flight::drawCorner() {
+    const ProgramFile& program = g_.resources().program();
+    auto at = [&](std::size_t o) { return static_cast<int>(s16(program.dataU16(kCornerMap + o))); };
+    small_.view = ClipRect{at(0), at(2), at(4), at(6)};
+    Display& d = g_.display();
+    d.targetAux();
+    small_.drawMap();
+    Surface& s = d.aux();
+    ClipRect ring = small_.view;
+    for (const std::uint8_t colour : kFrameColours) {
+        --ring.left;
+        --ring.top;
+        for (int x = ring.left; x <= ring.right; ++x) {
+            s.set(x, ring.top, colour);
+            s.set(x, ring.bottom, colour);
+        }
+        for (int y = ring.top; y <= ring.bottom; ++y) {
+            s.set(ring.left, y, colour);
+            s.set(ring.right, y, colour);
+        }
+        ++ring.right;
+        ++ring.bottom;
+    }
+    g_.selectSheet(kPanelSheet);
+    small_.drawPlaces();
+    int x = 0;
+    int y = 0;
+    if (small_.toScreen(world_.u16(destination_ + 2), s16(world_.u16(destination_ + 4)), x, y)) {
+        drawSpriteClipped(g_.canvas(), g_.sheet().sprite(kDestinationSprite), x - 1, y - 1, small_.view);
+    }
+    d.targetBack();
+}
+
+// Every point of the trail that falls on the corner's map.
+void Flight::drawTrail() {
+    for (std::size_t i = 0; i < kTrailLength; ++i) {
+        const std::size_t n = (trailNext_ + i) % kTrailLength;
+        if (!trailUsed_[n]) {
+            continue;
+        }
+        int x = 0;
+        int y = 0;
+        if (!small_.toScreen(trail_[n].first, trail_[n].second, x, y)) {
+            continue;
+        }
+        --x;
+        --y;
+        if (x >= kTrailArea.left && y >= kTrailArea.top && x < kTrailArea.right && y < kTrailArea.bottom) {
+            drawCornerSprite(kTrailSprite, x, y);
+        }
+    }
+}
+
+// --- Commands
+
+bool Flight::command(std::uint16_t action) {
+    if (!active_ || paused || arrived) {
+        return false;
+    }
+    if (action == kChange) {
+        changing = true;
+        corner_ = 1;
+        return true;
+    }
+    if (action != kSkip) {
+        return false;
+    }
+    // Straight there: the steps at once, without the videos; after 200 the
+    // place is reached anyway.
+    g_.closeVideo();
+    for (int i = 0; i < kSkipSteps; ++i) {
+        std::uint16_t lon = 0;
+        int lat = 0;
+        advance(lon, lat);
+        if (pointIndex(lon, lat) == world_.u16(destination_ + 6)) {
+            break;
+        }
+    }
+    arrived = true;
+    approach = false;
+    return true;
+}
+
+// --- Arriving
+
+void Flight::land() {
+    constexpr std::size_t kOrnithopters = 0x15;
+    constexpr std::size_t kDice = 0xC5;
+    world_.setU8(kDice, static_cast<std::uint8_t>(g_.random2() & 0xFF));
+    active_ = false;
+    arrived = false;
+    world_.setU8(destination_ + kOrnithopters, static_cast<std::uint8_t>(world_.u8(destination_ + kOrnithopters) + 1));
+    world_.enterPlace(destination_);
+}
+
+int Flight::approachVideo() const {
+    const int kind = world_.u8(destination_ + 8);
+    int slot = kFirstApproach;
+    for (const int step : kKindSteps) {
+        slot += kind >= step ? 1 : 0;
+    }
+    return slot;
+}
+
+void Flight::playVideo(int slot) {
+    Display& d = g_.display();
+    d.targetBack();
+    g_.openVideo(slot);
+    d.flush();
+    d.showBack();
+    while (!g_.videoDone()) {
+        d.targetBack();
+        if (g_.videoStep()) {
+            d.copyRect(d.back(), d.screen(), g_.sceneTables().lineClip);
+        }
+        g_.pollInput();
+        g_.platform().waitFrame();
+    }
+    g_.closeVideo();
+}
+
+bool Flight::playApproach() {
+    const int slot = approachVideo();
+    if (slot >= kFirstLanding) {
+        return false;
+    }
+    Display& d = g_.display();
+    corner_ = -1;
+    const int frame = slot == kFirstApproach ? kSietchApproachFrame : kOtherApproachFrame;
+    // The flight's videos go on, over dunes, until that frame of the first.
+    for (;;) {
+        d.targetBack();
+        if (g_.videoDone()) {
+            nextVideo();
+        } else if (g_.videoStep()) {
+            showFrame();
+        }
+        chooseNextVideo(0);
+        if (slot_ == kFirstDunes && g_.videoFrame() == frame) {
+            break;
+        }
+        g_.pollInput();
+        g_.platform().waitFrame();
+    }
+    next_ = slot;
+    nextVideo();
+    while (!g_.videoDone()) {
+        d.targetBack();
+        if (g_.videoStep()) {
+            showFrame();
+        }
+        g_.pollInput();
+        g_.platform().waitFrame();
+    }
+    g_.closeVideo();
+    return true;
+}
+
+} // namespace mentat

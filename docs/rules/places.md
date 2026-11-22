@@ -50,7 +50,8 @@ drawn after the clearing:
   +30), sprite 2 at (+4, +50) and sprite 8, the folded wings, at (−`0x51`,
   −3); each further ornithopter `0x46` to the right and `0x0A` lower. The
   sky's colours for the hour are then set again, over those of the
-  pictures.
+  pictures. How the first of them takes off and lands is in
+  [flight.md](flight.md).
 
 ## Persons
 

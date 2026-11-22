@@ -5,6 +5,7 @@
 #include "mentat/data/program_tables.hpp"
 #include "mentat/data/reader.hpp"
 #include "mentat/engine/cockpit.hpp"
+#include "mentat/engine/flight.hpp"
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/globe_screen.hpp"
 #include "mentat/engine/map_screen.hpp"
@@ -60,6 +61,19 @@ constexpr int kPaulsRoom = 9;
 // The palace's ornithopters: a new game gives it one.
 constexpr std::size_t kPalaceOrnithopters = 0x100 + 0x15;
 constexpr std::uint16_t kFirstPersonPhrase = 0x78;
+// A place's ornithopters, in its record.
+constexpr std::size_t kOrnithopters = 0x15;
+
+// Taking off and landing: a step every 20 ticks, with its sound; the sound
+// moves on to its next part at step 13, and taking off again at step 26.
+constexpr int kTakeOffSound = 6;
+constexpr int kLandingSound = 7;
+constexpr int kLastOrnithopterStep = 0x20;
+constexpr int kOrnithopterStepTicks = 0x14;
+constexpr int kSoundStep = 0x0D;
+constexpr int kSecondSoundStep = 0x1A;
+// The music's moment while flying.
+constexpr int kFlyingMoment = 6;
 
 // The clock: ticks to a part of the day.
 constexpr std::size_t kTicksPerHour = 0x146E;
@@ -124,7 +138,8 @@ public:
           talk_(game, world_, panel_, *this, language), map_(game, world_, panel_),
           saves_(game.platform().saveFolder, game.resources().program(), world_, talk_.dialogue(),
                  [this]() -> std::vector<std::uint8_t>& { return map_.mapBytes(); }),
-          globe_(game, world_, panel_, map_, language, &saves_), cockpit_(game, world_, panel_, map_) {
+          globe_(game, world_, panel_, map_, language, &saves_), cockpit_(game, world_, panel_, map_),
+          flight_(game, world_, panel_, map_) {
         talk_.subtitles = subtitlesFor(language);
     }
 
@@ -139,6 +154,10 @@ public:
             }
             if (map_.active()) {
                 map_.tick();
+            }
+            if (flight_.active()) {
+                flight_.tick();
+                afterFlightTick();
             }
             if (hoursPassed_ > 0) {
                 hoursPassed_ = 0;
@@ -293,7 +312,7 @@ private:
                 return line;
             }
         }
-        if (y < kSceneBottom && !map_.active() && !globe_.active() && !cockpit_.active()) {
+        if (y < kSceneBottom && !map_.active() && !globe_.active() && !cockpit_.active() && !flight_.active()) {
             const int c = g_.places().characterAt(x, y);
             if (c >= 0) {
                 const auto& commands = panel_.commands();
@@ -339,7 +358,14 @@ private:
             }
             return;
         }
-        if (talk_.active() || cockpit_.active()) {
+        if (cockpit_.active()) {
+            const std::size_t record = cockpit_.destinationAt(x, y);
+            if (record != 0) {
+                flyTo(record);
+            }
+            return;
+        }
+        if (talk_.active() || flight_.active()) {
             return;
         }
         if (map_.active() || globe_.active()) {
@@ -427,6 +453,17 @@ private:
             }
             return true;
         }
+        if (flight_.command(action)) {
+            if (flight_.changing) {
+                flight_.changing = false;
+                flight_.paused = true;
+                g_.closeVideo();
+                openCockpit();
+            } else if (flight_.arrived) {
+                arrive();
+            }
+            return true;
+        }
         return map_.command(action);
     }
 
@@ -434,20 +471,126 @@ private:
     // colours of the hour.
     void openCockpit() {
         cockpit_.enter();
-        setSky();
+        // While flying the sky keeps the colours it had when the flight
+        // began.
+        if (!flight_.active()) {
+            setSky();
+        }
         cockpit_.drawScene();
         cockpit_.show();
         lit_ = -1;
     }
 
-    // "Cancel": the room comes back at once.
+    // "Cancel": the room comes back at once, or the flight goes on.
     void leaveCockpit() {
         cockpit_.leave();
+        if (flight_.active()) {
+            flight_.show();
+            lit_ = -1;
+            return;
+        }
         d_.targetBack();
         g_.forgetPalette();
         drawView();
         d_.showBack();
         d_.flush();
+    }
+
+    // --- Flying
+
+    // A destination chosen in the cockpit: its name blinks, then the
+    // ornithopter takes off, or turns there when it is flying already.
+    void flyTo(std::size_t record) {
+        cockpit_.confirm(record);
+        cockpit_.leave();
+        flight_.setDestination(record);
+        if (!flight_.active()) {
+            takingOff_ = true;
+            chooseMusic();
+            takeOff();
+            // The clock counted while the ornithopter took off; from here it
+            // goes by the steps of the flight.
+            runClock();
+            const std::size_t home = world_.home();
+            flight_.begin();
+            takingOff_ = false;
+            world_.setU8(home + kOrnithopters, static_cast<std::uint8_t>(world_.u8(home + kOrnithopters) - 1));
+        }
+        flight_.show();
+        startWaitingMusic();
+        lit_ = -1;
+    }
+
+    // The ornithopter in front of the room taking off, or landing there, a
+    // step every 20 ticks with its sound; the others stay parked.
+    void animateOrnithopter(int sound, int side) {
+        const int count = ornithoptersHere();
+        const bool sietch = (world_.room() >> 8) < 0x20;
+        d_.targetBack();
+        g_.forgetPalette();
+        drawView(false);
+        d_.showBack();
+        d_.flush();
+        const Surface scene = d_.back();
+        const ClipRect area = g_.sceneTables().lineClip;
+        g_.playSound(sound);
+        // Taking off goes from standing to gone; landing comes down from
+        // the step before gone.
+        const int first = side > 0 ? 0 : kLastOrnithopterStep - 1;
+        for (int state = first; state >= 0 && state <= kLastOrnithopterStep; state += side) {
+            // The sound moves on to its next part at these steps.
+            if (state == kSoundStep || (side > 0 && state == kSecondSoundStep)) {
+                g_.endSoundRepeat();
+            }
+            d_.copyRect(scene, d_.back(), area);
+            g_.places().drawTakeOff(count, sietch, state, side);
+            d_.flush();
+            d_.copyRect(d_.back(), d_.screen(), area);
+            g_.waitTicks(kOrnithopterStepTicks);
+        }
+    }
+
+    void takeOff() { animateOrnithopter(kTakeOffSound, 1); }
+
+    // After the flight's look at the clock and the steps.
+    void afterFlightTick() {
+        if (flight_.hoursPassed > 0) {
+            // A step moved the clock on: the count for the next part of the
+            // day starts again.
+            flight_.hoursPassed = 0;
+            countdown_ = g_.resources().program().dataU16(kTicksPerHour);
+            newHour();
+        }
+        if (flight_.arrived) {
+            arrive();
+        }
+    }
+
+    // The place is reached: the approach, or the ornithopter landing in
+    // front of the place; then its first room.
+    void arrive() {
+        const bool flewIn = flight_.approach;
+        if (!flewIn) {
+            g_.closeVideo();
+        }
+        flight_.land();
+        const int video = flight_.approachVideo();
+        if (flewIn) {
+            if (!flight_.playApproach()) {
+                g_.closeVideo();
+                if (video == Flight::kFortVideo) {
+                    flight_.playVideo(video);
+                } else {
+                    animateOrnithopter(kLandingSound, -1);
+                }
+            }
+        }
+        d_.targetBack();
+        g_.forgetPalette();
+        drawView();
+        d_.transition(Display::kDissolve);
+        startWaitingMusic();
+        lit_ = -1;
     }
 
     // A saved game came back: what was counting for the game before starts
@@ -575,7 +718,7 @@ private:
         const std::uint32_t now = g_.platform().ticks;
         std::uint32_t elapsed = now - lastTick_;
         lastTick_ = now;
-        if (!clockRunning_) {
+        if (!clockRunning_ || flight_.active()) {
             return;
         }
         const int perHour = g_.resources().program().dataU16(kTicksPerHour);
@@ -659,7 +802,7 @@ private:
     // When the hour turns: the colours move to the new sky a little every
     // 16 ticks.
     void fadeSky() {
-        if (map_.active() || globe_.active()) {
+        if (map_.active() || globe_.active() || flight_.active()) {
             return; // the sky is not shown
         }
         const int n = skyOfTheHour();
@@ -675,7 +818,7 @@ private:
     }
 
     void skyFadeTick() {
-        if (map_.active() || globe_.active()) {
+        if (map_.active() || globe_.active() || flight_.active()) {
             skyFadeLeft_ = 0;
             g_.removeTimer(kSkyTimer);
             return;
@@ -699,6 +842,9 @@ private:
         }
         if (map_.active()) {
             return 2;
+        }
+        if (flight_.active() || takingOff_) {
+            return kFlyingMoment;
         }
         const int room = world_.room();
         const int kind = room >> 8;
@@ -741,7 +887,7 @@ private:
 
     // The room the player is in, with the arrows and commands that go with
     // it, drawn on the back buffer.
-    void drawView() {
+    void drawView(bool ornithopters = true) {
         Places& places = g_.places();
         places.enter(world_.room(), world_.place());
         const std::vector<World::Character> here = world_.findPresent();
@@ -765,7 +911,9 @@ private:
             places.drawView([&] { places.drawSky(); });
         } else if (world_.inside() && (room & 0xFF) == kEntrance) {
             places.drawView([&] { drawEntranceView(); });
-            drawParkedOrnithopters();
+            if (ornithopters) {
+                drawParkedOrnithopters();
+            }
             setSky();
         } else {
             places.drawView();
@@ -821,8 +969,7 @@ private:
     // The ornithopters kept at the player's place (troops there take
     // theirs out of the count; none are built yet).
     int ornithoptersHere() const {
-        const std::size_t record = 0x100 + 0x1C * static_cast<std::size_t>((world_.place() >> 8) - 1);
-        return world_.u8(record + 0x15);
+        return world_.u8(World::placeRecord(world_.place() >> 8) + kOrnithopters);
     }
 
     // With the player's voices in English the characters speak without
@@ -843,6 +990,8 @@ private:
     SavedGames saves_;
     GlobeScreen globe_;
     Cockpit cockpit_;
+    Flight flight_;
+    bool takingOff_ = false;
     bool endTalk_ = false;
     Surface ornamentStrip_{320, 200};
     bool clockRunning_ = false;

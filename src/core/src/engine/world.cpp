@@ -65,6 +65,51 @@ void World::goTo(int room, int place) {
     setU16(kPlaceRecord, static_cast<std::uint16_t>(kPlaces + kPlaceSize * static_cast<std::size_t>(place >> 8) - kPlaceSize));
 }
 
+void World::takeFollowers(int room, int place) {
+    constexpr std::uint8_t kFollows = 0x40;
+    for (int i = 0; i < kCharacters; ++i) {
+        const std::size_t at = kCharacterTable + kCharacterSize * static_cast<std::size_t>(i);
+        if (u16(at) == u16(kRoom) && u16(at + 2) == u16(kPlace) && (u8(at + 0x0F) & kFollows)) {
+            setU16(at, static_cast<std::uint16_t>(room));
+            setU16(at + 2, static_cast<std::uint16_t>(place));
+        }
+    }
+}
+
+void World::flyOver(std::uint16_t longitude, int latitude) {
+    takeFollowers(longitude, static_cast<std::uint16_t>(latitude));
+    setU16(kRoom, longitude);
+    setU16(kPlace, static_cast<std::uint16_t>(latitude));
+    setU8(kPlaceKind, kFlying);
+    setPlaceHere(0);
+}
+
+void World::enterPlace(std::size_t record) {
+    constexpr std::size_t kSietchesFound = 0x27;
+    constexpr std::size_t kPlaceNumber = 0x09;
+    constexpr std::uint8_t kHidden = 0x80;
+    constexpr std::uint8_t kVisited = 0x10;
+    constexpr int kFirstNotSietch = 0x20;
+    const int n = static_cast<int>((record - kPlaces) / kPlaceSize) + 1;
+    const int kind = u8(record + 8);
+    if (u8(record + 0x0A) & kHidden) {
+        setU8(record + 0x0A, static_cast<std::uint8_t>(u8(record + 0x0A) & ~kHidden));
+        setU8(record + 0x0B, 0);
+        if (kind < kFirstNotSietch) {
+            setU8(kSietchesFound, static_cast<std::uint8_t>(u8(kSietchesFound) + 1));
+        }
+    }
+    if (kind >= kFirstNotSietch) {
+        setU8(record + 0x0A, static_cast<std::uint8_t>(u8(record + 0x0A) | kVisited));
+    }
+    const int room = (kind << 8) | 1;
+    const int place = (n << 8) | 0x80;
+    takeFollowers(room, place);
+    goTo(room, place);
+    setU16(kHome, static_cast<std::uint16_t>(record));
+    setU8(kPlaceNumber, static_cast<std::uint8_t>(n));
+}
+
 World::Character World::character(int index) const {
     const std::size_t at = kCharacterTable + kCharacterSize * static_cast<std::size_t>(index);
     Character c;
