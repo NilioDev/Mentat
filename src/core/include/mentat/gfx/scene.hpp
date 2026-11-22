@@ -16,6 +16,7 @@ namespace mentat {
 class ProgramFile;
 class SpriteSheet;
 class Surface;
+struct SpriteView;
 
 // A rectangle; right and bottom are one past the last row and column.
 struct ClipRect {
@@ -87,6 +88,10 @@ int drawScene(const Canvas& to, std::span<const std::uint8_t> scene, const Sprit
 // down, 14 mirrored. A colour offset other than 0 replaces the sprite's mode.
 void drawSpriteWord(const Canvas& to, const SpriteSheet& sheet, std::uint16_t word, int x, int y,
                     const SceneTables& tables, std::uint8_t modeOverride = 0);
+
+// Draws a sprite at its own size, only where it falls inside `clip` (in
+// the same coordinates as x and y, before the canvas's rows are added).
+void drawSpriteClipped(const Canvas& to, const SpriteView& sprite, int x, int y, const ClipRect& clip);
 
 // The pieces drawScene uses, open for tests and tools.
 

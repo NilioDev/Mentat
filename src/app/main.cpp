@@ -116,14 +116,16 @@ void openAudio(App& app) {
     }
 }
 
-// The game: for now the opening, as far as it is built.
+// The game: for now the opening, which starts over until a key is pressed,
+// like the original's.
 void runGame(App& app) {
     using namespace mentat;
     MusicSystem music(MusicTables::fromPlayer(app.archive->load("DNADP.HSQ")));
     app.platform.music = &music;
     Game game(app.platform, *app.archive, *app.program, DisplayTables::fromDriver(app.archive->load("DNVGA.HSQ")),
               &music);
-    runIntro(game, kEnglish);
+    while (runIntro(game, kEnglish) == IntroEnd::Finished) {
+    }
     app.platform.music = nullptr;
 }
 

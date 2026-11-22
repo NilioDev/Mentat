@@ -150,7 +150,7 @@ MTT_TEST("game: timers run while waiting, keeping the remainder") {
     MTT_CHECK(!finished);
 }
 
-MTT_TEST("real data: the opening plays as far as it is built, and a key skips it") {
+MTT_TEST("real data: the whole opening plays, and a key skips it") {
     auto archive = test::openGameData();
     auto program = test::openProgram();
     if (!archive || !program) {
@@ -166,8 +166,8 @@ MTT_TEST("real data: the opening plays as far as it is built, and a key skips it
         IntroEnd end = IntroEnd::Skipped;
         const std::uint32_t ticks = runGame(p, [&] { end = runIntro(g, kEnglish); });
         MTT_CHECK(end == IntroEnd::Finished);
-        // The logos, Irulan (about 105 s), the title and the sunrise.
-        MTT_CHECK(ticks > 180 * kTicksPerSecond && ticks < 215 * kTicksPerSecond);
+        // The original starts it over after about 452 s.
+        MTT_CHECK(ticks > 430 * kTicksPerSecond && ticks < 475 * kTicksPerSecond);
     }
     {
         Platform p;

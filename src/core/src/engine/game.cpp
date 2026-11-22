@@ -4,6 +4,9 @@
 #include "mentat/audio/music.hpp"
 #include "mentat/data/program_tables.hpp"
 #include "mentat/data/reader.hpp"
+#include "mentat/data/voc.hpp"
+#include "mentat/engine/places.hpp"
+#include "mentat/engine/talker.hpp"
 
 #include <algorithm>
 
@@ -12,7 +15,25 @@ namespace mentat {
 Game::Game(Platform& platform, DatArchive& archive, const ProgramFile& program, const DisplayTables& displayTables,
            MusicSystem* music)
     : platform_(platform), resources_(archive, program), display_(platform, displayTables),
-      sceneTables_(SceneTables::fromProgram(program)), music_(music), timersRan_(platform.ticks) {}
+      sceneTables_(SceneTables::fromProgram(program)), music_(music), timersRan_(platform.ticks),
+      talker_(std::make_unique<Talker>(*this)), places_(std::make_unique<Places>(*this)) {}
+
+Game::~Game() = default;
+
+// The original's generator: the seed goes through seed × 0xE56D + 1, and
+// the middle two bytes of the product are the number.
+int Game::random(int mask) {
+    const std::uint32_t product = static_cast<std::uint32_t>(randomSeed_) * 0xE56Du;
+    randomSeed_ = static_cast<std::uint16_t>(product + 1);
+    return static_cast<int>((product >> 8) & 0xFFFF) & mask;
+}
+
+// The second generator: seed × 0xCBD1 + 1, again the middle two bytes.
+int Game::random2() {
+    const std::uint32_t product = static_cast<std::uint32_t>(randomSeed2_) * 0xCBD1u;
+    randomSeed2_ = static_cast<std::uint16_t>(product + 1);
+    return static_cast<int>((product >> 8) & 0xFFFF);
+}
 
 // --- Sprite sheets
 
@@ -123,6 +144,7 @@ bool Game::pollInput() {
     if (platform_.takeSkip()) {
         return true;
     }
+    keepLooping();
     runTimers();
     return false;
 }
@@ -157,7 +179,9 @@ bool Game::pause(int ticks) {
     if (musicPlaying()) {
         return true;
     }
-    const auto voice = [this] { return platform_.soundQueued[static_cast<int>(SoundChannel::Digital)] > 0; };
+    const auto voice = [this] {
+        return looping_.samples.empty() && platform_.soundQueued[static_cast<int>(SoundChannel::Digital)] > 0;
+    };
     if (!voice()) {
         return waitTicks(ticks);
     }
@@ -168,6 +192,38 @@ bool Game::pause(int ticks) {
         platform_.waitFrame();
     }
     return true;
+}
+
+// --- Sound effects
+
+void Game::playSound(int n) {
+    constexpr int kFirstSound = 0xAE;
+    const VocSound sound = Voc::parse(resources_.load(kFirstSound + n));
+    stopSound();
+    for (const VocPart& part : sound.parts) {
+        platform_.queueSound(SoundChannel::Digital, part.rate, part.samples);
+        if (part.plays == 0) {
+            // Played until stopped: what follows it is never reached.
+            looping_ = part;
+            break;
+        }
+    }
+}
+
+void Game::stopSound() {
+    looping_ = VocPart{};
+    platform_.stopSound(SoundChannel::Digital);
+}
+
+void Game::keepLooping() {
+    constexpr double kAhead = 0.25; // seconds kept queued
+    if (looping_.samples.empty() || looping_.rate <= 0) {
+        return;
+    }
+    double& queued = platform_.soundQueued[static_cast<int>(SoundChannel::Digital)];
+    while (queued < kAhead) {
+        platform_.queueSound(SoundChannel::Digital, looping_.rate, looping_.samples);
+    }
 }
 
 // --- Videos

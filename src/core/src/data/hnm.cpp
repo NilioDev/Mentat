@@ -117,7 +117,7 @@ void drawHnmPicture(Surface& to, const HnmPicture& pic, bool spaced, int originR
     case HnmPicture::Kind::FullFrame:
         for (int y = 0; y < pic.height; ++y) {
             for (int x = 0; x < pic.width; ++x) {
-                to.set(x, y, pic.bytes[static_cast<std::size_t>(y) * static_cast<std::size_t>(pic.width) + static_cast<std::size_t>(x)]);
+                to.set(x, y + originRows, pic.bytes[static_cast<std::size_t>(y) * static_cast<std::size_t>(pic.width) + static_cast<std::size_t>(x)]);
             }
         }
         return;
