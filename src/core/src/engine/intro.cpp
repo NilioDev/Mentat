@@ -151,17 +151,6 @@ constexpr int kGlobeFrameX = 0x5B;
 constexpr int kGlobeFrameY = 0x14;
 constexpr ClipRect kGlobeArea{96, 15, 235, 135};
 
-// Which COMMAND file holds each language's text.
-int commandFile(int language) {
-    switch (language) {
-    case kFrench: return 1;
-    case kGerman: return 2;
-    case kItalian: return 4;
-    case kSpanish: return 5;
-    default: return 0;
-    }
-}
-
 struct Step {
     std::uint16_t musicBefore; // music position to wait for before preparing
     std::uint16_t prepare;     // what is drawn in the back buffer
@@ -1024,6 +1013,16 @@ private:
 };
 
 } // namespace
+
+int commandFile(int language) {
+    switch (language) {
+    case kFrench: return 1;
+    case kGerman: return 2;
+    case kItalian: return 4;
+    case kSpanish: return 5;
+    default: return 0;
+    }
+}
 
 IntroEnd runIntro(Game& game, int language) { return Intro(game, language).run(); }
 

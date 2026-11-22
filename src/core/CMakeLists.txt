@@ -18,11 +18,14 @@ add_library(mtt_core STATIC
     src/engine/intro.cpp
     src/engine/actors.cpp
     src/engine/attack_view.cpp
+    src/engine/panel.cpp
     src/engine/places.cpp
+    src/engine/play.cpp
     src/engine/resources.cpp
     src/engine/talker.cpp
     src/engine/text_box.cpp
     src/engine/videos.cpp
+    src/engine/world.cpp
     src/data/string_table.cpp
     src/data/voc.cpp
     src/gfx/font.cpp

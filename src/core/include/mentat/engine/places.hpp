@@ -47,8 +47,20 @@ public:
     // Draws the room on the display's target, with the characters in it.
     void drawView();
 
+    // Where each character was drawn by the last drawView(), for the mouse.
+    struct Shown {
+        int character = 0;
+        ClipRect rect;
+    };
+    const std::vector<Shown>& shown() const { return shown_; }
+    // The character under (x, y), or -1; the one drawn last wins.
+    int characterAt(int x, int y) const;
+
     // The room's scene number byte, as the room table has it.
     int roomByte() const;
+    // The room's four ways out (up, right, down, left): another room of the
+    // same kind from 1, 0 for none; see docs/rules/places.md.
+    std::array<std::uint8_t, 4> exits() const;
 
     int room() const { return room_; }
     int place() const { return place_; }
@@ -57,7 +69,8 @@ public:
 
 private:
     void loadScenes();
-    void drawPerson(int character, int x, int y);
+    std::size_t roomRecord() const;
+    void drawPerson(int character, const PersonSlot& slot);
 
     Game& game_;
     std::vector<PlaceRecord> records_;
@@ -65,6 +78,7 @@ private:
     int place_ = 0;
     int scenesKind_ = -1;
     std::optional<SceneFile> scenes_;
+    std::vector<Shown> shown_;
 };
 
 } // namespace mentat

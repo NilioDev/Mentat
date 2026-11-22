@@ -14,6 +14,7 @@
 #include "mentat/engine/fiber.hpp"
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/intro.hpp"
+#include "mentat/engine/play.hpp"
 #include "mentat/game_files.hpp"
 #include "mentat/gfx/png.hpp"
 
@@ -26,14 +27,35 @@ using namespace mentat;
 
 int main(int argc, char** argv) {
     if (argc < 3) {
-        std::fprintf(stderr, "usage: mentat-run GAME-FOLDER out-folder [--every S] [--until S] [--press S]...\n");
+        std::fprintf(stderr, "usage: mentat-run GAME-FOLDER out-folder [--every S] [--until S] [--press S]...\n"
+                     "       [--mouse S,X,Y]... [--click S,X,Y]...\n");
         return 2;
     }
     double every = 2;
     double until = 600;
     std::vector<double> presses;
+    // Mouse moves and clicks: at a time, to a place; a click holds the
+    // button for a tenth of a second.
+    struct MouseStep {
+        double at;
+        int x;
+        int y;
+        bool click;
+    };
+    std::vector<MouseStep> mouse;
     for (int i = 3; i + 1 < argc; i += 2) {
         const std::string opt = argv[i];
+        if (opt == "--mouse" || opt == "--click") {
+            double at = 0;
+            int x = 0;
+            int y = 0;
+            if (std::sscanf(argv[i + 1], "%lf,%d,%d", &at, &x, &y) != 3) {
+                std::fprintf(stderr, "mentat-run: %s takes S,X,Y\n", opt.c_str());
+                return 2;
+            }
+            mouse.push_back(MouseStep{at, x, y, opt == "--click"});
+            continue;
+        }
         const double v = std::stod(argv[i + 1]);
         if (opt == "--every") {
             every = v;
@@ -62,6 +84,7 @@ int main(int argc, char** argv) {
             }
             runCredits(game);
             runStory(game, kEnglish);
+            runGame(game, kEnglish);
         });
         platform.fiber = &fiber;
         const std::filesystem::path out = argv[2];
@@ -75,6 +98,16 @@ int main(int argc, char** argv) {
             for (double& q : platform.soundQueued) {
                 q = q > frame ? q - frame : 0;
             }
+            platform.mouseButtons = 0;
+            for (const MouseStep& m : mouse) {
+                if (t >= m.at) {
+                    platform.mouseX = m.x;
+                    platform.mouseY = m.y;
+                }
+                if (m.click && t >= m.at && t < m.at + 0.1) {
+                    platform.mouseButtons = 1;
+                }
+            }
             if (pressed < presses.size() && t >= presses[pressed]) {
                 platform.keys.push_back(KeyPress{0x39, ' '});
                 ++pressed;
@@ -84,7 +117,11 @@ int main(int argc, char** argv) {
             if (t >= nextShot) {
                 char name[32];
                 std::snprintf(name, sizeof name, "m%05.1f.png", t);
-                writePng(out / name, platform.screen, platform.palette);
+                Surface shown = platform.screen;
+                if (platform.cursorShown) {
+                    platform.cursor.draw(shown, platform.mouseX, platform.mouseY);
+                }
+                writePng(out / name, shown, platform.palette);
                 nextShot += every;
             }
             t += frame;

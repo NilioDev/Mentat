@@ -42,6 +42,7 @@ picture is copied to the screen and the changed colours are sent.
 | --- | --- |
 | `0x10` | **Dissolve.** The 152 rows at the origin are blacked out through a 4 × 4 pattern: 16 steps, each doing one place of the pattern in every 4 × 4 block. Then the changed colours are sent and 16 more steps show the back picture through the same pattern. About 96 ticks. |
 | `0x30` | **Cut.** The changed colours are sent and the 152 rows at the origin are copied from the back picture. |
+| `0x34` | **Dissolve of the whole screen.** As `0x10`, but over all 200 rows. |
 | `0x36` | **Fade in from black.** The working palette is kept in the spare one, colours 0 to 254 are set to black and sent, the back picture is shown, and the colours rise in 64 rounds (32 colours at a time, steps of 1). |
 | `0x38` | **Fade to black.** The working palette is kept, colours fall in 32 rounds (64 colours at a time, steps of 2), the back picture is shown, the working palette is set back from the spare one, and only the changed colours are sent, so the screen mostly stays dark. |
 | `0x3A` | **Fade through black.** Colours 1 to 254 of the working and spare palettes trade places, so the new colours wait in the spare one. The old picture fades out in 22 rounds (85 colours at a time, steps of 3), the back picture is shown and the colours rise to the new palette in 22 rounds the same way. About 400 ticks. |

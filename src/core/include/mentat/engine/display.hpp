@@ -107,6 +107,7 @@ public:
     // --- Transitions (the original's numbers; see docs/rules/display.md)
     static constexpr int kDissolve = 0x10;
     static constexpr int kCut = 0x30;
+    static constexpr int kDissolveScreen = 0x34;
     static constexpr int kFadeInFromBlack = 0x36;
     static constexpr int kFadeToBlack = 0x38;
     static constexpr int kFadeThroughBlack = 0x3A;
@@ -124,7 +125,7 @@ private:
     void sendColours(int first, int count);
     void fadeDown(int chunk, int step, int rounds);
     void fadeUp(int chunk, int step, int rounds);
-    void dissolve();
+    void dissolve(int rows);
 
     Platform& platform_;
     DisplayTables tables_;

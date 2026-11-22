@@ -20,9 +20,11 @@
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/intro.hpp"
 #include "mentat/engine/platform.hpp"
+#include "mentat/engine/play.hpp"
 #include "mentat/game_files.hpp"
 #include "mentat/version.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <filesystem>
@@ -51,6 +53,8 @@ struct App {
     std::unique_ptr<mentat::Fiber> game;
     Uint64 startNs = 0;
     std::vector<Uint32> rgba = std::vector<Uint32>(static_cast<std::size_t>(kScreenW) * kScreenH);
+    mentat::Surface shown; // the screen with the mouse pointer over it
+    bool systemCursor = true;
 
     ~App() {
         game.reset(); // stop the game thread before what it uses goes away
@@ -130,6 +134,7 @@ void runGame(App& app) {
     }
     runCredits(game);
     runStory(game, kEnglish);
+    mentat::runGame(game, kEnglish);
     app.platform.music = nullptr;
 }
 
@@ -178,8 +183,8 @@ void updateInput(App& app) {
     float y = 0;
     const SDL_MouseButtonFlags buttons = SDL_GetMouseState(&x, &y);
     SDL_RenderCoordinatesFromWindow(app.renderer, x, y, &x, &y);
-    p.mouseX = static_cast<int>(std::floor(x));
-    p.mouseY = static_cast<int>(std::floor(y));
+    p.mouseX = std::clamp(static_cast<int>(std::floor(x)), 0, kScreenW - 1);
+    p.mouseY = std::clamp(static_cast<int>(std::floor(y)), 0, kScreenH - 1);
     p.mouseButtons = static_cast<std::uint8_t>(((buttons & SDL_BUTTON_LMASK) != 0 ? 1 : 0) |
                                                ((buttons & SDL_BUTTON_RMASK) != 0 ? 2 : 0));
     for (int i = 0; i < kChannels; ++i) {
@@ -191,7 +196,20 @@ void updateInput(App& app) {
 }
 
 void drawScreen(App& app) {
-    const auto& screen = app.platform.screen;
+    mentat::Surface& screen = app.shown;
+    screen = app.platform.screen;
+    if (app.platform.cursorShown) {
+        app.platform.cursor.draw(screen, app.platform.mouseX, app.platform.mouseY);
+    }
+    // The game draws its own pointer; the system's is hidden while it shows.
+    if (app.platform.cursorShown == app.systemCursor) {
+        app.systemCursor = !app.platform.cursorShown;
+        if (app.systemCursor) {
+            SDL_ShowCursor();
+        } else {
+            SDL_HideCursor();
+        }
+    }
     const auto& palette = app.platform.palette;
     std::array<Uint32, 256> colours{};
     for (std::size_t i = 0; i < colours.size(); ++i) {
