@@ -158,6 +158,8 @@ void MapScreen::toScreen(std::uint16_t longitude, int latitude, int& x, int& y) 
     y = (latitude - latitude_) * 4 + kMiddleY;
 }
 
+ClipRect MapScreen::view() const { return viewRect(g_.resources().program()); }
+
 bool MapScreen::inView(int x, int y) const {
     const ClipRect r = viewRect(g_.resources().program());
     return x >= r.left && x < r.right && y >= r.top && y < r.bottom;
