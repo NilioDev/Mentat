@@ -5,6 +5,7 @@
 #include "mentat/data/program_tables.hpp"
 #include "mentat/data/reader.hpp"
 #include "mentat/engine/game.hpp"
+#include "mentat/gfx/sprite_sheet.hpp"
 
 #include <algorithm>
 #include <string>
@@ -119,10 +120,79 @@ int Places::characterAt(int x, int y) const {
     return -1;
 }
 
-void Places::drawView() {
+void Places::drawSky() {
+    constexpr int kRows = 4;
+    constexpr int kTileWidth = 40;
+    constexpr int kTileHeight = 20;
+    game_.selectSheet(resource::kSky);
+    for (int row = 0; row < kRows; ++row) {
+        for (int x = 0; x < Surface::kScreenWidth; x += kTileWidth) {
+            game_.drawSprite(static_cast<std::uint16_t>(row), x, row * kTileHeight);
+        }
+    }
+}
+
+namespace {
+
+// The first rooms' pictures, by the kind of place: the picture file and how
+// many there are, for a sietch, the palace, a village, the fortress and
+// the rest; for the villages, one by name.
+constexpr std::size_t kOutsidePictures = 0x1972;
+constexpr std::size_t kOutsideCounts = 0x1977;
+constexpr int kKindSteps[4] = {0x20, 0x21, 0x28, 0x30};
+constexpr int kVillagePictures = 0x7F;
+constexpr int kOrnithopters = 0x33; // ORNY.HSQ
+constexpr ClipRect kSceneArea{0, 0, 320, 152};
+
+} // namespace
+
+void Places::drawOutside(int kind, int firstName) {
+    const ProgramFile& program = game_.resources().program();
+    std::size_t k = 4;
+    for (std::size_t i = 0; i < 4; ++i) {
+        if (kind < kKindSteps[i]) {
+            k = i;
+            break;
+        }
+    }
+    if (program.dataU8(kOutsideCounts + k) == 0) {
+        return;
+    }
+    int picture = program.dataU8(kOutsidePictures + k);
+    if (picture == kVillagePictures) {
+        picture += (firstName >> 1) - 5;
+    }
+    game_.selectSheet(picture);
+    game_.drawSprite(0, 0, 0);
+}
+
+void Places::drawOrnithopters(int count, bool sietch) {
+    if (count <= 0) {
+        return;
+    }
+    int x = sietch ? 0x95 : 0xCA;
+    int y = sietch ? 0x39 : 0x49;
+    game_.selectSheet(kOrnithopters);
+    const SpriteSheet& sheet = game_.sheet();
+    // Each sprite clipped to the scene.
+    auto draw = [&](std::size_t n, int at, int top) {
+        drawSpriteClipped(game_.canvas(), sheet.sprite(n), at, top, kSceneArea);
+    };
+    for (int i = 0; i < count; ++i, x += 0x46, y += 0x0A) {
+        draw(0, x, y);            // the body
+        draw(1, x + 6, y + 30);   // below it
+        draw(2, x + 4, y + 50);   // its shadow
+        draw(8, x - 0x51, y - 3); // the wings, folded
+    }
+}
+
+void Places::drawView(const std::function<void()>& background) {
     shown_.clear();
     Display& d = game_.display();
     d.clearRect(d.target(), game_.sceneTables().lineClip);
+    if (background) {
+        background();
+    }
     const int code = roomByte();
     if (code >= 0x80) {
         throw FormatError("places: the outside views are not built yet");

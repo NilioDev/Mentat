@@ -12,6 +12,7 @@
 #include "mentat/engine/intro.hpp"
 #include "mentat/engine/map_screen.hpp"
 #include "mentat/engine/panel.hpp"
+#include "mentat/engine/places.hpp"
 #include "mentat/engine/platform.hpp"
 #include "mentat/engine/saved_games.hpp"
 #include "mentat/engine/world.hpp"
@@ -191,6 +192,39 @@ MTT_TEST("map screen: opens on the palace and the arrows move it") {
     MTT_CHECK(!map.command(0x1234));
     map.leave();
     MTT_CHECK(!map.active() && !map.command(MapScreen::kUp));
+}
+
+MTT_TEST("places: the palace's entrance looks outside, with its ornithopter in front") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
+    Places& places = g.places();
+    places.enter(0x2001, 0x0180);
+    g.display().targetBack();
+    const Surface& back = g.display().back();
+    places.drawView();
+    MTT_CHECK(back.at(10, 10) == 0 && back.at(210, 90) == 0);
+    places.drawView([&] { places.drawOutside(0x20, 1); });
+    MTT_CHECK(back.at(10, 10) != 0);
+    const Surface before = back;
+    places.drawOrnithopters(1, false);
+    auto changed = [&](int left, int top, int right, int bottom) {
+        int n = 0;
+        for (int y = top; y < bottom; ++y) {
+            for (int x = left; x < right; ++x) {
+                n += back.at(x, y) != before.at(x, y) ? 1 : 0;
+            }
+        }
+        return n;
+    };
+    MTT_CHECK(changed(200, 70, 320, 152) > 500);
+    // The folded wings reach past the scene's right edge, and are cut there
+    // rather than going on at the left.
+    MTT_CHECK(changed(0, 75, 60, 120) == 0);
 }
 
 MTT_TEST("cockpit: the map around Paul, the names of what the mouse points at, and Cancel") {

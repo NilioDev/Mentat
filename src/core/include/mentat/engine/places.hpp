@@ -7,6 +7,7 @@
 #include "mentat/gfx/scene.hpp"
 
 #include <array>
+#include <functional>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -45,7 +46,20 @@ public:
     int spotTurn = 0;
 
     // Draws the room on the display's target, with the characters in it.
-    void drawView();
+    // `background`, when given, is drawn after the clearing, before the
+    // scene.
+    void drawView(const std::function<void()>& background = {});
+
+    // The sky seen through the windows or over a cockpit: four rows of
+    // tiles from the first four pictures of the sky file.
+    void drawSky();
+
+    // What a place's first room shows behind its scene: the place's
+    // surroundings, by the kind of place (byte 8 of its record) and the
+    // first word of its name.
+    void drawOutside(int kind, int firstName);
+    // The ornithopters kept at a place, in front of its first room.
+    void drawOrnithopters(int count, bool sietch);
 
     // Where each character was drawn by the last drawView(), for the mouse.
     struct Shown {
