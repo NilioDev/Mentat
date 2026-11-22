@@ -359,13 +359,29 @@ private:
             return;
         }
         if (cockpit_.active()) {
-            const std::size_t record = cockpit_.destinationAt(x, y);
-            if (record != 0) {
-                flyTo(record);
+            const Cockpit::Destination to = cockpit_.destinationAt(x, y);
+            if (to.chosen) {
+                flyTo(to);
             }
             return;
         }
-        if (talk_.active() || flight_.active()) {
+        if (flight_.active()) {
+            // Flying freely the arrows turn the ornithopter.
+            for (int i = 0; i < 6; ++i) {
+                const int n = Panel::kArrows + i;
+                const Zone& z = zones[static_cast<std::size_t>(n)];
+                if ((z.flags & Zone::kActive) && z.contains(x, y)) {
+                    if (z.flags & Zone::kRepeat) {
+                        repeatZone_ = n;
+                        repeatSince_ = g_.platform().ticks;
+                    }
+                    screenCommand(z.action);
+                    return;
+                }
+            }
+            return;
+        }
+        if (talk_.active()) {
             return;
         }
         if (map_.active() || globe_.active()) {
@@ -500,10 +516,14 @@ private:
 
     // A destination chosen in the cockpit: its name blinks, then the
     // ornithopter takes off, or turns there when it is flying already.
-    void flyTo(std::size_t record) {
-        cockpit_.confirm(record);
+    void flyTo(const Cockpit::Destination& to) {
+        cockpit_.confirm();
         cockpit_.leave();
-        flight_.setDestination(record);
+        if (to.record != 0) {
+            flight_.setDestination(to.record);
+        } else {
+            flight_.setFree(to.longitude, to.latitude);
+        }
         if (!flight_.active()) {
             takingOff_ = true;
             chooseMusic();

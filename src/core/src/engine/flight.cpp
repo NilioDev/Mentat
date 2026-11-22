@@ -24,10 +24,22 @@ constexpr int kStepsPerHour = 16;
 // The latitude where the flight turns back from a pole.
 constexpr int kPoleTurn = 0x60;
 
-// The commands while flying to a place, and the arrows (none).
+// The commands while flying to a place, and the arrows (none); flying
+// freely, the way back, the nearest place from a point of the story on,
+// and the arrows to turn.
 constexpr std::size_t kSkipCommand = 0x21FC;
 constexpr std::size_t kChangeCommand = 0x21F8;
+constexpr std::size_t kBackCommand = 0x2200;
+constexpr std::size_t kNearestCommand = 0x2204;
 constexpr std::size_t kFlightArrows = 0x1D1E;
+constexpr std::size_t kFreeArrows = 0x1D72;
+constexpr std::size_t kProgress = 0x2A;
+constexpr int kNearestFrom = 0x32;
+// An arrow turns the heading by this much.
+constexpr int kTurn = 4;
+// Flying freely, beyond these latitudes a heading toward the pole turns
+// east or west.
+constexpr int kPoleSteer = 0x4D;
 
 // The corner: the small map's rectangle, and the part of the screen the
 // corner covers, from the third buffer, over each frame of the videos.
@@ -96,8 +108,13 @@ Flight::Flight(Game& game, World& world, Panel& panel, MapScreen& map)
 // --- Where to
 
 bool Flight::headingTo(std::uint16_t longitude, int latitude, std::size_t record, int& heading) const {
-    int down = s16(world_.u16(record + 4)) - latitude;
-    int across = s16(static_cast<std::uint16_t>(world_.u16(record + 2) - longitude));
+    return headingToward(longitude, latitude, world_.u16(record + 2), s16(world_.u16(record + 4)), heading);
+}
+
+bool Flight::headingToward(std::uint16_t longitude, int latitude, std::uint16_t toLongitude, int toLatitude,
+                           int& heading) {
+    int down = toLatitude - latitude;
+    int across = s16(static_cast<std::uint16_t>(toLongitude - longitude));
     if (down < -0x80 || down >= 0x80) {
         down >>= 1;
         across >>= 1;
@@ -128,6 +145,8 @@ bool Flight::headingTo(std::uint16_t longitude, int latitude, std::size_t record
 
 void Flight::setDestination(std::size_t record) {
     destination_ = record;
+    free_ = false;
+    manual_ = false;
     std::uint16_t lon = 0;
     int lat = 0;
     world_.position(lon, lat);
@@ -136,8 +155,34 @@ void Flight::setDestination(std::size_t record) {
     fraction_ = 0x80;
 }
 
-// The heading toward the destination from where the player is.
-void Flight::steer() {
+void Flight::setFree(std::uint16_t longitude, int latitude) {
+    free_ = true;
+    manual_ = true;
+    destination_ = world_.home();
+    std::uint16_t lon = 0;
+    int lat = 0;
+    world_.position(lon, lat);
+    int h = 0;
+    if (headingToward(lon, lat, longitude, latitude, h)) {
+        heading_ = h;
+    }
+    fraction_ = 0x80;
+}
+
+// The heading toward the destination from where the player is; flying
+// freely only away from the poles.
+void Flight::steer(int latitude) {
+    if (free_ || manual_) {
+        if (latitude >= -kPoleSteer && latitude <= kPoleSteer) {
+            return;
+        }
+        const bool north = ((heading_ - 0x40) & 0x80) != 0;
+        if (north != (latitude < 0)) {
+            return; // already away from the pole
+        }
+        heading_ = (heading_ & 0x80) | 0x40;
+        return;
+    }
     std::uint16_t lon = 0;
     int lat = 0;
     world_.position(lon, lat);
@@ -148,7 +193,7 @@ void Flight::steer() {
 }
 
 void Flight::move(std::uint16_t& longitude, int& latitude) {
-    steer();
+    steer(latitude);
     // A step goes a map point's width at the equator, and the same
     // distance in longitude units nearer the poles.
     const int speed = map_.flatMap().pointSize(std::abs(latitude));
@@ -213,10 +258,7 @@ void Flight::show() {
     const ProgramFile& program = g_.resources().program();
     paused = false;
     d.targetBack();
-    auto commandAt = [&](std::size_t at) { return Command{program.dataU16(at), program.dataU16(at + 2)}; };
-    panel_.setCommands({commandAt(kSkipCommand), commandAt(kChangeCommand)});
-    panel_.drawCommands();
-    panel_.setArrowZones(kFlightArrows);
+    drawCommands();
     corner_ = 0;
     std::uint16_t lon = 0;
     int lat = 0;
@@ -231,6 +273,25 @@ void Flight::show() {
     showFrame();
     d.showBack();
     d.flush();
+}
+
+// The commands and arrows: to a place, or flying freely.
+void Flight::drawCommands() {
+    const ProgramFile& program = g_.resources().program();
+    auto commandAt = [&](std::size_t at) { return Command{program.dataU16(at), program.dataU16(at + 2)}; };
+    std::vector<Command> list;
+    if (!free_) {
+        list.push_back(commandAt(kSkipCommand));
+    } else {
+        list.push_back(commandAt(kBackCommand));
+        if (world_.u8(kProgress) >= kNearestFrom) {
+            list.push_back(commandAt(kNearestCommand));
+        }
+    }
+    list.push_back(commandAt(kChangeCommand));
+    panel_.setCommands(std::move(list));
+    panel_.drawCommands();
+    panel_.setArrowZones(free_ ? kFreeArrows : kFlightArrows);
 }
 
 void Flight::tick() {
@@ -440,12 +501,37 @@ bool Flight::command(std::uint16_t action) {
         corner_ = 1;
         return true;
     }
+    if (free_ && (action == kLeft || action == kRight)) {
+        heading_ = (heading_ + (action == kLeft ? -kTurn : kTurn)) & 0xFF;
+        manual_ = true;
+        fraction_ = 0x80;
+        return true;
+    }
+    if (free_ && (action == kBack || action == kNearest)) {
+        if (action == kBack) {
+            setDestination(world_.home());
+            // The video starts again.
+            g_.display().targetBack();
+            g_.openVideo(slot_);
+            g_.display().flush();
+            showFrame();
+        } else {
+            setDestination(nearestPlace());
+        }
+        Display& d = g_.display();
+        d.targetScreen();
+        drawCommands();
+        d.targetBack();
+        drawCommands();
+        return true;
+    }
     if (action != kSkip) {
         return false;
     }
     // Straight there: the steps at once, without the videos; after 200 the
     // place is reached anyway.
     g_.closeVideo();
+    manual_ = false;
     for (int i = 0; i < kSkipSteps; ++i) {
         std::uint16_t lon = 0;
         int lat = 0;
@@ -457,6 +543,29 @@ bool Flight::command(std::uint16_t action) {
     arrived = true;
     approach = false;
     return true;
+}
+
+// The place shown on the map nearest to the player: the larger of the
+// longitude's distance in 256ths and the latitude's.
+std::size_t Flight::nearestPlace() const {
+    std::uint16_t lon = 0;
+    int lat = 0;
+    world_.position(lon, lat);
+    std::size_t nearest = world_.home();
+    int best = 0xFFFF;
+    for (std::size_t r = World::kPlaces; world_.u16(r) != 0xFFFF; r += World::kPlaceSize) {
+        if (world_.u8(r + 0x0A) & 0x80) {
+            continue;
+        }
+        const int along = std::abs(static_cast<int>(s16(static_cast<std::uint16_t>(world_.u16(r + 2) - lon))));
+        const int down = std::abs(s16(world_.u16(r + 4)) - lat);
+        const int far = (along >> 8) >= (down & 0xFF) ? (along >> 8) : down;
+        if (far < best) {
+            best = far;
+            nearest = r;
+        }
+    }
+    return nearest;
 }
 
 // --- Arriving
