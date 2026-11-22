@@ -21,6 +21,7 @@ add_library(mtt_core STATIC
     src/gfx/sprite_sheet.cpp
     src/gfx/surface.cpp
     src/gfx/png.cpp
+    src/gfx/scene.cpp
 )
 add_library(mentat::core ALIAS mtt_core)
 
