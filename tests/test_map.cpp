@@ -3,6 +3,7 @@
 #include "test.hpp"
 
 #include "mentat/data/program_tables.hpp"
+#include "mentat/engine/cockpit.hpp"
 #include "mentat/engine/dialogue.hpp"
 #include "mentat/engine/flat_map.hpp"
 #include "mentat/engine/fiber.hpp"
@@ -17,6 +18,7 @@
 #include "mentat/gfx/surface.hpp"
 
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <functional>
 #include <string>
@@ -98,6 +100,33 @@ MTT_TEST("flat map: four pixels to a point, stepping from the point before") {
     MTT_CHECK(colours == (std::set<int>{16, 18, 20, 22, 24, 26, 28, 30}));
 }
 
+MTT_TEST("flat map: the small map is a pixel a point, and the rim closes in near the poles") {
+    // Each point's colour is its number around the ring, with the bits
+    // above the colour set too.
+    std::vector<std::uint8_t> map(2 * kMiddle + 512, 0);
+    for (int r = -98; r <= 98; ++r) {
+        const int start = kMiddle + (r < 0 ? -1 : 1) * std::abs(r) * 256;
+        for (int point = 0; point < 200; ++point) {
+            map[static_cast<std::size_t>(start + point)] = static_cast<std::uint8_t>(0x30 | (point & 0x0F));
+        }
+    }
+    FlatMap::Edges edges;
+    edges.poles.fill(10);
+    const FlatMap m(smallLatitudes(), map, edges);
+    Surface s(320, 200);
+    MTT_CHECK(m.drawSmall(s, 0, 0, 160, 89, 0, 0) == 0);
+    // The middle column shows point 0; the first, 80 points before it.
+    MTT_CHECK(s.at(80, 44) == 16 && s.at(81, 44) == 17);
+    MTT_CHECK(s.at(0, 44) == 16 + (120 & 0x0F) && s.at(0, 0) == s.at(0, 88));
+    // Too near a pole: the middle goes no further than latitude 42, and
+    // rows from latitude 70 have the rim.
+    MTT_CHECK(m.drawSmall(s, 0, 0, 160, 89, 0, 60) == 42);
+    const int y = 70 - (42 - 44);
+    MTT_CHECK(s.at(80, y - 1) == 16);
+    MTT_CHECK(s.at(5, y) == 0 && s.at(6, y) == 0x1C && s.at(9, y) == 0x17 && s.at(10, y) >= 16 && s.at(10, y) < 32);
+    MTT_CHECK(s.at(150, y) == 0x17 && s.at(153, y) == 0x1C && s.at(154, y) == 0 && s.at(159, y) == 0);
+}
+
 MTT_TEST("world: places settle onto the map's points when the program starts") {
     std::vector<std::uint8_t> map(2 * kMiddle + 512, 0x05);
     std::vector<std::uint8_t> regions(map.size(), 3);
@@ -162,6 +191,54 @@ MTT_TEST("map screen: opens on the palace and the arrows move it") {
     MTT_CHECK(!map.command(0x1234));
     map.leave();
     MTT_CHECK(!map.active() && !map.command(MapScreen::kUp));
+}
+
+MTT_TEST("cockpit: the map around Paul, the names of what the mouse points at, and Cancel") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
+    World w(*program);
+    w.goTo(0x2001, 0x0180);
+    Panel panel(g, kEnglish);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    Cockpit cockpit(g, w, panel, map);
+    cockpit.enter();
+    cockpit.drawScene();
+    MTT_CHECK(cockpit.active());
+    const ClipRect r = cockpit.view();
+    MTT_CHECK(r.left == 81 && r.top == 45 && r.right == 241 && r.bottom == 134);
+    MTT_CHECK(panel.commands().size() == 1 && panel.commands()[0].action == Cockpit::kCancel);
+    const int middle = g.display().back().at(100, 100);
+    MTT_CHECK(middle >= 16 && middle < 32);
+    cockpit.show();
+    // The line above the map: the name of the palace, then the desert to
+    // the east of it.
+    auto nameShown = [&] {
+        for (int x = 85; x < 240; ++x) {
+            for (int y = 38; y < 45; ++y) {
+                if (p.screen.at(x, y) == 0xFE) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+    MTT_CHECK(!nameShown());
+    cockpit.pointAt(161, 89);
+    MTT_CHECK(nameShown());
+    cockpit.pointAt(200, 87);
+    MTT_CHECK(nameShown());
+    cockpit.pointAt(20, 20);
+    MTT_CHECK(!nameShown());
+    MTT_CHECK(!cockpit.command(0x1234) && !cockpit.leaving);
+    MTT_CHECK(cockpit.command(Cockpit::kCancel) && cockpit.leaving);
+    cockpit.leave();
+    MTT_CHECK(!cockpit.active() && !cockpit.command(Cockpit::kCancel));
 }
 
 MTT_TEST("globe screen: opens on the map's middle, turns with the arrows and goes back to Paul") {

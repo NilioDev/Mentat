@@ -20,6 +20,14 @@ constexpr std::size_t kNorthEdges = 0x7F7;
 constexpr std::size_t kSouthEdges = 0x82F;
 constexpr int kFirstNorthEdge = 86;
 constexpr int kFirstSouthEdge = 87;
+constexpr std::size_t kPoleEdges = 0x2284;
+constexpr int kFirstPoleEdge = 70;
+// The small map's rows stop this far from the equator.
+constexpr int kSmallLimit = 86;
+// Its colours: the map's 16 from colour 16, and the planet's rim.
+constexpr std::uint8_t kSmallFirstColour = 0x10;
+constexpr std::array<std::uint8_t, 4> kRim{0x1C, 0x19, 0x18, 0x17};
+constexpr int kSmallStride = 200;
 
 // Points to a row: 44 each side of the middle and one more, or the whole
 // ring and one more when it has fewer than 88.
@@ -37,13 +45,14 @@ int shiftRight2(int v) {
 } // namespace
 
 FlatMap::Edges FlatMap::Edges::fromDriver(std::span<const std::uint8_t> driver) {
-    if (driver.size() < kSouthEdges + 56) {
+    if (driver.size() < kPoleEdges + 18) {
         throw FormatError("video driver: too short for the map's edges");
     }
     Edges e;
     std::copy_n(driver.begin() + kEdgeFade, 8, e.fade.begin());
     std::copy_n(driver.begin() + kNorthEdges, 56, e.north.begin());
     std::copy_n(driver.begin() + kSouthEdges, 56, e.south.begin());
+    std::copy_n(driver.begin() + kPoleEdges, 18, e.poles.begin());
     return e;
 }
 
@@ -229,6 +238,91 @@ void FlatMap::draw(Surface& to, int x, int y, std::uint16_t longitude, int latit
         const auto first = static_cast<std::ptrdiff_t>(kPad + kFirstLine);
         std::copy_n(work.begin() + first + 4 * kLine, 700, work.begin() + first);
     }
+}
+
+int FlatMap::drawSmall(Surface& to, int left, int top, int right, int bottom, std::uint16_t longitude,
+                       int latitude) const {
+    const int width = right - left;
+    const int rows = bottom - top;
+    const int half = (rows - 1) / 2;
+    const int limit = kSmallLimit - half;
+    if (std::abs(latitude) >= limit) {
+        latitude = latitude < 0 ? -limit : limit;
+    }
+    const int first = latitude - half;
+    // The rows are gathered first, each with the points around the
+    // longitude; a ring narrower than the rectangle is centred in it.
+    std::vector<std::uint8_t> work(static_cast<std::size_t>(kSmallStride * rows), 0);
+    for (int r = 0; r < rows; ++r) {
+        const int lat = first + r;
+        const int ring = 2 * this->width(std::abs(lat));
+        const int start = rowStart(lat);
+        const int middle = static_cast<int>((static_cast<std::uint32_t>(longitude) * static_cast<std::uint32_t>(ring)) >> 16);
+        int to2 = kSmallStride * r;
+        int count = width;
+        if (ring < width) {
+            to2 += (width - ring) / 2;
+            count = ring;
+        }
+        int at = middle - count / 2;
+        if (at < 0) {
+            at += ring;
+        }
+        for (int k = 0; k < count; ++k) {
+            work[static_cast<std::size_t>(to2 + k)] = value(start + at) >> 4;
+            if (++at == ring) {
+                at = 0;
+            }
+        }
+    }
+    // Then drawn from the bottom row up; near the poles the planet's rim
+    // closes in from both sides.
+    for (int r = rows - 1; r >= 0; --r) {
+        const int lat = std::abs(first + r);
+        const std::uint8_t* from = &work[static_cast<std::size_t>(kSmallStride * r)];
+        const int y = top + r;
+        int x = left;
+        int in = 0;
+        int middle = width;
+        int side = 0;
+        if (lat >= kFirstPoleEdge) {
+            side = edges_.poles[static_cast<std::size_t>(std::min(lat - kFirstPoleEdge, 17))];
+            in = side;
+            middle = width - 2 * side;
+            if (middle < 0) {
+                for (int k = 0; k < width; ++k) {
+                    to.set(x++, y, 0);
+                }
+                continue;
+            }
+            // The left: black, then the rim (only its inner half when the
+            // planet reaches nearly to the side).
+            if (side >= 4) {
+                for (int k = 0; k < side - 4; ++k) {
+                    to.set(x++, y, 0);
+                }
+                to.set(x++, y, kRim[0]);
+                to.set(x++, y, kRim[1]);
+            }
+            to.set(x++, y, kRim[2]);
+            to.set(x++, y, kRim[3]);
+        }
+        for (int k = 0; k < middle; ++k) {
+            to.set(x++, y, static_cast<std::uint8_t>(kSmallFirstColour + (from[in + k] & 0x0F)));
+        }
+        if (side > 0) {
+            to.set(x++, y, kRim[3]);
+            to.set(x++, y, kRim[2]);
+            if (side >= 4) {
+                to.set(x++, y, kRim[1]);
+                to.set(x++, y, kRim[0]);
+                for (int k = 0; k < side - 4; ++k) {
+                    to.set(x++, y, 0);
+                }
+            }
+        }
+    }
+    return latitude;
 }
 
 } // namespace mentat

@@ -4,6 +4,7 @@
 #include "mentat/data/program_file.hpp"
 #include "mentat/data/program_tables.hpp"
 #include "mentat/data/reader.hpp"
+#include "mentat/engine/cockpit.hpp"
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/globe_screen.hpp"
 #include "mentat/engine/map_screen.hpp"
@@ -121,7 +122,7 @@ public:
           talk_(game, world_, panel_, *this, language), map_(game, world_, panel_),
           saves_(game.platform().saveFolder, game.resources().program(), world_, talk_.dialogue(),
                  [this]() -> std::vector<std::uint8_t>& { return map_.mapBytes(); }),
-          globe_(game, world_, panel_, map_, language, &saves_) {
+          globe_(game, world_, panel_, map_, language, &saves_), cockpit_(game, world_, panel_, map_) {
         talk_.subtitles = subtitlesFor(language);
     }
 
@@ -205,6 +206,8 @@ private:
         ClipRect r;
         if (map_.active()) {
             r = map_.view();
+        } else if (cockpit_.active()) {
+            r = cockpit_.view();
         } else if (globe_.active()) {
             const ProgramFile& program = g_.resources().program();
             r = ClipRect{program.dataU16(kPlanetRect), program.dataU16(kPlanetRect + 2), program.dataU16(kPlanetRect + 4),
@@ -251,6 +254,7 @@ private:
         if (globe_.pointAt(x, y)) {
             lit_ = -1;
         }
+        cockpit_.pointAt(x, y);
         lightCommand(commandUnder(x, y));
         const bool down = (p.mouseButtons & 1) != 0;
         const bool clicked = down && !buttonWasDown_;
@@ -287,7 +291,7 @@ private:
                 return line;
             }
         }
-        if (y < kSceneBottom && !map_.active() && !globe_.active()) {
+        if (y < kSceneBottom && !map_.active() && !globe_.active() && !cockpit_.active()) {
             const int c = g_.places().characterAt(x, y);
             if (c >= 0) {
                 const auto& commands = panel_.commands();
@@ -333,7 +337,7 @@ private:
             }
             return;
         }
-        if (talk_.active()) {
+        if (talk_.active() || cockpit_.active()) {
             return;
         }
         if (map_.active() || globe_.active()) {
@@ -382,6 +386,10 @@ private:
             toggleMap();
             return;
         }
+        if (action == Cockpit::kOpen && !cockpit_.active()) {
+            openCockpit();
+            return;
+        }
         if (screenCommand(action, phrase)) {
             return;
         }
@@ -411,7 +419,33 @@ private:
             }
             return true;
         }
+        if (cockpit_.command(action)) {
+            if (cockpit_.leaving) {
+                leaveCockpit();
+            }
+            return true;
+        }
         return map_.command(action);
+    }
+
+    // "TAKE AN ORNITHOPTER": the cockpit, shown at once, its sky in the
+    // colours of the hour.
+    void openCockpit() {
+        cockpit_.enter();
+        setSky();
+        cockpit_.drawScene();
+        cockpit_.show();
+        lit_ = -1;
+    }
+
+    // "Cancel": the room comes back at once.
+    void leaveCockpit() {
+        cockpit_.leave();
+        d_.targetBack();
+        g_.forgetPalette();
+        drawView();
+        d_.showBack();
+        d_.flush();
     }
 
     // A saved game came back: what was counting for the game before starts
@@ -789,6 +823,7 @@ private:
     MapScreen map_;
     SavedGames saves_;
     GlobeScreen globe_;
+    Cockpit cockpit_;
     bool endTalk_ = false;
     Surface ornamentStrip_{320, 200};
     bool clockRunning_ = false;

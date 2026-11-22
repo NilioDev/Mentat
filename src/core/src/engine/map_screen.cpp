@@ -239,28 +239,36 @@ void MapScreen::drawPlaces() {
         if (!inView(x, y)) {
             continue;
         }
-        const int kind = world_.u8(record + 8);
-        std::uint16_t n = kPlaceSprite;
-        for (const int step : {0x20, 0x21, 0x28, 0x30}) {
-            if (kind >= step) {
-                ++n;
-            }
-        }
-        if (kind < 0x20) {
-            // A sietch further than Paul can see: in latitudes, or in the
-            // points of a longitude at his latitude.
-            std::uint16_t hereLon = 0;
-            int hereLat = 0;
-            playerPoint(hereLon, hereLat);
-            const int across = std::abs(static_cast<int>(s16(static_cast<std::uint16_t>(lon - hereLon)))) /
-                               m.pointSize(std::abs(hereLat));
-            const int distance = std::max(across, std::abs(hereLat - lat));
-            if (distance > world_.u16(kSeeingDistance)) {
-                n = static_cast<std::uint16_t>(n + kFarSietch);
-            }
-        }
+        const std::uint16_t n = placeSprite(record, kPlaceSprite);
         drawCentred(n, x, y);
     }
+}
+
+std::uint16_t MapScreen::placeSprite(std::size_t record, std::uint16_t first) {
+    const int kind = world_.u8(record + 8);
+    std::uint16_t n = first;
+    for (const int step : {0x20, 0x21, 0x28, 0x30}) {
+        if (kind >= step) {
+            ++n;
+        }
+    }
+    if (kind < 0x20) {
+        // A sietch further than Paul can see: in latitudes, or in the
+        // points of a longitude at his latitude.
+        FlatMap& m = map();
+        std::uint16_t hereLon = 0;
+        int hereLat = 0;
+        playerPoint(hereLon, hereLat);
+        const std::uint16_t lon = world_.u16(record + 2);
+        const int lat = s16(world_.u16(record + 4));
+        const int across = std::abs(static_cast<int>(s16(static_cast<std::uint16_t>(lon - hereLon)))) /
+                           m.pointSize(std::abs(hereLat));
+        const int distance = std::max(across, std::abs(hereLat - lat));
+        if (distance > world_.u16(kSeeingDistance)) {
+            n = static_cast<std::uint16_t>(n + kFarSietch);
+        }
+    }
+    return n;
 }
 
 void MapScreen::playerPoint(std::uint16_t& longitude, int& latitude) const { world_.position(longitude, latitude); }

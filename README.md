@@ -77,6 +77,7 @@ and the original can load the games you save in Mentat.
 | Look at the globe | On the map, click the small planet at the left of the panel; "EXIT GLOBE" or the button beside the list goes back | | |
 | Turn the globe | Click or hold an arrow; the middle turns it to you; click on the planet to see the map there | | |
 | See how you are doing | On the globe, "SEE RESULTS"; "STANDARD VISION" goes back | | |
+| Choose where to fly | In the palace's entrance, "TAKE AN ORNITHOPTER", then point at the small map; "Cancel" goes back | | |
 | Save or load a game | On the globe, "SAVE GAME" or "LOAD GAME", then a log; "Cancel" goes back | | |
 | Close Mentat | Window's close button | | Back |
 

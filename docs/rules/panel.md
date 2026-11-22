@@ -116,7 +116,8 @@ the arrow.
 
 Its shape follows the mouse. In a room it is the arrow. On the map, the
 rectangle is the map's view; on the globe, it is the planet's square at
-data offset `0x2448`. With (x, y) the mouse:
+data offset `0x2448`; in the ornithopter's cockpit, its small map (see
+[cockpit.md](cockpit.md)). With (x, y) the mouse:
 
 - Over the panel, from row `0x9B` down, it is the arrow.
 - Strictly inside the rectangle, it is the hand (`0x25C8`).
