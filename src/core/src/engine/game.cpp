@@ -83,7 +83,17 @@ void Game::playTrack(int n) {
         return;
     }
     track_ = n;
-    auto song = std::make_shared<const Song>(Song::parse(resources_.load(resource::kFirstMusic + n)));
+    const int index = resource::kFirstMusic + n;
+    std::vector<std::uint8_t> bytes;
+    if (music_->driver().card() == MusicCard::AdLibGold) {
+        // The AdLib Gold plays its own arrangement: the same name with .AGD.
+        std::string name = resources_.name(index);
+        name = name.substr(0, name.rfind('.')) + ".AGD";
+        bytes = resources_.archive().load(name);
+    } else {
+        bytes = resources_.load(index);
+    }
+    auto song = std::make_shared<const Song>(Song::parse(std::move(bytes)));
     music_->driver().start(music_->opl(), std::move(song), playTracksOnce ? 1 : 0);
 }
 

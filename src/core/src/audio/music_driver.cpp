@@ -71,9 +71,28 @@ std::uint8_t feedbackWith(std::uint8_t connection, int change) {
     return static_cast<std::uint8_t>(v);
 }
 
+// The AdLib Gold player keeps the side bits (4 and 5) of the 0xC0 value
+// apart from the feedback.
+std::uint8_t goldFeedbackWith(std::uint8_t connection, int change) {
+    return static_cast<std::uint8_t>(feedbackWith(connection & 0x0F, change) | (connection & 0x30));
+}
+
+// A register for a channel or operator place, the top bit of `place`
+// picking the second register set.
+std::uint16_t regAt(int base, std::uint8_t place) {
+    return static_cast<std::uint16_t>(base + (place & 0x7F) + ((place & 0x80) != 0 ? 0x100 : 0));
+}
+
+constexpr std::uint8_t kSecondSet = 0x80;
+constexpr std::uint16_t kSecondSetMask = 0x8000;
+
 } // namespace
 
-MusicDriver::MusicDriver(const MusicTables& tables) : tables_(tables) {}
+MusicDriver::MusicDriver(const MusicTables& tables) : tables_(tables) {
+    for (std::size_t v = 0; v < voices_.size(); ++v) {
+        voices_[v].frequency = tables_.firstFrequency[v];
+    }
+}
 
 std::uint8_t MusicDriver::mixerLevels(std::uint8_t volume, std::uint8_t balance) {
     const int v = volume >> 3;
@@ -88,11 +107,22 @@ void MusicDriver::init(OplSink& opl) {
     opl.writeRegister(0x01, 0x20);
     opl.writeRegister(0xBD, 0x00);
     opl.writeRegister(0x08, 0x40);
+    if (gold()) {
+        opl.writeRegister(0x105, 0x01); // the chip's own (OPL3) mode
+        fourOpSwitches_ = 0;
+        opl.writeRegister(0x104, fourOpSwitches_);
+        opl.writeControl(0x06, 0xFB); // bass
+        opl.writeControl(0x07, 0xF7); // treble
+        opl.writeControl(0x04, 0xF7); // volume
+        opl.writeControl(0x05, 0xF7);
+        opl.writeControl(0x09, 0xFF); // FM volume
+        opl.writeControl(0x0A, 0xFF);
+    }
     stop(opl);
 }
 
 void MusicDriver::stop(OplSink& opl) {
-    for (int v = Song::kVoices - 1; v >= 0; --v) {
+    for (int v = voiceCount() - 1; v >= 0; --v) {
         writeFrequency(opl, v, voices_[static_cast<std::size_t>(v)].frequency);
     }
     status_.flags = 0;
@@ -127,13 +157,28 @@ void MusicDriver::start(OplSink& opl, std::shared_ptr<const Song> song, int play
     song_ = std::move(song);
     plays_ = plays;
     // The fastest release on every operator.
-    for (const auto op : tables_.firstOperator) {
-        opl.writeRegister(static_cast<std::uint8_t>(0x80 + op), 0xFF);
+    if (gold()) {
+        for (int op = 0x15; op >= 0; --op) {
+            if ((op & 7) == 6 || (op & 7) == 7) {
+                continue;
+            }
+            opl.writeRegister(static_cast<std::uint16_t>(0x80 + op), 0xFF);
+            opl.writeRegister(static_cast<std::uint16_t>(0x180 + op), 0xFF);
+        }
+        // The piece's stereo mode and surround settings.
+        opl.writeControl(0x08, song_->byteOr0(Song::kGoldSettings));
+        for (std::uint8_t r = 0; r < Song::kGoldSettingsSize - 1; ++r) {
+            opl.writeSurround(r, song_->byteOr0(Song::kGoldSettings + 1 + r));
+        }
+    } else {
+        for (int v = 0; v < voiceCount(); ++v) {
+            opl.writeRegister(regAt(0x80, tables_.firstOperator[static_cast<std::size_t>(v)]), 0xFF);
+        }
+        for (int v = 0; v < voiceCount(); ++v) {
+            opl.writeRegister(regAt(0x80, tables_.secondOperator[static_cast<std::size_t>(v)]), 0xFF);
+        }
     }
-    for (const auto op : tables_.secondOperator) {
-        opl.writeRegister(static_cast<std::uint8_t>(0x80 + op), 0xFF);
-    }
-    for (int v = 0; v < Song::kVoices; ++v) {
+    for (int v = 0; v < voiceCount(); ++v) {
         auto& voice = voices_[static_cast<std::size_t>(v)];
         voice.start = song_->voiceStart(v);
         voice.instrument = 0xFF;
@@ -144,7 +189,7 @@ void MusicDriver::start(OplSink& opl, std::shared_ptr<const Song> song, int play
     resetVoices();
     current_ = volume_;
     target_ = current_;
-    writeMixer();
+    writeMixer(opl);
     counter_ = 0;
     repeatsLeft_ = 0;
     status_.flags = MusicStatus::kPlaying;
@@ -154,13 +199,16 @@ void MusicDriver::start(OplSink& opl, std::shared_ptr<const Song> song, int play
 void MusicDriver::resetVoices() {
     status_.measure = 1;
     status_.countdown = kStepsPerMeasure;
-    for (auto& voice : voices_) {
+    for (int v = 0; v < voiceCount(); ++v) {
+        auto& voice = voices_[static_cast<std::size_t>(v)];
         voice.at = voice.start;
         voice.wait = kForever;
+        voice.channels = 0;
         if (voice.at != 0) {
             voice.wait = static_cast<std::uint16_t>(readWait(voice) + 1);
         }
     }
+    used_[0] = used_[1] = 0;
 }
 
 std::uint8_t MusicDriver::byteAt(std::size_t at) const {
@@ -211,15 +259,22 @@ void MusicDriver::fadeStep(OplSink& opl) {
     }
     current_ = static_cast<std::uint8_t>(value);
     if (current_ == 0) {
-        for (int v = Song::kVoices - 1; v >= 0; --v) {
+        for (int v = voiceCount() - 1; v >= 0; --v) {
             writeFrequency(opl, v, voices_[static_cast<std::size_t>(v)].frequency);
         }
         status_.flags = 0;
     }
-    writeMixer();
+    writeMixer(opl);
 }
 
-void MusicDriver::writeMixer() {}
+void MusicDriver::writeMixer(OplSink& opl) {
+    // The Sound Blaster Pro's mixer is not a chip register here: the sound
+    // takes its levels from mixer(). The AdLib Gold's FM volumes are.
+    if (gold()) {
+        opl.writeControl(0x09, static_cast<std::uint8_t>(((current_ >> 4) << 1) | 0x81));
+        opl.writeControl(0x0A, static_cast<std::uint8_t>(((current_ & 0x0F) << 1) | 0x81));
+    }
+}
 
 void MusicDriver::repeatCheck() {
     if (repeatsLeft_ == 0) {
@@ -242,7 +297,7 @@ void MusicDriver::repeatCheck() {
 void MusicDriver::step(OplSink& opl) {
     counter_ = static_cast<std::uint16_t>(counter_ + song_->tempo());
     repeatCheck();
-    for (int v = 0; v < Song::kVoices; ++v) {
+    for (int v = 0; v < voiceCount(); ++v) {
         auto& voice = voices_[static_cast<std::size_t>(v)];
         if (--voice.wait == 0) {
             while (voice.at != 0 && status_.playing()) {
@@ -257,7 +312,7 @@ void MusicDriver::step(OplSink& opl) {
         } else if (voice.slideLeft > 0 && voice.at != 0) {
             --voice.slideLeft;
             voice.bend = static_cast<std::uint8_t>(voice.bend + voice.slideAmount);
-            bendPitch(opl, v);
+            bendPitch(opl, v, voice.bend);
         }
     }
     if (--status_.countdown == 0) {
@@ -297,13 +352,16 @@ void MusicDriver::runEvent(OplSink& opl, int index) {
         break;
     case 6:
         voice.wait = readWait(voice);
-        voice.bend = data;
-        bendPitch(opl, index);
+        // The bend is not kept: an automatic slide goes on from its own.
+        bendPitch(opl, index, data);
         break;
     default: // end of the list
         voice.wait = kForever;
         voice.at -= 2;
         if (index != 0) {
+            if (gold()) {
+                freeChannels(index);
+            }
             break;
         }
         if (plays_ != 0 && --plays_ == 0) {
@@ -320,35 +378,57 @@ void MusicDriver::runEvent(OplSink& opl, int index) {
     }
 }
 
+std::uint8_t MusicDriver::operatorOf(int index, int k) const {
+    const auto i = static_cast<std::size_t>(index);
+    const std::uint8_t op = (k & 1) == 0 ? tables_.firstOperator[i] : tables_.secondOperator[i];
+    return static_cast<std::uint8_t>(k < 2 ? op : op + 8);
+}
+
 void MusicDriver::noteOff(OplSink& opl, int index, std::uint8_t key) {
     auto& voice = voices_[static_cast<std::size_t>(index)];
     const auto note = static_cast<std::uint8_t>(key + voice.keyShift);
     if (voice.note == note) {
         voice.note = 0;
+        if (gold()) {
+            releaseAfterNote(index);
+        }
         writeFrequency(opl, index, voice.frequency);
+    }
+}
+
+void MusicDriver::releaseAfterNote(int index) {
+    // A voice that rests a while before a new instrument or its end gives
+    // its channels back.
+    const auto& voice = voices_[static_cast<std::size_t>(index)];
+    if (voice.wait < 0x30) {
+        return;
+    }
+    const std::uint8_t next = byteAt(voice.at);
+    if (next == 0xFF || (next & 0xF0) == 0xC0) {
+        freeChannels(index);
     }
 }
 
 void MusicDriver::noteOn(OplSink& opl, int index, std::uint8_t key, std::uint8_t velocity) {
     auto& voice = voices_[static_cast<std::size_t>(index)];
-    const auto i = static_cast<std::size_t>(index);
-    const std::uint8_t ops[2] = {tables_.firstOperator[i], tables_.secondOperator[i]};
-    for (int k = 0; k < 2; ++k) {
+    const int ops = voice.fourOps ? 4 : 2;
+    for (int k = 0; k < ops; ++k) {
         std::uint8_t level = voice.baseLevel[k];
         if (voice.velocityAmount[k] != 0) {
             const int change = velocityAmount(voice.velocityAmount[k], velocity, 4);
             const int v = std::min(0x3F, (level & 0x3F) + change);
             level = static_cast<std::uint8_t>((level & 0xC0) | v);
-            opl.writeRegister(static_cast<std::uint8_t>(0x40 + ops[k]), level);
+            opl.writeRegister(regAt(0x40, operatorOf(index, k)), level);
         }
         voice.currentLevel[k] = level;
     }
     if (voice.feedbackAmount == 0) {
         voice.currentConnection = voice.baseConnection;
     } else {
-        voice.currentConnection =
-            feedbackWith(voice.baseConnection, velocityAmount(voice.feedbackAmount, velocity, 6));
-        opl.writeRegister(static_cast<std::uint8_t>(0xC0 + index), voice.currentConnection);
+        const int change = velocityAmount(voice.feedbackAmount, velocity, 6);
+        voice.currentConnection = gold() ? goldFeedbackWith(voice.baseConnection, change)
+                                         : feedbackWith(voice.baseConnection, change);
+        opl.writeRegister(regAt(0xC0, tables_.channel[static_cast<std::size_t>(index)]), voice.currentConnection);
     }
     if (voice.note != 0) {
         writeFrequency(opl, index, 0);
@@ -367,13 +447,19 @@ void MusicDriver::noteOn(OplSink& opl, int index, std::uint8_t key, std::uint8_t
 
 void MusicDriver::instrument(OplSink& opl, int index, std::uint8_t number) {
     auto& voice = voices_[static_cast<std::size_t>(index)];
-    if (voice.instrument == number) {
+    // The Sound Blaster Pro player skips an instrument the voice already
+    // has; the AdLib Gold player sets it again.
+    if (!gold() && voice.instrument == number) {
         return;
     }
     voice.instrument = number;
     const auto ins = song_->instrument(number);
     const auto* first = ins.data() + kFirstOp;
     const auto* second = ins.data() + kSecondOp;
+    voice.fourOps = gold() && ins[0] == 4;
+    if (gold()) {
+        takeChannels(index, voice.fourOps);
+    }
     voice.fineBend = ins[kFineBend];
     voice.keyShift = ins[kKeyShift];
     voice.baseLevel[0] = levelByte(first[KeyScale], first[Level]);
@@ -382,52 +468,199 @@ void MusicDriver::instrument(OplSink& opl, int index, std::uint8_t number) {
     voice.velocityAmount[1] = ins[kVelocity + 1];
     voice.pressureAmount[0] = ins[kPressure];
     voice.pressureAmount[1] = ins[kPressure + 1];
-    voice.baseConnection =
-        static_cast<std::uint8_t>(((first[Feedback] << 1) | ((first[Connection] & 1) ^ 1)) & 0xFF);
+    if (gold()) {
+        // The second operator's feedback byte holds the sides it plays on.
+        voice.baseConnection = static_cast<std::uint8_t>(
+            (((first[Feedback] | (second[Feedback] << 3)) << 1) | ((first[Connection] & 1) ^ 1)) & 0xFF);
+    } else {
+        voice.baseConnection =
+            static_cast<std::uint8_t>(((first[Feedback] << 1) | ((first[Connection] & 1) ^ 1)) & 0xFF);
+    }
+    // Pressure before the first note works from the instrument's value.
+    voice.currentConnection = voice.baseConnection;
     voice.feedbackAmount = ins[kVelocityFeedback];
     voice.pressureFeedbackAmount = ins[kPressureFeedback];
     voice.slideSteps = ins[kSlideSteps];
     voice.slideAmount = ins[kSlideAmount];
     voice.slideLeft = 0;
 
+    // A four-operator sound takes operators 3 and 4 from the next
+    // instrument (zeros past the last one).
+    std::array<std::uint8_t, Song::kInstrumentSize> next{};
+    if (voice.fourOps) {
+        const std::size_t at = static_cast<std::size_t>(ins.data() - song_->bytes().data()) + Song::kInstrumentSize;
+        for (std::size_t b = 0; b < next.size(); ++b) {
+            next[b] = song_->byteOr0(at + b);
+        }
+        voice.baseLevel[2] = levelByte(next[kFirstOp + KeyScale], next[kFirstOp + Level]);
+        voice.baseLevel[3] = levelByte(next[kSecondOp + KeyScale], next[kSecondOp + Level]);
+        voice.velocityAmount[2] = next[kVelocity];
+        voice.velocityAmount[3] = next[kVelocity + 1];
+        voice.pressureAmount[2] = next[kPressure];
+        voice.pressureAmount[3] = next[kPressure + 1];
+    }
+
     const auto i = static_cast<std::size_t>(index);
-    opl.writeRegister(static_cast<std::uint8_t>(0xC0 + index), voice.baseConnection & 0x0F);
-    const std::uint8_t ops[2] = {tables_.firstOperator[i], tables_.secondOperator[i]};
-    const std::uint8_t* params[2] = {first, second};
+    writeOperators(opl, ins, tables_.channel[i], tables_.firstOperator[i], tables_.secondOperator[i]);
+    if (!gold()) {
+        return;
+    }
+    const std::uint8_t op = tables_.firstOperator[i];
+    if ((op & 0x10) != 0) {
+        return; // channels 6 to 8 have no four-operator switch
+    }
+    const int bit = (op & 3) + ((op & kSecondSet) != 0 ? 3 : 0);
+    if (voice.fourOps) {
+        fourOpSwitches_ = static_cast<std::uint8_t>(fourOpSwitches_ | (1 << bit));
+        opl.writeRegister(0x104, fourOpSwitches_);
+        writeOperators(opl, next, tables_.pairedChannel[i], static_cast<std::uint8_t>(op + 8),
+                       static_cast<std::uint8_t>(tables_.secondOperator[i] + 8));
+    } else {
+        fourOpSwitches_ = static_cast<std::uint8_t>(fourOpSwitches_ & ~(1 << bit));
+        opl.writeRegister(0x104, fourOpSwitches_);
+    }
+}
+
+void MusicDriver::writeOperators(OplSink& opl, std::span<const std::uint8_t> ins, std::uint8_t channel,
+                                 std::uint8_t firstOp, std::uint8_t secondOp) {
+    const auto* first = ins.data() + kFirstOp;
+    std::uint8_t connection =
+        static_cast<std::uint8_t>(((first[Feedback] << 1) | ((first[Connection] & 1) ^ 1)) & 0x0F);
+    int waveMask = 3;
+    if (gold()) {
+        connection = static_cast<std::uint8_t>(connection | ((ins[kSecondOp + Feedback] << 4) & 0x30));
+        waveMask = 7;
+    }
+    opl.writeRegister(regAt(0xC0, channel), connection);
+    const std::uint8_t ops[2] = {firstOp, secondOp};
     for (int k = 0; k < 2; ++k) {
-        const auto* p = params[k];
+        const auto* p = ins.data() + (k == 0 ? kFirstOp : kSecondOp);
         const auto op = ops[k];
-        opl.writeRegister(static_cast<std::uint8_t>(0xE0 + op), ins[kWave + static_cast<std::size_t>(k)] & 3);
-        opl.writeRegister(static_cast<std::uint8_t>(0x40 + op), levelByte(p[KeyScale], p[Level]));
-        opl.writeRegister(static_cast<std::uint8_t>(0x60 + op), static_cast<std::uint8_t>((p[Attack] << 4) | (p[Decay] & 0x0F)));
-        opl.writeRegister(static_cast<std::uint8_t>(0x80 + op), static_cast<std::uint8_t>((p[Sustain] << 4) | (p[Release] & 0x0F)));
-        opl.writeRegister(static_cast<std::uint8_t>(0x20 + op),
+        opl.writeRegister(regAt(0xE0, op), static_cast<std::uint8_t>(ins[kWave + static_cast<std::size_t>(k)] & waveMask));
+        opl.writeRegister(regAt(0x40, op), levelByte(p[KeyScale], p[Level]));
+        opl.writeRegister(regAt(0x60, op), static_cast<std::uint8_t>((p[Attack] << 4) | (p[Decay] & 0x0F)));
+        opl.writeRegister(regAt(0x80, op), static_cast<std::uint8_t>((p[Sustain] << 4) | (p[Release] & 0x0F)));
+        opl.writeRegister(regAt(0x20, op),
                           static_cast<std::uint8_t>(((p[Tremolo] & 1) << 7) | ((p[Vibrato] & 1) << 6) |
                                                     ((p[Sustaining] & 1) << 5) | ((p[KeyRate] & 1) << 4) |
                                                     (p[Multiple] & 0x0F)));
     }
 }
 
+void MusicDriver::takeChannels(int index, bool fourOps) {
+    auto& voice = voices_[static_cast<std::size_t>(index)];
+    std::uint16_t used[2] = {used_[0], used_[1]};
+    // What the voice held is free again.
+    const auto held = static_cast<std::uint16_t>(~voice.channels);
+    if ((held & kSecondSetMask) != 0) {
+        used[0] &= held;
+    } else {
+        used[1] &= held;
+    }
+
+    int set = -1;
+    int channel = 0;
+    bool foundPair = false;
+    const auto take = [&](int s, int c) {
+        set = s;
+        channel = c;
+    };
+    const auto isFree = [&](int s, int c) { return (used[s] & (1 << c)) == 0; };
+    if (fourOps) {
+        // A pair of channels c and c + 3, first set first.
+        for (int s = 0; s < 2 && set < 0; ++s) {
+            for (int c = 0; c < 3 && set < 0; ++c) {
+                if (isFree(s, c) && isFree(s, c + 3)) {
+                    take(s, c);
+                    foundPair = true;
+                }
+            }
+        }
+    }
+    const auto highestFree = [&](int s) {
+        for (int c = 8; c >= 6; --c) {
+            if (isFree(s, c)) {
+                return c;
+            }
+        }
+        return -1;
+    };
+    // In a pair: the lower channel when it is free, otherwise the upper.
+    const auto inPair = [&](int s, int pair) { take(s, isFree(s, pair) ? pair : pair + 3); };
+    const auto halfUsed = [&](int s) {
+        return ((used[s] & 7) ^ ((used[s] >> 3) & 7)) & 7;
+    };
+    const auto highestPairWithRoom = [&](int s) {
+        const auto free = static_cast<std::uint16_t>(~used[s]);
+        if ((free & 0x24) != 0) {
+            return 2;
+        }
+        return (free & 0x12) != 0 ? 1 : 0;
+    };
+    if (set < 0) {
+        if (const int c = highestFree(0); c >= 0) {
+            take(0, c);
+        } else if (const int c1 = highestFree(1); c1 >= 0) {
+            take(1, c1);
+        } else if (const int half1 = halfUsed(1); half1 != 0) {
+            // A pair that already has one two-operator sound, lowest first.
+            inPair(1, (half1 & 1) != 0 ? 0 : ((half1 & 2) != 0 ? 1 : 2));
+        } else if (const int half0 = halfUsed(0); half0 != 0) {
+            inPair(0, (half0 & 1) != 0 ? 0 : ((half0 & 2) != 0 ? 1 : 2));
+        } else if ((~used[1] & 0x3F) != 0) {
+            inPair(1, highestPairWithRoom(1));
+        } else {
+            // Everything is taken: a channel of the first set is shared.
+            inPair(0, highestPairWithRoom(0));
+        }
+    }
+
+    const auto bits = static_cast<std::uint16_t>((1 << channel) | (foundPair ? 1 << (channel + 3) : 0));
+    used[set] = static_cast<std::uint16_t>(used[set] | bits);
+    voice.channels = static_cast<std::uint16_t>(bits | (set == 1 ? kSecondSetMask : 0));
+    used_[0] = used[0];
+    used_[1] = used[1];
+
+    const auto bank = static_cast<std::uint8_t>(set == 1 ? kSecondSet : 0);
+    const auto op = static_cast<std::uint8_t>((channel / 3) * 8 + channel % 3);
+    const auto i = static_cast<std::size_t>(index);
+    tables_.channel[i] = static_cast<std::uint8_t>(bank | channel);
+    tables_.pairedChannel[i] = static_cast<std::uint8_t>(bank | (channel + 3));
+    tables_.firstOperator[i] = static_cast<std::uint8_t>(bank | op);
+    tables_.secondOperator[i] = static_cast<std::uint8_t>(bank | (op + 3));
+}
+
+void MusicDriver::freeChannels(int index) {
+    auto& voice = voices_[static_cast<std::size_t>(index)];
+    const auto free = static_cast<std::uint16_t>(~voice.channels);
+    voice.channels = 0;
+    if ((free & kSecondSetMask) != 0) {
+        used_[0] &= free;
+    } else {
+        used_[1] &= free;
+    }
+}
+
 void MusicDriver::pressure(OplSink& opl, int index, std::uint8_t value) {
     auto& voice = voices_[static_cast<std::size_t>(index)];
-    const auto i = static_cast<std::size_t>(index);
-    const std::uint8_t ops[2] = {tables_.firstOperator[i], tables_.secondOperator[i]};
-    for (int k = 0; k < 2; ++k) {
+    const int ops = voice.fourOps ? 4 : 2;
+    for (int k = 0; k < ops; ++k) {
         if (voice.pressureAmount[k] == 0) {
             continue;
         }
         const std::uint8_t level = voice.currentLevel[k];
         const int change = pressureAmount(voice.pressureAmount[k], value, 4);
         const int v = std::max(0, (level & 0x3F) - change);
-        opl.writeRegister(static_cast<std::uint8_t>(0x40 + ops[k]), static_cast<std::uint8_t>((level & 0xC0) | v));
+        opl.writeRegister(regAt(0x40, operatorOf(index, k)), static_cast<std::uint8_t>((level & 0xC0) | v));
     }
     if (voice.pressureFeedbackAmount != 0) {
-        opl.writeRegister(static_cast<std::uint8_t>(0xC0 + index),
-                          feedbackWith(voice.currentConnection, pressureAmount(voice.pressureFeedbackAmount, value, 6)));
+        const int change = pressureAmount(voice.pressureFeedbackAmount, value, 6);
+        opl.writeRegister(regAt(0xC0, tables_.channel[static_cast<std::size_t>(index)]),
+                          gold() ? goldFeedbackWith(voice.currentConnection, change)
+                                 : feedbackWith(voice.currentConnection, change));
     }
 }
-
-void MusicDriver::bendPitch(OplSink& opl, int index) {
+void MusicDriver::bendPitch(OplSink& opl, int index, std::uint8_t bend) {
     auto& voice = voices_[static_cast<std::size_t>(index)];
     if (voice.note == 0) {
         return;
@@ -459,23 +692,23 @@ void MusicDriver::bendPitch(OplSink& opl, int index) {
         return static_cast<int>(table[static_cast<std::size_t>(rest)]);
     };
     if (voice.fineBend == 0) {
-        if (voice.bend < 0x40) {
-            const int steps = 0x40 - voice.bend;
+        if (bend < 0x40) {
+            const int steps = 0x40 - bend;
             down(steps >> 5);
             const int rest = (steps & 31) << 3;
             frequency = base() - ((tables_.distance[static_cast<std::size_t>(semitone)] * rest) >> 8);
         } else {
-            const int steps = voice.bend - 0x40 + 1;
+            const int steps = bend - 0x40 + 1;
             up(steps >> 5);
             const int rest = (steps & 31) << 3;
             frequency = base() + ((tables_.distance[static_cast<std::size_t>(semitone) + 1] * rest) >> 8);
         }
-    } else if (voice.bend < 0x40) {
-        const int steps = 0x40 - voice.bend;
+    } else if (bend < 0x40) {
+        const int steps = 0x40 - bend;
         down(steps / 5);
         frequency = base() - fine(steps % 5);
     } else {
-        const int steps = voice.bend - 0x40;
+        const int steps = bend - 0x40;
         up(steps / 5);
         frequency = base() + fine(steps % 5);
     }
@@ -484,8 +717,9 @@ void MusicDriver::bendPitch(OplSink& opl, int index) {
 }
 
 void MusicDriver::writeFrequency(OplSink& opl, int index, std::uint16_t value) {
-    opl.writeRegister(static_cast<std::uint8_t>(0xA0 + index), static_cast<std::uint8_t>(value & 0xFF));
-    opl.writeRegister(static_cast<std::uint8_t>(0xB0 + index), static_cast<std::uint8_t>(value >> 8));
+    const std::uint8_t channel = tables_.channel[static_cast<std::size_t>(index)];
+    opl.writeRegister(regAt(0xA0, channel), static_cast<std::uint8_t>(value & 0xFF));
+    opl.writeRegister(regAt(0xB0, channel), static_cast<std::uint8_t>(value >> 8));
 }
 
 } // namespace mentat

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The emulated FM chip (Nuked OPL3, in third_party/) and the music it plays,
-// advanced in timer ticks. The game owns one and runs it as its clock moves.
+// The emulated FM chip (Nuked OPL3, in third_party/), the AdLib Gold's
+// mixer, surround module and stereo processor around it, and the music it
+// plays, advanced in timer ticks. The game owns one and runs it as its clock
+// moves. See docs/rules/music.md and docs/rules/music-gold.md.
 #pragma once
 
 #include "mentat/audio/music_driver.hpp"
@@ -21,32 +23,75 @@ public:
     Opl(const Opl&) = delete;
     Opl& operator=(const Opl&) = delete;
 
-    void writeRegister(std::uint8_t reg, std::uint8_t value) override;
-    // Appends `count` mono samples, scaled by `gain` (0..1).
-    void generate(std::size_t count, double gain, std::vector<std::int16_t>& out);
+    void writeRegister(std::uint16_t reg, std::uint8_t value) override;
+    // One stereo frame of the chip.
+    void generate(std::int16_t frame[2]);
 
 private:
     struct Chip;
     std::unique_ptr<Chip> chip_;
 };
 
+// What the AdLib Gold does to the chip's sound: its FM volumes, the
+// surround module, and the stereo processor's volume, tone and stereo mode.
+class GoldOutput {
+public:
+    GoldOutput();
+    ~GoldOutput();
+    GoldOutput(const GoldOutput&) = delete;
+    GoldOutput& operator=(const GoldOutput&) = delete;
+
+    void writeControl(std::uint8_t reg, std::uint8_t value);
+    void writeSurround(std::uint8_t reg, std::uint8_t value);
+    // Turns one frame of the chip into one frame for the speakers.
+    void process(const std::int16_t in[2], double out[2]);
+
+    // The FM volume for a control value (bits 0 to 4).
+    static double fmVolume(std::uint8_t value) { return (value & 0x1F) / 31.0; }
+
+private:
+    struct Chips;
+    std::unique_ptr<Chips> chips_;
+    double fmLeft_ = 1;
+    double fmRight_ = 1;
+};
+
+// The chip, and for the AdLib Gold its output stage, as one OplSink.
+class MusicChips : public OplSink {
+public:
+    explicit MusicChips(MusicCard card);
+
+    void writeRegister(std::uint16_t reg, std::uint8_t value) override { opl_.writeRegister(reg, value); }
+    void writeControl(std::uint8_t reg, std::uint8_t value) override;
+    void writeSurround(std::uint8_t reg, std::uint8_t value) override;
+
+    // Appends `count` stereo frames (left, right), scaled by `gain` for the
+    // Sound Blaster Pro (the AdLib Gold sets its own levels).
+    void generate(std::size_t count, double gain, std::vector<std::int16_t>& out);
+
+private:
+    Opl opl_;
+    std::unique_ptr<GoldOutput> gold_;
+};
+
 // The music player on the timer: one driver tick per timer tick, and the
-// chip's sound for the time in between.
+// chips' sound for the time in between.
 class MusicSystem {
 public:
     explicit MusicSystem(const MusicTables& tables);
 
     MusicDriver& driver() { return driver_; }
-    OplSink& opl() { return opl_; }
+    OplSink& opl() { return chips_; }
 
-    // Runs every timer tick up to `tick` and appends the sound for them.
+    // Runs every timer tick up to `tick` and appends the sound for them, as
+    // stereo frames at Opl::kRate.
     void runTo(std::uint32_t tick, std::vector<std::int16_t>& out);
 
-    // The gain of the mixer's FM levels.
+    // The gain of the Sound Blaster Pro mixer's FM levels.
     static double gainOf(std::uint8_t mixer);
 
 private:
-    Opl opl_;
+    MusicChips chips_;
     MusicDriver driver_;
     std::uint32_t tick_ = 0;
     bool started_ = false;

@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
         DatArchive dat = DatArchive::open(files->dat);
         const ProgramFile program = ProgramFile::open(files->program);
         const DisplayTables displayTables = DisplayTables::fromDriver(dat.load("DNVGA.HSQ"));
-        MusicSystem music(MusicTables::fromPlayer(dat.load("DNADP.HSQ")));
+        MusicSystem music(MusicTables::load(dat, MusicCard::AdLibGold));
         Platform platform;
         platform.music = &music;
         Game game(platform, dat, program, displayTables, &music);

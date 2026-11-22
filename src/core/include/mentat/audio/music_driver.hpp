@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Plays the original's AdLib music the way its Sound Blaster Pro FM player
-// does, as register writes for an FM chip. See docs/rules/music.md.
+// Plays the original's FM music the way its music players do, as register
+// writes for an FM chip: the Sound Blaster Pro player (docs/rules/music.md)
+// or the AdLib Gold player (docs/rules/music-gold.md).
 #pragma once
 
 #include "mentat/audio/music.hpp"
@@ -9,13 +10,19 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <span>
 
 namespace mentat {
 
 class OplSink {
 public:
     virtual ~OplSink() = default;
-    virtual void writeRegister(std::uint8_t reg, std::uint8_t value) = 0;
+    // `reg` from 0x100 up is the chip's second register set.
+    virtual void writeRegister(std::uint16_t reg, std::uint8_t value) = 0;
+    // The AdLib Gold's control chip (volumes, tone, stereo mode).
+    virtual void writeControl(std::uint8_t, std::uint8_t) {}
+    // The AdLib Gold's surround module (sent through the control chip).
+    virtual void writeSurround(std::uint8_t, std::uint8_t) {}
 };
 
 struct MusicStatus {
@@ -36,6 +43,8 @@ class MusicDriver {
 public:
     explicit MusicDriver(const MusicTables& tables);
 
+    MusicCard card() const { return tables_.card; }
+
     // Sets the chip up, as the player does when the game loads it.
     void init(OplSink& opl);
     // Starts a piece. `plays` 0 repeats it forever.
@@ -50,7 +59,7 @@ public:
     void tick(OplSink& opl);
 
     const MusicStatus& status() const { return status_; }
-    // The mixer's FM levels: high nibble one side, low nibble the other.
+    // The volume levels: high nibble one side, low nibble the other.
     std::uint8_t mixer() const { return current_; }
 
     static std::uint8_t mixerLevels(std::uint8_t volume, std::uint8_t balance);
@@ -68,15 +77,18 @@ private:
         std::uint8_t slideSteps = 0;
         std::uint8_t bend = 0x40;
         std::uint8_t slideAmount = 0;
-        std::uint8_t velocityAmount[2] = {}; // signed amounts
-        std::uint8_t pressureAmount[2] = {};
-        std::uint8_t baseLevel[2] = {};    // key scale and output level
-        std::uint8_t currentLevel[2] = {}; // after the last note's velocity
+        bool fourOps = false;
+        // Operators 1 and 2, and with four operators 3 and 4.
+        std::uint8_t velocityAmount[4] = {}; // signed amounts
+        std::uint8_t pressureAmount[4] = {};
+        std::uint8_t baseLevel[4] = {};    // key scale and output level
+        std::uint8_t currentLevel[4] = {}; // after the last note's velocity
         std::uint8_t feedbackAmount = 0;
         std::uint8_t pressureFeedbackAmount = 0;
         std::uint8_t baseConnection = 0;    // the 0xC0 value
         std::uint8_t currentConnection = 0; // after the last note's velocity
         std::uint16_t frequency = 0;        // A0/B0 without the key bit
+        std::uint16_t channels = 0;         // AdLib Gold: the channels it holds, top bit for the second set
     };
 
     struct Saved {
@@ -84,6 +96,8 @@ private:
         std::size_t at;
     };
 
+    bool gold() const { return tables_.card == MusicCard::AdLibGold; }
+    int voiceCount() const { return tables_.voices(); }
     void step(OplSink& opl);
     void repeatCheck();
     void resetVoices();
@@ -93,11 +107,18 @@ private:
     void noteOn(OplSink& opl, int index, std::uint8_t key, std::uint8_t velocity);
     void noteOff(OplSink& opl, int index, std::uint8_t key);
     void instrument(OplSink& opl, int index, std::uint8_t number);
+    void writeOperators(OplSink& opl, std::span<const std::uint8_t> ins, std::uint8_t channel,
+                        std::uint8_t first, std::uint8_t second);
     void pressure(OplSink& opl, int index, std::uint8_t value);
-    void bendPitch(OplSink& opl, int index);
+    void bendPitch(OplSink& opl, int index, std::uint8_t bend);
     void writeFrequency(OplSink& opl, int index, std::uint16_t value);
-    void writeMixer();
+    void writeMixer(OplSink& opl);
     void fadeStep(OplSink& opl);
+    // AdLib Gold: channels for a voice and giving them back.
+    void takeChannels(int index, bool fourOps);
+    void freeChannels(int index);
+    void releaseAfterNote(int index);
+    std::uint8_t operatorOf(int index, int k) const;
 
     MusicTables tables_;
     std::shared_ptr<const Song> song_;
@@ -111,6 +132,10 @@ private:
     std::uint8_t current_ = 0xEE;
     std::uint8_t target_ = 0xEE;
     std::uint16_t fadePattern_ = 0xFFFF;
+    // AdLib Gold: channels in use in each register set, and the
+    // four-operator switches (register 0x104).
+    std::uint16_t used_[2] = {};
+    std::uint8_t fourOpSwitches_ = 0;
 };
 
 } // namespace mentat

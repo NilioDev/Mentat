@@ -3,8 +3,11 @@
 The ten pieces of music are packed files (see [hsq.md](hsq.md)) for the
 AdLib and Sound Blaster FM chip. The original's music players for this chip
 (`DNADL.HSQ`, `DNADP.HSQ`) read them; how they play them is in
-[../rules/music.md](../rules/music.md). The `.AGD` and `.M32` files with
-the same names are the same music for the AdLib Gold and the Roland MT-32.
+[../rules/music.md](../rules/music.md). The `.AGD` files with the same
+names are the same music for the AdLib Gold, in the same layout with the
+differences in [AdLib Gold files](#adlib-gold-files); its player
+(`DNADG.HSQ`) is in [../rules/music-gold.md](../rules/music-gold.md). The
+`.M32` files are for the Roland MT-32.
 
 | Number | File |
 | --- | --- |
@@ -79,3 +82,21 @@ operator only.
 | 37 | Unused by the player |
 | 38, 39 | How much pressure lowers the first and the second operator's level |
 | 27 | How much pressure raises the feedback |
+
+## AdLib Gold files
+
+The `.AGD` files are packed too and laid out the same way, with these
+differences:
+
+- The header has room for 18 voices: offsets 2 to 37 hold 18 event list
+  offsets, still counted from offset 2. Offsets 38 to 43 are zeros.
+- Offsets 52 to 83 hold the piece's settings for the card: byte 52 is the
+  stereo processor's switch value (its stereo mode), and bytes 53 to 83 are
+  the 31 registers of the surround module, in order. The event lists start
+  at 84. `CRYOMUS.AGD` has no such block: its event lists start at 52 as in
+  the other files, and the player reads its first event bytes as settings.
+- Instrument byte 0 is 4 for a four-operator sound: the instrument right
+  after it in the file gives operators 3 and 4, in the same layout as
+  operators 1 and 2.
+- Instrument byte 17 says which sides play the sound: bit 0 left, bit 1
+  right.

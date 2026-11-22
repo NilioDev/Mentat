@@ -108,7 +108,7 @@ void openAudio(App& app) {
     }
     for (int i = 0; i < kChannels; ++i) {
         const bool music = i == static_cast<int>(mentat::SoundChannel::Music);
-        const SDL_AudioSpec spec = music ? SDL_AudioSpec{SDL_AUDIO_S16, 1, mentat::Opl::kRate}
+        const SDL_AudioSpec spec = music ? SDL_AudioSpec{SDL_AUDIO_S16, 2, mentat::Opl::kRate}
                                          : SDL_AudioSpec{SDL_AUDIO_U8, 1, 11025};
         app.streams[static_cast<std::size_t>(i)] = SDL_CreateAudioStream(&spec, nullptr);
         app.streamRates[static_cast<std::size_t>(i)] = spec.freq;
@@ -120,7 +120,9 @@ void openAudio(App& app) {
 // like the original's.
 void runGame(App& app) {
     using namespace mentat;
-    MusicSystem music(MusicTables::fromPlayer(app.archive->load("DNADP.HSQ")));
+    // The music as on the AdLib Gold when the game files have it (the CD
+    // version does).
+    MusicSystem music(MusicTables::load(*app.archive, MusicCard::AdLibGold));
     app.platform.music = &music;
     Game game(app.platform, *app.archive, *app.program, DisplayTables::fromDriver(app.archive->load("DNVGA.HSQ")),
               &music);
@@ -142,10 +144,11 @@ void playQueuedSound(App& app) {
         if (command.channel == mentat::SoundChannel::Music) {
             // The game makes music as its clock runs, so the stream is kept a
             // little ahead to cover uneven frames.
-            constexpr int kAhead = mentat::Opl::kRate / 20 * 2;
+            constexpr int kFrame = 4; // bytes of one stereo frame
+            constexpr int kAhead = mentat::Opl::kRate / 20 * kFrame;
             const int queued = SDL_GetAudioStreamQueued(stream);
             if (queued < kAhead / 4) {
-                const std::vector<Sint16> silence(static_cast<std::size_t>(kAhead / 2 - queued / 2), 0);
+                const std::vector<Sint16> silence(static_cast<std::size_t>((kAhead / 2 - queued) / kFrame * 2), 0);
                 SDL_PutAudioStreamData(stream, silence.data(), static_cast<int>(silence.size() * 2));
             } else if (queued > kAhead * 6) {
                 SDL_ClearAudioStream(stream);
@@ -180,8 +183,8 @@ void updateInput(App& app) {
     for (int i = 0; i < kChannels; ++i) {
         SDL_AudioStream* stream = app.streams[static_cast<std::size_t>(i)];
         const int rate = app.streamRates[static_cast<std::size_t>(i)];
-        p.soundQueued[i] = stream != nullptr && rate > 0 ? SDL_GetAudioStreamQueued(stream) / static_cast<double>(rate)
-                                                         : 0.0;
+        const double bytesPerSecond = rate * (i == static_cast<int>(SoundChannel::Music) ? 4.0 : 1.0);
+        p.soundQueued[i] = stream != nullptr && rate > 0 ? SDL_GetAudioStreamQueued(stream) / bytesPerSecond : 0.0;
     }
 }
 
