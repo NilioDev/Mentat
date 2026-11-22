@@ -104,7 +104,7 @@ public:
     Play(Game& game, int language)
         : g_(game), d_(game.display()), world_(game.resources().program()), panel_(game, language),
           talk_(game, world_, panel_, *this, language), map_(game, world_, panel_),
-          globe_(game, world_, panel_, map_) {
+          globe_(game, world_, panel_, map_, language) {
         talk_.subtitles = subtitlesFor(language);
     }
 

@@ -173,7 +173,7 @@ MTT_TEST("globe screen: opens on the map's middle, turns with the arrows and goe
     map.setUp();
     map.enter();
     map.leave();
-    GlobeScreen globe(g, w, panel, map);
+    GlobeScreen globe(g, w, panel, map, kEnglish);
     globe.enter(map.longitude(), map.latitude());
     MTT_CHECK(globe.active());
     // The planet's frame and the frescoes, with the planet's colours inside.
@@ -191,6 +191,24 @@ MTT_TEST("globe screen: opens on the map's middle, turns with the arrows and goe
     MTT_CHECK(globe.command(GlobeScreen::kUp) && globe.command(GlobeScreen::kLeft));
     MTT_CHECK(!globe.command(0x1234));
     MTT_CHECK(!globe.leaving);
+    // The results: the frescoes slide away, and the second line goes back.
+    MTT_CHECK(panel.commands()[1].action == GlobeScreen::kSeeResults);
+    Fiber results([&] { globe.command(GlobeScreen::kSeeResults); });
+    p.fiber = &results;
+    while (!results.finished()) {
+        results.resume();
+        p.ticks += 1;
+    }
+    MTT_CHECK(globe.showingResults() && panel.commands()[1].action == GlobeScreen::kStandardVision);
+    MTT_CHECK(back.at(5, 100) == 0xF0); // where the left fresco was
+    Fiber standard([&] { globe.command(GlobeScreen::kStandardVision); });
+    p.fiber = &standard;
+    while (!standard.finished()) {
+        standard.resume();
+        p.ticks += 1;
+    }
+    MTT_CHECK(!globe.showingResults() && panel.commands()[1].action == GlobeScreen::kSeeResults);
+    MTT_CHECK(back.at(5, 100) != 0xF0);
     Fiber fiber([&] { globe.command(GlobeScreen::kExit); });
     p.fiber = &fiber;
     while (!fiber.finished()) {

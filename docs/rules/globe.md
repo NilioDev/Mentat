@@ -56,7 +56,10 @@ For each byte v at place x of a line:
    160 + x) shows map point (p + l), each brought into 0 to 2 × `width` − 1
    once, in the row north or south of the equator.
 4. A map byte m gives colour 16 + (m & 15), plus 12 when (m & `0x30`) is
-   `0x10` and (m & 15) is below 8.
+   `0x10` and (m & 15) is below 8. While the globe shows its results (see
+   [globe_screen.md](globe_screen.md)), the colour shows who holds the
+   point instead: 16 + (m & 15), plus 16 when (m & `0x30`) is `0x10` or
+   `0x20`, and plus 32 when it is `0x30`.
 
 ## Turning on screen
 

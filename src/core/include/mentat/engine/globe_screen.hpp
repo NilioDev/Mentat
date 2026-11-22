@@ -8,8 +8,11 @@
 #include "mentat/engine/globe.hpp"
 #include "mentat/engine/panel.hpp"
 
+#include <array>
 #include <cstdint>
+#include <string>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace mentat {
@@ -28,10 +31,13 @@ public:
     static constexpr std::uint16_t kDown = 0xB9C0;
     static constexpr std::uint16_t kLeft = 0xB9D3;
     static constexpr std::uint16_t kTurnToPlayer = 0xBA9E; // the middle of the arrows
+    static constexpr std::uint16_t kSeeResults = 0xB96B;
+    static constexpr std::uint16_t kStandardVision = 0xB961;
 
-    GlobeScreen(Game& game, World& world, Panel& panel, MapScreen& map);
+    GlobeScreen(Game& game, World& world, Panel& panel, MapScreen& map, int language);
 
     bool active() const { return active_; }
+    bool showingResults() const { return results_; }
 
     // Draws the globe screen on the back buffer, the planet facing map
     // point (longitude, latitude).
@@ -65,13 +71,38 @@ private:
     void setCommands(bool overPlanet);
     void playerPoint(std::uint16_t& longitude, int& latitude) const;
 
+    // The results.
+    void drawSides(int shift);
+    void showResults();
+    void standardVision();
+    void countResults();
+    void writeResults();
+    void drawTexts(std::size_t list, bool large);
+    void growBars();
+    void slideStep();
+    void loadTexts();
+    void loadFonts();
+    std::size_t textAt(std::uint16_t phrase) const;
+    std::size_t afterNumber(std::size_t at) const;
+
     Game& g_;
     World& world_;
     Panel& panel_;
     MapScreen& map_;
+    int language_;
     std::optional<Globe> globe_;
     bool active_ = false;
     bool overPlanet_ = false;
+    bool results_ = false;
+    int sideShift_ = 0;
+    // The bars: where they go, and how far they have grown.
+    std::array<int, 6> barTarget_{};
+    std::array<int, 6> barNow_{};
+    // The results' phrases one after the other, with the numbers written
+    // into them; they keep what was written last, as the original's do.
+    std::string texts_;
+    std::vector<std::size_t> textStart_;
+    std::optional<std::pair<Font, Font>> fonts_; // large and small
 };
 
 } // namespace mentat
