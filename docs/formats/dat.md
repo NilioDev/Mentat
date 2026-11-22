@@ -38,8 +38,8 @@ File names in version 3.7 and what they hold:
 
 | Extension | Count | What |
 | --- | --- | --- |
-| `.HSQ` | 188 | Compressed files: pictures (see [sprite.md](sprite.md)), texts, tables, drivers (see [hsq.md](hsq.md)) |
-| `.VOC` | 2 288 | Spoken lines, Creative Voice files |
+| `.HSQ` | 188 | Compressed files: pictures (see [sprite.md](sprite.md)), texts (see [text.md](text.md)), tables, drivers (see [hsq.md](hsq.md)) |
+| `.VOC` | 2 288 | Spoken lines and sound effects (see [voc.md](voc.md)) |
 | `.HNM` | 37 | Animated scenes and video (see [hnm.md](hnm.md)) |
 | `.AGD` | 10 | Music for AdLib Gold |
 | `.M32` | 10 | Music for the Roland MT-32 |

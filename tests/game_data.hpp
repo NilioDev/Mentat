@@ -4,6 +4,7 @@
 #pragma once
 
 #include "mentat/data/dat_archive.hpp"
+#include "mentat/data/program_file.hpp"
 #include "mentat/game_files.hpp"
 
 #include <optional>
@@ -16,6 +17,14 @@ inline std::optional<DatArchive> openGameData() {
         return std::nullopt;
     }
     return DatArchive::open(files->dat);
+}
+
+inline std::optional<ProgramFile> openProgram() {
+    const auto files = findGameFiles({MENTAT_GAMEDATA_DIR});
+    if (!files || files->program.empty()) {
+        return std::nullopt;
+    }
+    return ProgramFile::open(files->program);
 }
 
 // Files in DUNE.DAT with the .HSQ extension that are not picture files.

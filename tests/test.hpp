@@ -45,6 +45,20 @@ struct Registrar {
         }                                                                                  \
     } while (false)
 
+// Checks that an expression throws (any exception).
+#define MTT_CHECK_THROWS(...)                                                              \
+    do {                                                                                   \
+        bool mttThrew = false;                                                             \
+        try {                                                                              \
+            static_cast<void>(__VA_ARGS__);                                                \
+        } catch (...) {                                                                    \
+            mttThrew = true;                                                               \
+        }                                                                                  \
+        if (!mttThrew) {                                                                   \
+            ::mentat::test::reportFailure(__FILE__, __LINE__, "throws: " #__VA_ARGS__);    \
+        }                                                                                  \
+    } while (false)
+
 // Ends the current test early and reports it as skipped, for tests that need
 // files which are not always present (such as the original game data).
 #define MTT_SKIP(reason)                                                                   \

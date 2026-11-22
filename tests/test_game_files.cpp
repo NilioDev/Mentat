@@ -16,6 +16,10 @@ MTT_TEST("game files: finds dune.dat in any case and skips missing folders") {
     const auto found = findGameFiles({root / "missing", root / "game"});
     MTT_CHECK(found.has_value());
     MTT_CHECK(found && found->dat.filename() == "dune.dat");
+    MTT_CHECK(found && found->program.empty());
+    std::ofstream(root / "game" / "DncdPrg.exe") << "x";
+    const auto both = findGameFiles({root / "game"});
+    MTT_CHECK(both && both->program.filename() == "DncdPrg.exe");
     MTT_CHECK(!findGameFiles({root / "missing"}).has_value());
     std::filesystem::remove_all(root);
 }

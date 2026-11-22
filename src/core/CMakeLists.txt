@@ -5,6 +5,13 @@ add_library(mtt_core STATIC
     src/data/dat_archive.cpp
     src/data/hsq.cpp
     src/data/hnm.cpp
+    src/data/program_file.cpp
+    src/data/program_tables.cpp
+    src/engine/fiber.cpp
+    src/engine/hnm_player.cpp
+    src/engine/videos.cpp
+    src/data/string_table.cpp
+    src/data/voc.cpp
     src/gfx/font.cpp
     src/gfx/palette.cpp
     src/gfx/sprite.cpp
