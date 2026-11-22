@@ -11,7 +11,8 @@ and touch controls.
 
 > [!NOTE]
 > **Status: early work.** Mentat plays the whole opening as the original
-> does, in time with its AdLib music: the logos, Irulan's spoken
+> does, in time with its music as the AdLib Gold card played it, in stereo
+> with the card's surround sound: the logos, Irulan's spoken
 > introduction with subtitles, the title, the flights over the desert, the
 > palace and the sietch with the characters speaking with moving lips, the
 > Harkonnens and their attack, with the original's fades, dissolves and

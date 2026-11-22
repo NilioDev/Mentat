@@ -41,6 +41,21 @@ target_include_directories(mtt_opl3 PUBLIC "${PROJECT_SOURCE_DIR}/third_party/nu
 set_target_properties(mtt_opl3 PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(mtt_core PRIVATE mtt_opl3)
 
+# The AdLib Gold's surround (YM7128B) and stereo (TDA8425) chips, BSD
+# 2-Clause. Third-party code too.
+add_library(mtt_gold STATIC
+    "${PROJECT_SOURCE_DIR}/third_party/ym7128b/YM7128B_emu.c"
+    "${PROJECT_SOURCE_DIR}/third_party/tda8425/TDA8425_emu.c")
+target_include_directories(mtt_gold PUBLIC
+    "${PROJECT_SOURCE_DIR}/third_party/ym7128b"
+    "${PROJECT_SOURCE_DIR}/third_party/tda8425")
+target_compile_definitions(mtt_gold PUBLIC TDA8425_USE_EXTENSIONS=0)
+set_target_properties(mtt_gold PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(NOT MSVC)
+    target_link_libraries(mtt_gold PRIVATE m)
+endif()
+target_link_libraries(mtt_core PRIVATE mtt_gold)
+
 target_include_directories(mtt_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${CMAKE_CURRENT_BINARY_DIR}/generated")

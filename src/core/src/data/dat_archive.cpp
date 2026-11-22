@@ -120,7 +120,10 @@ std::vector<std::uint8_t> DatArchive::read(std::string_view name) {
 
 std::vector<std::uint8_t> DatArchive::load(std::string_view name) {
     auto bytes = read(name);
-    const bool packedName = name.size() > 4 && sameName(name.substr(name.size() - 4), ".HSQ");
+    // The pictures, sounds and music (.HSQ, and .AGD for the AdLib Gold) are
+    // packed.
+    const bool packedName = name.size() > 4 && (sameName(name.substr(name.size() - 4), ".HSQ") ||
+                                                sameName(name.substr(name.size() - 4), ".AGD"));
     if (packedName && isHsq(bytes)) {
         return unpackHsq(bytes);
     }

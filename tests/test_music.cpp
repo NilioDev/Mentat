@@ -16,16 +16,20 @@ using namespace mentat;
 namespace {
 
 struct Log : OplSink {
-    std::vector<std::pair<std::uint8_t, std::uint8_t>> writes;
-    void writeRegister(std::uint8_t reg, std::uint8_t value) override { writes.emplace_back(reg, value); }
-    int count(std::uint8_t reg) const {
+    std::vector<std::pair<std::uint16_t, std::uint8_t>> writes;
+    std::vector<std::pair<std::uint8_t, std::uint8_t>> controls;
+    std::vector<std::pair<std::uint8_t, std::uint8_t>> surround;
+    void writeRegister(std::uint16_t reg, std::uint8_t value) override { writes.emplace_back(reg, value); }
+    void writeControl(std::uint8_t reg, std::uint8_t value) override { controls.emplace_back(reg, value); }
+    void writeSurround(std::uint8_t reg, std::uint8_t value) override { surround.emplace_back(reg, value); }
+    int count(std::uint16_t reg) const {
         int n = 0;
         for (const auto& w : writes) {
             n += w.first == reg ? 1 : 0;
         }
         return n;
     }
-    std::uint8_t last(std::uint8_t reg) const {
+    std::uint8_t last(std::uint16_t reg) const {
         std::uint8_t v = 0;
         for (const auto& w : writes) {
             if (w.first == reg) {
@@ -43,6 +47,7 @@ MusicTables testTables() {
     }
     const std::uint8_t first[9] = {0, 1, 2, 8, 9, 10, 16, 17, 18};
     for (std::size_t i = 0; i < 9; ++i) {
+        t.channel[i] = static_cast<std::uint8_t>(i);
         t.firstOperator[i] = first[i];
         t.secondOperator[i] = static_cast<std::uint8_t>(first[i] + 3);
     }
@@ -66,6 +71,50 @@ std::vector<std::uint8_t> tinySong(std::uint16_t tempo) {
     instrument[2 + 8] = 10; // first operator level
     instrument[15 + 8] = 20;
     v.insert(v.end(), instrument.begin(), instrument.end());
+    return v;
+}
+
+MusicTables goldTables() {
+    MusicTables t = testTables();
+    t.card = MusicCard::AdLibGold;
+    for (std::size_t i = 0; i < Song::kVoices; ++i) {
+        const auto bank = static_cast<std::uint8_t>(i < 9 ? 0 : 0x80);
+        const auto c = static_cast<std::uint8_t>(i % 9);
+        const auto op = static_cast<std::uint8_t>((c / 3) * 8 + c % 3);
+        t.channel[i] = static_cast<std::uint8_t>(bank | c);
+        t.pairedChannel[i] = static_cast<std::uint8_t>(bank | (c + 3));
+        t.firstOperator[i] = static_cast<std::uint8_t>(bank | op);
+        t.secondOperator[i] = static_cast<std::uint8_t>(bank | (op + 3));
+    }
+    return t;
+}
+
+// Two voices for the AdLib Gold: voice 0 a four-operator sound
+// (instruments 0 and 1), voice 1 a two-operator sound on the left only
+// (instrument 2). A settings block of 32 bytes follows the header.
+std::vector<std::uint8_t> goldSong() {
+    std::vector<std::uint8_t> v(52, 0);
+    v[48] = 1;
+    v[50] = 0;
+    v[51] = 1; // tempo 0x100
+    v.push_back(0xD6); // stereo processor: pseudo stereo
+    for (int r = 0; r < 31; ++r) {
+        v.push_back(static_cast<std::uint8_t>(r));
+    }
+    const std::vector<std::uint8_t> zero{0x00, 0xC0, 0x00, 0x00, 0x90, 60, 100, 0x10, 0xF0, 0};
+    const std::vector<std::uint8_t> one{0x00, 0xC0, 0x02, 0x00, 0x90, 64, 100, 0x10, 0xF0, 0};
+    v[2] = static_cast<std::uint8_t>(v.size() - 2);
+    v.insert(v.end(), zero.begin(), zero.end());
+    v[4] = static_cast<std::uint8_t>(v.size() - 2);
+    v.insert(v.end(), one.begin(), one.end());
+    v[0] = static_cast<std::uint8_t>(v.size());
+    for (int i = 0; i < 3; ++i) {
+        std::vector<std::uint8_t> instrument(40, 0);
+        instrument[0] = i == 0 ? 4 : 0;
+        instrument[17] = i == 2 ? 1 : 3; // the sides
+        instrument[2 + 8] = static_cast<std::uint8_t>(10 + i);
+        v.insert(v.end(), instrument.begin(), instrument.end());
+    }
     return v;
 }
 
@@ -148,6 +197,48 @@ MTT_TEST("music: volume levels and fades") {
     MTT_CHECK(MusicSystem::gainOf(0) == 0.0);
 }
 
+MTT_TEST("music: the AdLib Gold player gives voices channels and sides") {
+    Log log;
+    MusicDriver driver(goldTables());
+    driver.init(log);
+    MTT_CHECK(log.last(0x105) == 1);
+    MTT_CHECK(log.count(0x104) == 1 && log.last(0x104) == 0);
+    log.writes.clear();
+    auto song = std::make_shared<const Song>(Song::parse(goldSong()));
+    MTT_CHECK(song.get()->voiceStart(1) != 0);
+    driver.start(log, song, 0);
+    // The piece's settings go to the stereo processor and the surround.
+    MTT_CHECK(log.controls.back().first == 0x0A || log.controls.back().first == 0x09);
+    bool switched = false;
+    for (const auto& c : log.controls) {
+        switched = switched || (c.first == 0x08 && c.second == 0xD6);
+    }
+    MTT_CHECK(switched);
+    MTT_CHECK(log.surround.size() == 31 && log.surround[30].first == 30 && log.surround[30].second == 30);
+    // Voice 0: four operators on channels 0 and 3 of the first set.
+    MTT_CHECK((log.last(0x104) & 1) == 1);
+    MTT_CHECK(log.last(0x40) == 10);
+    MTT_CHECK(log.last(0x48) == 11); // operator 3 from the next instrument
+    MTT_CHECK((log.last(0xC0) & 0x30) == 0x30);
+    MTT_CHECK((log.last(0xB0) & 0x20) != 0);
+    // Voice 1: a two-operator sound takes channel 8, left only.
+    MTT_CHECK(log.last(0xC8) == 0x11); // left, and the connection bit from byte 15 = 0
+    MTT_CHECK(log.last(0x52) == 12);
+    MTT_CHECK((log.last(0xB8) & 0x20) != 0);
+}
+
+MTT_TEST("music: the AdLib Gold's FM volume") {
+    MTT_CHECK(GoldOutput::fmVolume(0xFF) == 1.0);
+    MTT_CHECK(GoldOutput::fmVolume(0x81) == 1.0 / 31);
+    GoldOutput gold;
+    const std::int16_t silence[2] = {0, 0};
+    double out[2] = {1, 1};
+    for (int i = 0; i < 100; ++i) {
+        gold.process(silence, out);
+    }
+    MTT_CHECK(out[0] == 0.0 && out[1] == 0.0);
+}
+
 MTT_TEST("real data: every piece of music plays") {
     auto archive = test::openGameData();
     if (!archive) {
@@ -167,4 +258,26 @@ MTT_TEST("real data: every piece of music plays") {
         MTT_CHECK(driver.status().playing());
         MTT_CHECK(log.count(0xB0) + log.count(0xB1) > 10);
     }
+    const auto gold = MusicTables::fromGoldPlayer(archive->load("DNADG.HSQ"));
+    MTT_CHECK(gold.frequency[0] == 0x157 && gold.channel[9] == 0x80);
+    bool fourOps = false;
+    for (const char* name : {"SEKENCE.AGD", "WATER.AGD", "WORMSUIT.AGD", "WORMINTR.AGD", "WARSONG.AGD", "MORNING.AGD",
+                             "SIETCHM.AGD", "BAGDAD.AGD", "ARRAKIS.AGD", "CRYOMUS.AGD"}) {
+        Log log;
+        MusicDriver driver(gold);
+        driver.init(log);
+        auto song = std::make_shared<const Song>(Song::parse(archive->load(name)));
+        driver.start(log, song, 0);
+        for (int i = 0; i < 20000; ++i) {
+            driver.tick(log);
+        }
+        MTT_CHECK(driver.status().playing());
+        int keys = 0;
+        for (const auto& w : log.writes) {
+            keys += (w.first & 0xFF) >= 0xB0 && (w.first & 0xFF) <= 0xB8 && (w.second & 0x20) != 0 ? 1 : 0;
+            fourOps = fourOps || (w.first == 0x104 && w.second != 0);
+        }
+        MTT_CHECK(keys > 10);
+    }
+    MTT_CHECK(fourOps); // the worm pieces use four-operator sounds
 }

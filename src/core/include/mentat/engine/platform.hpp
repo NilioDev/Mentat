@@ -27,7 +27,7 @@ struct KeyPress {
 
 enum class SoundChannel : std::uint8_t {
     Digital, // voices, video sound and effects: one at a time, like the original
-    Music,   // the FM chip, 16-bit samples at Opl::kRate
+    Music,   // the FM chip, 16-bit stereo frames at Opl::kRate
     Count,
 };
 
@@ -36,7 +36,7 @@ struct SoundCommand {
     bool stop = false; // drop what is queued on the channel first
     int rate = 0;
     std::vector<std::uint8_t> samples; // unsigned 8-bit mono (Digital)
-    std::vector<std::int16_t> wide;    // signed 16-bit mono (Music)
+    std::vector<std::int16_t> wide;    // signed 16-bit stereo, left first (Music)
 };
 
 struct Platform {

@@ -27,8 +27,8 @@ Mentat is an independent, from-scratch implementation.
 | `src/core` | Engine core. Platform independent, no SDL, fully unit-testable. |
 | `src/app` | Platform layer and game executable (SDL3). |
 | `tests` | Unit tests for the core. |
-| `tools` | Developer tools, such as `mentat-dump`, which writes the pictures and video frames of your own `DUNE.DAT` as PNG files to check the readers, and `mentat-music`, which plays a piece of music into a WAV file or prints its chip register writes to compare with the original, and `mentat-scene`, which draws one scene of a `.SAL` file as a PNG file or as raw palette indices, and `mentat-run`, which runs the game without a window and writes the screen as PNG files at set times. What they write stays on your machine. |
-| `third_party` | Code by others, copied unchanged with its license: Nuked OPL3, the FM chip emulator. |
+| `tools` | Developer tools, such as `mentat-dump`, which writes the pictures and video frames of your own `DUNE.DAT` as PNG files to check the readers, and `mentat-music`, which plays a piece of music (a `.HSQ` name for the Sound Blaster Pro player, `.AGD` for the AdLib Gold) into a WAV file or prints its chip register writes to compare with the original, and `mentat-scene`, which draws one scene of a `.SAL` file as a PNG file or as raw palette indices, and `mentat-run`, which runs the game without a window and writes the screen as PNG files at set times. What they write stays on your machine. |
+| `third_party` | Code by others, copied unchanged with its license: Nuked OPL3, the FM chip emulator, and the YM7128B and TDA8425 emulators for the AdLib Gold's surround and stereo chips. |
 | `docs` | Our own documentation: the file formats in `docs/formats`, the original's behaviour in `docs/rules`, and how the engine is built in `docs/architecture.md`. |
 
 ## Code style

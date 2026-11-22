@@ -60,11 +60,15 @@ plays.
 - **Instrument change:** nothing happens when it is the voice's current
   instrument. Otherwise the instrument's registers are written for both
   operators (`0x20`, `0x40`, `0x60`, `0x80`, `0xE0`, and `0xC0` for the
-  voice) and its extra settings are kept for the voice.
+  voice) and its extra settings are kept for the voice. The voice's `0xC0`
+  value from the last note on is set back to the instrument's, so pressure
+  before the next note on starts from it.
 - **Pressure:** lowers the operators' levels and raises the feedback from
   the levels set by the last note on, the same way as velocity but with the
   instrument's pressure amounts. Nothing is kept.
-- **Pitch bend:** sets the bend and, when a note plays, its pitch.
+- **Pitch bend:** when a note plays, sets its pitch for that bend. The
+  bend is not kept: the next automatic slide step goes on from the bend the
+  voice had before.
 - **End of list:** the voice waits forever on this event. For voice 0 it
   also ends a play of the piece: the play counter goes down; when it reaches
   0 the music stops (every voice's note stops). A counter of 0 at the start
@@ -120,8 +124,10 @@ once: they move to it one step a tick, and the next piece starts at it.
 ## Starting and stopping
 
 Starting a piece first sets every operator to the fastest release, so a
-note left from the last piece fades at once. Stopping takes the key bit off
-every voice. The player tells the game whether music plays (`0x80`), and
+note left from the last piece fades at once. Stopping writes every voice's
+frequency again without the key bit. The player keeps each voice's last
+frequency; before any note it is the value in its table of first
+frequencies (`0x157` for every voice). The player tells the game whether music plays (`0x80`), and
 whether a fade runs (`0x40`).
 
 ## Tables
@@ -131,6 +137,7 @@ The player keeps its tables at fixed places in `DNADP.HSQ` (unpacked):
 | Offset | Size | What |
 | --- | --- | --- |
 | `0x47` | 2 × 12 | Frequency numbers of the 12 semitones |
+| `0x5F` | 2 × 9 | Each voice's frequency before its first note |
 | `0x71` | 9 | Register offset of the first operator of each voice |
 | `0x7A` | 9 | Register offset of the second operator of each voice |
 | `0x83` | 13 | Entry i: the distance in frequency numbers from semitone i − 1 up to semitone i (entry 0 from the last semitone of the octave below, entry 12 from semitone 11 to the next octave) |
