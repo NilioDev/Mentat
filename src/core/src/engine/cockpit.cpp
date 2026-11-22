@@ -32,10 +32,6 @@ constexpr std::size_t kOverMap = 0x14C0;
 constexpr std::size_t kCommands = 0x212E;
 constexpr std::size_t kArrowZones = 0x1CCA;
 
-// The places: sprites of the panel's picture file.
-constexpr std::uint16_t kPlaceSprite = 0x3A;
-constexpr std::uint8_t kPlaceHidden = 0x80;
-
 // Paul's mark: blinks every 300 ticks, its bottom at his place and 13
 // pixels left of it.
 constexpr std::uint16_t kPlayerMark = 0x4C;
@@ -70,13 +66,18 @@ constexpr int kNearPlace = 9;
 // The cockpit's own voice asks where to.
 constexpr int kVoiceCharacter = 0x19;
 constexpr int kAskVoice = 0x2BC;
+// A destination chosen: its name blinks 9 times, shown 20 ticks and gone
+// 10.
+constexpr int kConfirmBlinks = 9;
+constexpr int kConfirmShown = 0x14;
+constexpr int kConfirmHidden = 0x0A;
 
 std::int16_t s16(std::uint16_t v) { return static_cast<std::int16_t>(v); }
 
 } // namespace
 
 Cockpit::Cockpit(Game& game, World& world, Panel& panel, MapScreen& map)
-    : g_(game), world_(world), panel_(panel), map_(map) {}
+    : g_(game), world_(world), panel_(panel), small_(game, world, map) {}
 
 ClipRect Cockpit::view() const {
     const ProgramFile& program = g_.resources().program();
@@ -101,7 +102,8 @@ void Cockpit::enter() {
     panel_.drawCommands();
     panel_.setArrowZones(kArrowZones);
 
-    world_.position(longitude_, latitude_);
+    small_.view = view();
+    world_.position(small_.longitude, small_.latitude);
 }
 
 void Cockpit::drawScene() {
@@ -115,47 +117,13 @@ void Cockpit::drawScene() {
     };
     g_.selectSheet(kCockpitSheet);
     drawList(kUnderMap);
-    const ClipRect r = view();
-    latitude_ = map_.flatMap().drawSmall(g_.display().target(), r.left, r.top, r.right, r.bottom, longitude_, latitude_);
+    small_.drawMap();
     g_.selectSheet(kPanelSheet);
-    drawPlaces();
+    small_.drawPlaces();
     g_.selectSheet(kCockpitSheet);
     drawList(kOverMap);
     // The panel's ornament stays as it is, over the cockpit.
     panel_.drawOrnament();
-}
-
-// Where map point (longitude, latitude) is on the screen; false when it is
-// outside the map.
-bool Cockpit::toScreen(std::uint16_t longitude, int latitude, int& x, int& y) {
-    const ClipRect r = view();
-    const int middleX = r.left + (r.right - r.left) / 2;
-    const int middleY = r.top + (r.bottom - r.top - 1) / 2;
-    const int ring = 2 * map_.flatMap().width(std::abs(latitude));
-    const long along = s16(static_cast<std::uint16_t>(longitude - longitude_));
-    // The whole part of the offset in points, rounded down.
-    x = static_cast<int>((along * ring) >> 16) + middleX;
-    y = latitude - latitude_ + middleY;
-    return x >= r.left && x < r.right && y >= r.top && y < r.bottom;
-}
-
-void Cockpit::drawPlaces() {
-    shown_.clear();
-    const ClipRect r = view();
-    const SpriteSheet& sheet = g_.sheet();
-    for (std::size_t record = World::kPlaces; world_.u16(record) != 0xFFFF; record += World::kPlaceSize) {
-        if (world_.u8(record + 0x0A) & kPlaceHidden) {
-            continue;
-        }
-        int x = 0;
-        int y = 0;
-        if (!toScreen(world_.u16(record + 2), s16(world_.u16(record + 4)), x, y)) {
-            continue;
-        }
-        shown_.push_back(Shown{record, x, y});
-        const SpriteView v = sheet.sprite(map_.placeSprite(record, kPlaceSprite));
-        drawSpriteClipped(g_.canvas(), v, x - v.header.width() / 2, y - v.header.height / 2, r);
-    }
 }
 
 void Cockpit::show() {
@@ -164,15 +132,12 @@ void Cockpit::show() {
     d.flush();
     placeMark();
     startTyping();
-    std::string voice = Talker::voiceName(kVoiceCharacter, kAskVoice, g_.indoors);
-    if (!g_.playVoice(voice)) {
-        g_.playVoice(Talker::voiceName(kVoiceCharacter, kAskVoice, !g_.indoors));
-    }
+    say(kAskVoice);
 }
 
 void Cockpit::leave() {
     active_ = false;
-    shown_.clear();
+    small_.forget();
     markShown_ = false;
     g_.removeTimer(kBlinkTimer);
     stopTyping();
@@ -186,7 +151,7 @@ void Cockpit::placeMark() {
     world_.position(lon, lat);
     int x = 0;
     int y = 0;
-    markShown_ = toScreen(lon, lat, x, y);
+    markShown_ = small_.toScreen(lon, lat, x, y);
     if (!markShown_) {
         return;
     }
@@ -274,7 +239,7 @@ Cockpit::Target Cockpit::targetAt(int x, int y) const {
     // The nearest place, the first of those as near.
     int best = 0xFFFF;
     std::size_t nearest = 0;
-    for (const Shown& s : shown_) {
+    for (const SmallMap::Shown& s : small_.shown()) {
         const int distance = std::abs(s.x - x) + std::abs(s.y - y);
         if (distance < best) {
             best = distance;
@@ -354,6 +319,43 @@ void Cockpit::writeTarget() {
         x = drawText(x, phrase(kSecondWordPhrase + second), kNameColour);
     }
     clearLineFrom(x);
+}
+
+std::size_t Cockpit::destinationAt(int x, int y) {
+    if (!active_) {
+        return 0;
+    }
+    pointAt(x, y);
+    // The desert is a way to fly rather than a place: not built yet.
+    if (target_.kind != Target::Kind::Place) {
+        return 0;
+    }
+    if (!world_.flying() && target_.place == world_.placeHere()) {
+        return 0;
+    }
+    return target_.place;
+}
+
+void Cockpit::confirm(std::size_t record) {
+    // The voice for a place goes by its name's two words.
+    const int name = ((world_.u8(record) - 1) << 4 | world_.u8(record + 1)) & 0xFF;
+    say(kAskVoice + name);
+    const Target place = target_;
+    for (int i = 0; i < kConfirmBlinks; ++i) {
+        g_.waitTicks(kConfirmShown);
+        target_ = Target{};
+        writeTarget();
+        g_.waitTicks(kConfirmHidden);
+        target_ = place;
+        writeTarget();
+    }
+    g_.waitSound();
+}
+
+void Cockpit::say(int phrase) {
+    if (!g_.playVoice(Talker::voiceName(kVoiceCharacter, phrase, g_.indoors))) {
+        g_.playVoice(Talker::voiceName(kVoiceCharacter, phrase, !g_.indoors));
+    }
 }
 
 bool Cockpit::command(std::uint16_t action) {

@@ -43,6 +43,7 @@ public:
     int room() const { return u16(kRoom); }
     int place() const { return u16(kPlace); }
     bool inside() const { return (place() & 0xFF) == 0x80; }
+    bool flying() const { return u8(kPlaceKind) == kFlying; }
     // Where Paul is on the map: inside a place, the place's point;
     // otherwise the room word is the longitude and the place's low byte
     // the latitude.
@@ -57,6 +58,19 @@ public:
         }
     }
     void goTo(int room, int place);
+    // The record of the place the player is in; 0 while flying.
+    std::size_t placeHere() const { return u16(kPlaceRecord); }
+    void setPlaceHere(std::size_t record) { setU16(kPlaceRecord, static_cast<std::uint16_t>(record)); }
+    // The place the player last came into, where a flight can go back to.
+    std::size_t home() const { return u16(kHome); }
+    // Takes the characters who go with the player from where the player
+    // is to (`room`, `place`).
+    void takeFollowers(int room, int place);
+    // Flying: where the player is is a point of the map.
+    void flyOver(std::uint16_t longitude, int latitude);
+    // Landing at place `record`: in its first room, the place found if it
+    // was hidden.
+    void enterPlace(std::size_t record);
 
     struct Character {
         int room = 0;
@@ -101,6 +115,8 @@ public:
 private:
     static constexpr std::size_t kClock = 0x02;
     static constexpr std::size_t kPlaceRecord = 0x114E;
+    static constexpr std::size_t kHome = 0x1150;
+    static constexpr std::uint8_t kFlying = 0xFF;
     static constexpr std::size_t kRoom = 0x04;
     static constexpr std::size_t kPlace = 0x06;
     static constexpr std::size_t kPlaceKind = 0x08;

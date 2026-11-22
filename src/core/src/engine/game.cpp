@@ -216,7 +216,7 @@ bool Game::pause(int ticks) {
         return true;
     }
     const auto voice = [this] {
-        return looping_.samples.empty() && platform_.soundQueued[static_cast<int>(SoundChannel::Digital)] > 0;
+        return !repeating() && platform_.soundQueued[static_cast<int>(SoundChannel::Digital)] > 0;
     };
     if (!voice()) {
         return waitTicks(ticks);
@@ -234,16 +234,24 @@ bool Game::pause(int ticks) {
 
 void Game::playSound(int n) {
     constexpr int kFirstSound = 0xAE;
-    const VocSound sound = Voc::parse(resources_.load(kFirstSound + n));
+    VocSound sound = Voc::parse(resources_.load(kFirstSound + n));
     stopSound();
-    for (const VocPart& part : sound.parts) {
-        platform_.queueSound(SoundChannel::Digital, part.rate, part.samples);
-        if (part.plays == 0) {
-            // Played until stopped: what follows it is never reached.
-            looping_ = part;
-            break;
-        }
+    soundParts_ = std::move(sound.parts);
+    soundPart_ = 0;
+    playsLeft_ = soundParts_.empty() ? 0 : soundParts_[0].plays;
+    keepLooping();
+}
+
+void Game::endSoundRepeat() {
+    if (!repeating() || soundParts_[soundPart_].plays == 1) {
+        return;
     }
+    // What is queued plays out; then the next part follows.
+    ++soundPart_;
+    if (soundPart_ < soundParts_.size()) {
+        playsLeft_ = soundParts_[soundPart_].plays;
+    }
+    keepLooping();
 }
 
 bool Game::playVoice(const std::string& name) {
@@ -259,19 +267,44 @@ bool Game::playVoice(const std::string& name) {
     return true;
 }
 
+bool Game::waitSound() {
+    while (platform_.soundQueued[static_cast<int>(SoundChannel::Digital)] > 0) {
+        if (pollInput()) {
+            return false;
+        }
+        platform_.waitFrame();
+    }
+    return true;
+}
+
 void Game::stopSound() {
-    looping_ = VocPart{};
+    soundParts_.clear();
+    soundPart_ = 0;
+    playsLeft_ = 0;
     platform_.stopSound(SoundChannel::Digital);
 }
 
+// Queues the effect's parts as they come: a part played once at once, a
+// part that repeats a play at a time, kept a little ahead.
 void Game::keepLooping() {
-    constexpr double kAhead = 0.25; // seconds kept queued
-    if (looping_.samples.empty() || looping_.rate <= 0) {
-        return;
-    }
+    constexpr double kAhead = 0.05; // seconds kept queued of a repeating part
     double& queued = platform_.soundQueued[static_cast<int>(SoundChannel::Digital)];
-    while (queued < kAhead) {
-        platform_.queueSound(SoundChannel::Digital, looping_.rate, looping_.samples);
+    while (soundPart_ < soundParts_.size()) {
+        const VocPart& part = soundParts_[soundPart_];
+        const bool empty = part.rate <= 0 || part.samples.empty();
+        if (!empty) {
+            if (part.plays != 1 && queued >= kAhead) {
+                return;
+            }
+            platform_.queueSound(SoundChannel::Digital, part.rate, part.samples);
+            if (part.plays == 0 || --playsLeft_ > 0) {
+                continue; // until stopped, or plays left
+            }
+        }
+        ++soundPart_;
+        if (soundPart_ < soundParts_.size()) {
+            playsLeft_ = soundParts_[soundPart_].plays;
+        }
     }
 }
 

@@ -142,6 +142,7 @@ constexpr std::size_t kOutsideCounts = 0x1977;
 constexpr int kKindSteps[4] = {0x20, 0x21, 0x28, 0x30};
 constexpr int kVillagePictures = 0x7F;
 constexpr int kOrnithopters = 0x33; // ORNY.HSQ
+constexpr int kTakingOff = 0x2A;    // ORNYTK.HSQ: the same, with the wings beating
 constexpr ClipRect kSceneArea{0, 0, 320, 152};
 
 } // namespace
@@ -166,24 +167,46 @@ void Places::drawOutside(int kind, int firstName) {
     game_.drawSprite(0, 0, 0);
 }
 
-void Places::drawOrnithopters(int count, bool sietch) {
-    if (count <= 0) {
-        return;
-    }
-    int x = sietch ? 0x95 : 0xCA;
-    int y = sietch ? 0x39 : 0x49;
-    game_.selectSheet(kOrnithopters);
+// One ornithopter with its top-left at (x, y), `state` steps into taking
+// off: the shadow shrinks from step 15, the wings beat up to step 14.
+void Places::drawOrnithopter(int x, int y, int state) {
     const SpriteSheet& sheet = game_.sheet();
-    // Each sprite clipped to the scene.
     auto draw = [&](std::size_t n, int at, int top) {
         drawSpriteClipped(game_.canvas(), sheet.sprite(n), at, top, kSceneArea);
     };
-    for (int i = 0; i < count; ++i, x += 0x46, y += 0x0A) {
-        draw(0, x, y);            // the body
-        draw(1, x + 6, y + 30);   // below it
-        draw(2, x + 4, y + 50);   // its shadow
-        draw(8, x - 0x51, y - 3); // the wings, folded
+    draw(0, x, y);                                                  // the body
+    draw(1, x + 6, y + 30);                                         // below it
+    draw(static_cast<std::size_t>(2 + std::clamp(state - 15, 0, 5)), x + 4, y + 50); // its shadow
+    draw(static_cast<std::size_t>(8 + std::min(state, 14)), x - 0x51, y - 3);        // the wings
+}
+
+void Places::drawOrnithopters(int count, bool sietch) {
+    game_.selectSheet(kOrnithopters);
+    drawRow(0, count, sietch);
+}
+
+// The parked ornithopters from the `first` to the last of `count`, each
+// further right and lower than the one before.
+void Places::drawRow(int first, int count, bool sietch) {
+    const int x = sietch ? 0x95 : 0xCA;
+    const int y = sietch ? 0x39 : 0x49;
+    for (int i = first; i < count; ++i) {
+        drawOrnithopter(x + 0x46 * i, y + 0x0A * i, 0);
     }
+}
+
+void Places::drawTakeOff(int count, bool sietch, int state, int side) {
+    game_.selectSheet(kTakingOff);
+    int x = sietch ? 0x95 : 0xCA;
+    int y = sietch ? 0x39 : 0x49;
+    // From step 15 it rises, sideways and faster and faster.
+    const int n = state - 14;
+    if (n > 0) {
+        x -= 5 * side * n;
+        y -= n * n / 2;
+    }
+    drawOrnithopter(x, y, state);
+    drawRow(1, count, sietch);
 }
 
 void Places::drawView(const std::function<void()>& background) {

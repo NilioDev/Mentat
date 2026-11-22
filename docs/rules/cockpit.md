@@ -4,7 +4,8 @@ In a palace's entrance, "TAKE AN ORNITHOPTER" (phrase `0xA7`, action
 `0x42E9`, greyed while no ornithopter is kept there) puts Paul in an
 ornithopter's cockpit, where he chooses where to fly on a small map.
 This page covers the cockpit as it opens, what the mouse shows on it and
-"Cancel". Flying off is not covered yet.
+"Cancel". A click on a place flies there (see [flight.md](flight.md)).
+"CHANGE DESTINATION" opens the cockpit during a flight too.
 
 ## Opening the cockpit
 
@@ -18,7 +19,7 @@ Nothing fades: the cockpit replaces the room at once.
 3. The map's middle is Paul's place.
 4. On the back buffer:
    - the sky's colours for the hour are set, as on entering a room (see
-     [game.md](game.md));
+     [game.md](game.md)), unless Paul is flying: then they stay;
    - the sky: sprites 0 to 3 of `SKY.HSQ` (resource `0x28`, whatever the
      room), sprite *r* along row *r*, at x = 0, 40, … 280 and y = 20*r*;
    - the `ORNYPAN.HSQ` sprites listed at data offset `0x14B4`, as
@@ -140,4 +141,5 @@ sides, as over the map screen (see [panel.md](panel.md)).
 ## Cancel
 
 "Cancel" leaves the cockpit: the timers stop, and the room is drawn again
-and shown at once, with its commands and arrows.
+and shown at once, with its commands and arrows; during a flight the
+flight's screen comes back instead.

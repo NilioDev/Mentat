@@ -17,6 +17,7 @@ add_library(mtt_core STATIC
     src/engine/map_screen.cpp
     src/engine/globe.cpp
     src/engine/cockpit.cpp
+    src/engine/flight.cpp
     src/engine/globe_screen.cpp
     src/engine/hnm_player.cpp
     src/engine/intro.cpp
@@ -24,6 +25,7 @@ add_library(mtt_core STATIC
     src/engine/attack_view.cpp
     src/engine/panel.cpp
     src/engine/places.cpp
+    src/engine/small_map.cpp
     src/engine/play.cpp
     src/engine/resources.cpp
     src/engine/talker.cpp
