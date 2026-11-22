@@ -19,7 +19,7 @@ public:
 
     // The palette blocks at the start of the file, applied over `palette`.
     // Files that carry no palette leave it unchanged.
-    void applyPalette(Palette& palette) const;
+    void applyPalette(Palette& palette, std::bitset<256>* touched = nullptr) const;
     bool hasPalette() const { return paletteEnd_ > 2; }
 
     std::size_t size() const { return offsets_.size(); }

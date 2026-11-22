@@ -25,6 +25,15 @@ struct ClipRect {
     int bottom = 0;
 };
 
+// Where drawing by position lands: a screen-sized surface, and how many
+// rows everything is moved down (the original can shift all drawing down,
+// which its opening uses to centre the scenes).
+struct Canvas {
+    Canvas(Surface& s, int rows = 0) : surface(s), originRows(rows) {} // NOLINT: a surface is a canvas at row 0
+    Surface& surface;
+    int originRows = 0;
+};
+
 // Values the drawing takes from the player's DNCDPRG.EXE.
 struct SceneTables {
     // Divisors for the seven sizes a sprite can be shrunk to (index 0 is
@@ -70,15 +79,23 @@ using PersonSlotFn = std::function<void(int slot, int x, int y)>;
 // scene's first byte). Throws FormatError on damaged data.
 int drawScene(Surface& to, std::span<const std::uint8_t> scene, const SpriteSheet& sheet,
               const SceneTables& tables, const PersonSlotFn& onPerson = {});
+int drawScene(const Canvas& to, std::span<const std::uint8_t> scene, const SpriteSheet& sheet,
+              const SceneTables& tables, const PersonSlotFn& onPerson = {});
+
+// Draws a sprite named by a 16-bit sprite word, as scenes and the game's
+// sprite lists do: bits 0-8 the sprite number, 10-12 the size, 13 upside
+// down, 14 mirrored. A colour offset other than 0 replaces the sprite's mode.
+void drawSpriteWord(const Canvas& to, const SpriteSheet& sheet, std::uint16_t word, int x, int y,
+                    const SceneTables& tables, std::uint8_t modeOverride = 0);
 
 // The pieces drawScene uses, open for tests and tools.
 
 // Draws a sprite shrunk by an 8.8 divisor (0x100 keeps its size), the
 // way the original does it for scenery that is further away.
-void drawScaledSprite(Surface& to, const SpriteSheet& sheet, std::size_t index, std::uint8_t mode,
+void drawScaledSprite(const Canvas& to, const SpriteSheet& sheet, std::size_t index, std::uint8_t mode,
                       bool flipX, bool flipY, std::uint16_t divisor, int x, int y);
 
 // A one-colour line from (x0, y0) to (x1, y1), clipped.
-void drawSceneLine(Surface& to, int x0, int y0, int x1, int y1, std::uint8_t colour, const ClipRect& clip);
+void drawSceneLine(const Canvas& to, int x0, int y0, int x1, int y1, std::uint8_t colour, const ClipRect& clip);
 
 } // namespace mentat

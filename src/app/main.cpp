@@ -15,9 +15,11 @@
 #include "mentat/data/program_file.hpp"
 #include "mentat/data/program_tables.hpp"
 #include "mentat/data/reader.hpp"
+#include "mentat/engine/display.hpp"
 #include "mentat/engine/fiber.hpp"
+#include "mentat/engine/game.hpp"
+#include "mentat/engine/intro.hpp"
 #include "mentat/engine/platform.hpp"
-#include "mentat/engine/videos.hpp"
 #include "mentat/game_files.hpp"
 #include "mentat/version.hpp"
 
@@ -114,18 +116,14 @@ void openAudio(App& app) {
     }
 }
 
-// The game: for now the opening videos, one after the other, with the
-// music the original starts with them.
+// The game: for now the opening, as far as it is built.
 void runGame(App& app) {
     using namespace mentat;
     MusicSystem music(MusicTables::fromPlayer(app.archive->load("DNADP.HSQ")));
     app.platform.music = &music;
-    music.driver().start(music.opl(), std::make_shared<const Song>(Song::parse(app.archive->load("MORNING.HSQ"))), 0);
-    for (const int index : {video::kVirgin, video::kCryo, video::kCryo2, video::kPresent}) {
-        playVideo(app.platform, *app.archive, *app.program, index);
-    }
-    music.driver().stop(music.opl());
-    playVideo(app.platform, *app.archive, *app.program, video::kIrulan);
+    Game game(app.platform, *app.archive, *app.program, DisplayTables::fromDriver(app.archive->load("DNVGA.HSQ")),
+              &music);
+    runIntro(game, kEnglish);
     app.platform.music = nullptr;
 }
 

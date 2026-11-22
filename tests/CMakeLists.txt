@@ -9,6 +9,7 @@ add_executable(mtt_tests
     test_engine.cpp
     test_music.cpp
     test_scene.cpp
+    test_display.cpp
 )
 target_link_libraries(mtt_tests PRIVATE mentat::core)
 target_compile_definitions(mtt_tests PRIVATE MENTAT_GAMEDATA_DIR="${PROJECT_SOURCE_DIR}/gamedata")

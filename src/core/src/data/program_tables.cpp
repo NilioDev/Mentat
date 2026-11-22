@@ -8,6 +8,7 @@ namespace mentat {
 namespace {
 
 constexpr std::size_t kVideoTable = 0x33A3;
+constexpr std::size_t kResourceTable = 0x31FF;
 constexpr std::size_t kMaxName = 16;
 
 std::string cString(const ProgramFile& program, std::size_t offset) {
@@ -35,6 +36,22 @@ VideoInfo videoInfo(const ProgramFile& program, int index) {
     info.name = cString(program, entry + 2);
     info.spaced = index >= video::kFirstSpaced;
     return info;
+}
+
+std::string resourceName(const ProgramFile& program, int index) {
+    if (index < 0 || index > 0xFF) {
+        throw FormatError("program: no such resource");
+    }
+    const std::size_t entry = program.dataU16(kResourceTable + 2 * static_cast<std::size_t>(index));
+    if (entry == 0 || entry + 2 >= ProgramFile::kDataSize) {
+        return {};
+    }
+    // A size word comes before the name.
+    std::string name = cString(program, entry + 2);
+    if (name.find('.') == std::string::npos) {
+        return {}; // "libre": a free number
+    }
+    return name;
 }
 
 } // namespace mentat

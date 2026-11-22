@@ -5,7 +5,7 @@
 
 namespace mentat {
 
-void Palette::applyBlocks(Reader& reader) {
+void Palette::applyBlocks(Reader& reader, std::bitset<256>* touched) {
     for (;;) {
         const std::uint16_t word = reader.u16();
         if (word == 0xFFFF) {
@@ -30,13 +30,16 @@ void Palette::applyBlocks(Reader& reader) {
             colours_[slot] = Colour{static_cast<std::uint8_t>(rgb[i * 3] & 0x3F),
                                     static_cast<std::uint8_t>(rgb[i * 3 + 1] & 0x3F),
                                     static_cast<std::uint8_t>(rgb[i * 3 + 2] & 0x3F)};
+            if (touched != nullptr) {
+                touched->set(slot);
+            }
         }
     }
 }
 
-void Palette::applyBlocks(std::span<const std::uint8_t> blocks) {
+void Palette::applyBlocks(std::span<const std::uint8_t> blocks, std::bitset<256>* touched) {
     Reader reader(blocks);
-    applyBlocks(reader);
+    applyBlocks(reader, touched);
 }
 
 } // namespace mentat
