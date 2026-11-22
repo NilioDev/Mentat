@@ -146,10 +146,12 @@ MTT_TEST("sprite sheet: reads the palette and the sprite list") {
 MTT_TEST("font: draws set bits from the left and advances by the width") {
     std::vector<std::uint8_t> file(Font::kFileSize, 0);
     file['A'] = 3;
-    file[256 + 'A' * 8 + 0] = 0xC0;
+    file[256 + 'A' * 9 + 0] = 0xC0;
+    file[256 + 'A' * 9 + 8] = 0x80; // the ninth row
     const Font font = Font::parse(file);
-    Surface s(8, 8);
+    Surface s(8, 9);
     MTT_CHECK(font.draw(s, 1, 0, "AA", 7) == 7);
+    MTT_CHECK(s.at(1, 8) == 7 && font.row(0xFF, 0) == 0);
     MTT_CHECK(s.at(1, 0) == 7 && s.at(2, 0) == 7 && s.at(3, 0) == 0 && s.at(4, 0) == 7);
     MTT_CHECK(font.width("AAA") == 9);
     MTT_CHECK(throwsFormatError([] { (void)Font::parse(std::vector<std::uint8_t>(10)); }));

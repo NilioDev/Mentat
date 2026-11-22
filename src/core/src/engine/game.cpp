@@ -104,6 +104,13 @@ void Game::stopMusic() {
     }
 }
 
+void Game::fadeMusic(int ticks, std::uint8_t volume, std::uint8_t balance) {
+    if (music_ != nullptr) {
+        // The player takes no volume below 4.
+        music_->driver().fade(ticks, std::max<std::uint8_t>(volume, 4), balance);
+    }
+}
+
 bool Game::musicPlaying() const { return music_ != nullptr && music_->driver().status().playing(); }
 
 int Game::musicMeasure() const { return music_ != nullptr ? music_->driver().status().measure : 0; }
@@ -123,6 +130,10 @@ void Game::removeTimer(int id) {
 
 // Each timer adds up the ticks since the timers last ran; when it reaches
 // its interval it keeps the remainder and runs.
+namespace {
+constexpr std::uint32_t kMaxRunsPerCheck = 64;
+} // namespace
+
 void Game::runTimers() {
     const std::uint32_t now = platform_.ticks;
     const std::uint32_t elapsed = now - timersRan_;
@@ -142,9 +153,24 @@ void Game::runTimers() {
             it->count = count;
             continue;
         }
-        it->count = it->interval != 0 ? count % it->interval : count;
+        // The original checks many times a tick, so a job falls due at
+        // most once a tick; our checks come a few ticks apart, so a job
+        // with a short interval runs once for each interval that passed.
+        std::uint32_t runs = 1;
+        if (it->interval != 0) {
+            runs = std::min<std::uint32_t>(count / it->interval, kMaxRunsPerCheck);
+            it->count = count % it->interval;
+        } else {
+            it->count = count;
+        }
         const TimerFn fn = it->fn;
-        fn();
+        for (std::uint32_t r = 0; r < runs; ++r) {
+            // A run may remove its own timer.
+            if (r > 0 && std::none_of(timers_.begin(), timers_.end(), [id](const Timer& t) { return t.id == id; })) {
+                break;
+            }
+            fn();
+        }
     }
 }
 
@@ -218,6 +244,19 @@ void Game::playSound(int n) {
             break;
         }
     }
+}
+
+bool Game::playVoice(const std::string& name) {
+    DatArchive& archive = resources_.archive();
+    if (archive.directory().find(name) == nullptr) {
+        return false;
+    }
+    const VocSound sound = Voc::parse(archive.read(name));
+    stopSound();
+    for (const VocPart& part : sound.parts) {
+        platform_.queueSound(SoundChannel::Digital, part.rate, part.samples);
+    }
+    return true;
 }
 
 void Game::stopSound() {

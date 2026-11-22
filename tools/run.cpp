@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// mentat-run: runs the opening without a window on a simulated clock and
+// mentat-run: runs the opening (and, once a key skips it, the credits
+// and the story) without a window on a simulated clock and
 // writes the screen as PNG files at chosen moments, to compare with the
 // original.
 //
-//   mentat-run GAME-FOLDER out-folder [--every SECONDS] [--until SECONDS] [--press SECONDS]
+//   mentat-run GAME-FOLDER out-folder [--every SECONDS] [--until SECONDS] [--press SECONDS]...
 //
 // Output stays on the developer's machine; never commit it.
 #include "mentat/audio/music.hpp"
@@ -19,17 +20,18 @@
 #include <cstdio>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 using namespace mentat;
 
 int main(int argc, char** argv) {
     if (argc < 3) {
-        std::fprintf(stderr, "usage: mentat-run GAME-FOLDER out-folder [--every S] [--until S] [--press S]\n");
+        std::fprintf(stderr, "usage: mentat-run GAME-FOLDER out-folder [--every S] [--until S] [--press S]...\n");
         return 2;
     }
     double every = 2;
     double until = 600;
-    double press = -1;
+    std::vector<double> presses;
     for (int i = 3; i + 1 < argc; i += 2) {
         const std::string opt = argv[i];
         const double v = std::stod(argv[i + 1]);
@@ -38,7 +40,7 @@ int main(int argc, char** argv) {
         } else if (opt == "--until") {
             until = v;
         } else if (opt == "--press") {
-            press = v;
+            presses.push_back(v);
         }
     }
     try {
@@ -55,22 +57,27 @@ int main(int argc, char** argv) {
         platform.music = &music;
         Game game(platform, dat, program, displayTables, &music);
         IntroEnd end = IntroEnd::Finished;
-        Fiber fiber([&] { end = runIntro(game, kEnglish); });
+        Fiber fiber([&] {
+            while ((end = runIntro(game, kEnglish)) == IntroEnd::Finished) {
+            }
+            runCredits(game);
+            runStory(game, kEnglish);
+        });
         platform.fiber = &fiber;
         const std::filesystem::path out = argv[2];
         std::filesystem::create_directories(out);
         double t = 0;
         double nextShot = 0;
         const double frame = 1.0 / 70;
-        bool pressed = false;
+        std::size_t pressed = 0;
         while (!fiber.finished() && t < until) {
             platform.ticks = static_cast<std::uint32_t>(t * kTicksPerSecond);
             for (double& q : platform.soundQueued) {
                 q = q > frame ? q - frame : 0;
             }
-            if (press >= 0 && !pressed && t >= press) {
+            if (pressed < presses.size() && t >= presses[pressed]) {
                 platform.keys.push_back(KeyPress{0x39, ' '});
-                pressed = true;
+                ++pressed;
             }
             platform.sound.clear();
             fiber.resume();

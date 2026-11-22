@@ -17,6 +17,11 @@ to every count. When a count reaches its interval, it keeps only the rest
 (count modulo interval) and the job runs once. Starting a step of the
 opening sets every count back to 0.
 
+The original checks many times a tick, so in effect a job with an
+interval of 1 runs every tick. Mentat checks once a frame, a few ticks
+apart, so it runs a job once for each whole interval that passed since
+the last check.
+
 ## Waiting for the music
 
 The opening can wait until the music reaches a position (see

@@ -15,14 +15,19 @@ class Surface;
 class Font {
 public:
     static constexpr std::size_t kFileSize = 256 + 256 * 8;
-    static constexpr int kHeight = 8;
+    static constexpr int kHeight = 9; // rows per character in DNCHAR.BIN
 
     // Throws FormatError when the file has the wrong size.
-    static Font parse(std::span<const std::uint8_t> bytes);
+    static Font parse(std::span<const std::uint8_t> bytes, int height = kHeight);
 
     int width(std::uint8_t ch) const { return widths_[ch]; }
     int width(std::string_view text) const;
-    std::uint8_t row(std::uint8_t ch, int y) const { return rows_[static_cast<std::size_t>(ch) * 8 + static_cast<std::size_t>(y & 7)]; }
+    int height() const { return height_; }
+    // Row y of a character; characters past the end of the file are empty.
+    std::uint8_t row(std::uint8_t ch, int y) const {
+        const std::size_t at = static_cast<std::size_t>(ch) * static_cast<std::size_t>(height_) + static_cast<std::size_t>(y);
+        return y >= 0 && y < height_ && at < rows_.size() ? rows_[at] : 0;
+    }
 
     // Draws text with its top-left corner at (x, y); returns the x after it.
     int draw(Surface& to, int x, int y, std::string_view text, std::uint8_t colour) const;
@@ -30,6 +35,7 @@ public:
 private:
     std::array<std::uint8_t, 256> widths_{};
     std::array<std::uint8_t, 256 * 8> rows_{};
+    int height_ = kHeight;
 };
 
 } // namespace mentat

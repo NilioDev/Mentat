@@ -16,8 +16,9 @@ and touch controls.
 > introduction with subtitles, the title, the flights over the desert, the
 > palace and the sietch with the characters speaking with moving lips, the
 > Harkonnens and their attack, with the original's fades, dissolves and
-> zoom. Like the original it starts over until you press a key; then it
-> closes. It does not play the game yet.
+> zoom. Like the original it starts over until you press a key; then come
+> the credits and the pages that tell the story, read by the narrator,
+> and the palace at dawn. It does not play the game yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the

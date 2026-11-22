@@ -128,6 +128,8 @@ void runGame(App& app) {
               &music);
     while (runIntro(game, kEnglish) == IntroEnd::Finished) {
     }
+    runCredits(game);
+    runStory(game, kEnglish);
     app.platform.music = nullptr;
 }
 

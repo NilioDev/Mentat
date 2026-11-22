@@ -23,4 +23,16 @@ enum class IntroEnd {
 
 IntroEnd runIntro(Game& game, int language);
 
+// After the opening is skipped: the credits video, which a key ends too.
+void runCredits(Game& game);
+
+enum class StoryEnd {
+    Finished, // every page shown, and the palace at dawn
+    Skipped,  // the player pressed a key or a button
+};
+
+// The pages that tell the story, each a picture with words under it, and
+// the palace at dawn. See docs/rules/story.md.
+StoryEnd runStory(Game& game, int language);
+
 } // namespace mentat
