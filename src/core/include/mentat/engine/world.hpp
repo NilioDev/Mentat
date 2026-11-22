@@ -94,9 +94,13 @@ public:
     static std::size_t troopRecord(int n) { return kTroops + kTroopSize * static_cast<std::size_t>(n - 1); }
 
     const std::vector<std::uint8_t>& bytes() const { return bytes_; }
+    // Puts back a state of kSize bytes, as from a saved game. Throws
+    // FormatError for any other size.
+    void restore(std::span<const std::uint8_t> bytes);
 
 private:
     static constexpr std::size_t kClock = 0x02;
+    static constexpr std::size_t kPlaceRecord = 0x114E;
     static constexpr std::size_t kRoom = 0x04;
     static constexpr std::size_t kPlace = 0x06;
     static constexpr std::size_t kPlaceKind = 0x08;

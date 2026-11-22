@@ -47,6 +47,13 @@ public:
     // The results' colours: who holds each point instead of the spice
     // fields found.
     void showHolders(bool on) { holders_ = on; }
+    // The map changed, as by loading a game: the same size, or nothing
+    // changes.
+    void setMap(std::span<const std::uint8_t> map) {
+        if (map.size() == map_.size()) {
+            map_.assign(map.begin(), map.end());
+        }
+    }
 
     // Where map point (longitude, latitude) shows on the screen, found the
     // program's way through the projection tables. False when the program

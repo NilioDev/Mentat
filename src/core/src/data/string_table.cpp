@@ -39,4 +39,11 @@ const std::string& StringTable::at(std::size_t index) const {
     return strings_[index];
 }
 
+std::string& StringTable::edit(std::size_t index) {
+    if (index >= strings_.size()) {
+        throw FormatError("string table: no such string");
+    }
+    return strings_[index];
+}
+
 } // namespace mentat

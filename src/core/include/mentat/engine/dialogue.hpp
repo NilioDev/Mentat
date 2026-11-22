@@ -83,6 +83,10 @@ public:
     int firstPhrase(int c) const;
 
     const std::vector<std::uint8_t>& bytes() const { return bytes_; }
+    // Puts back the lists with what has been said, as from a saved game:
+    // bytes of the same size. Throws FormatError otherwise, or when they
+    // do not hold lists.
+    void restore(std::span<const std::uint8_t> bytes);
 
 private:
     std::vector<std::uint8_t> bytes_;

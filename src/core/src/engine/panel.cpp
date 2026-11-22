@@ -88,6 +88,11 @@ Panel::Panel(Game& game, int language) : game_(game), language_(language) {
     font_ = Font::parse(game.resources().load(resource::kFont), Font::Size::Small);
 }
 
+std::string& Panel::editPhrase(std::uint16_t phrase) {
+    phrases();
+    return phrases_->edit(phrase - 1u);
+}
+
 const StringTable& Panel::phrases() {
     if (!phrases_) {
         phrases_ = StringTable::parse(game_.resources().load(resource::kFirstCommands + commandFile(language_)));

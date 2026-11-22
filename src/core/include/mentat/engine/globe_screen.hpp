@@ -19,6 +19,7 @@ namespace mentat {
 
 class Game;
 class MapScreen;
+class SavedGames;
 class World;
 
 class GlobeScreen {
@@ -33,8 +34,14 @@ public:
     static constexpr std::uint16_t kTurnToPlayer = 0xBA9E; // the middle of the arrows
     static constexpr std::uint16_t kSeeResults = 0xB96B;
     static constexpr std::uint16_t kStandardVision = 0xB961;
+    static constexpr std::uint16_t kLoad = 0xB29E;
+    static constexpr std::uint16_t kSave = 0xB28C;
+    static constexpr std::uint16_t kSaveSlot = 0xB35A;
+    static constexpr std::uint16_t kLoadSlot = 0xB3B0;
+    static constexpr std::uint16_t kCancel = 0xD2E2;
 
-    GlobeScreen(Game& game, World& world, Panel& panel, MapScreen& map, int language);
+    // Without saved games, loading and saving stay greyed.
+    GlobeScreen(Game& game, World& world, Panel& panel, MapScreen& map, int language, SavedGames* saves = nullptr);
 
     bool active() const { return active_; }
     bool showingResults() const { return results_; }
@@ -47,8 +54,10 @@ public:
     void leave();
 
     // A command, a zone of the panel; false when it is not one of the
-    // globe's. Sets `leaving` when the map should open again.
-    bool command(std::uint16_t action);
+    // globe's. Sets `leaving` when the map should open again, and `loaded`
+    // when a saved game was loaded. `phrase` is the line's, for the lists of
+    // saved games.
+    bool command(std::uint16_t action, std::uint16_t phrase = 0);
     // A click in the scene: on the planet, the map opens there.
     void click(int x, int y);
     // The mouse moved: over the planet the list offers the map of the area.
@@ -57,6 +66,7 @@ public:
 
     // After a command or click that leaves: where the map's middle goes.
     bool leaving = false;
+    bool loaded = false;
     std::uint16_t mapLongitude = 0;
     int mapLatitude = 0;
 
@@ -70,6 +80,14 @@ private:
     void mosaic(int left, int top, int right, int bottom, int offset);
     void setCommands(bool overPlanet);
     void playerPoint(std::uint16_t& longitude, int& latitude) const;
+
+    // Loading and saving.
+    enum class List { Globe, Save, Load };
+    void openList(List list);
+    void saveIn(int slot, int line);
+    void loadFrom(int slot);
+    void writeSlot(int slot, std::uint16_t clock);
+    void drawList();
 
     // The results.
     void drawSides(int shift);
@@ -94,6 +112,8 @@ private:
     bool active_ = false;
     bool overPlanet_ = false;
     bool results_ = false;
+    SavedGames* saves_ = nullptr;
+    List list_ = List::Globe;
     int sideShift_ = 0;
     // The bars: where they go, and how far they have grown.
     std::array<int, 6> barTarget_{};

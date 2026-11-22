@@ -14,6 +14,7 @@
 #include <array>
 #include <cstdint>
 #include <deque>
+#include <filesystem>
 #include <vector>
 
 namespace mentat {
@@ -69,6 +70,8 @@ struct MouseCursor {
 };
 
 struct Platform {
+    // Set by the app: where saved games go; empty when there is nowhere.
+    std::filesystem::path saveFolder;
     // Set by the app.
     std::uint32_t ticks = 0;
     int mouseX = 0;

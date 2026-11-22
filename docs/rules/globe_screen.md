@@ -4,8 +4,8 @@ The planet in the left part of the map's panel (zone 0, action `0xB8C6`)
 opens the globe: the planet turning between the frescoes of the two
 houses, with Paul's place marked on it. The planet itself is drawn as on
 the story pages (see [globe.md](globe.md)). This page covers the globe as
-it is opened, turned and left, and its results; the loading and saving of
-games come later.
+it is opened, turned and left, its results, and the loading and saving
+of games.
 
 ## Opening the globe
 
@@ -97,8 +97,9 @@ latitudes.
 
 The globe's commands are kept at data offset `0x204A` (two bytes, then
 (phrase, action) pairs up to a phrase of 0): leaving the globe, the
-results, loading, saving and leaving the game. Loading, saving and
-leaving the game are not built yet and are greyed. The second line is
+results, loading, saving and leaving the game. Leaving the game is not
+built yet and is greyed; so are loading and saving when there is nowhere to
+keep games. The second line is
 phrase `0xB1` with action `0xB96B` (the results), or, while the results
 show, phrase `0xB2` with action `0xB961` (back to the standard view).
 
@@ -222,6 +223,36 @@ every bar that is not there yet moves one towards it; with h its size
 byte at `0x116A` + i is written as a letter of the small font at
 (x + 4, y − h − 10), in colour `0x3F` (`0x25` for the odd bars), with no
 background.
+
+## Loading and saving
+
+"SAVE GAME" shows the list at data offset `0x207A` (two bytes, then
+(phrase, action) pairs as above): the two logs (phrases `0x10F` and
+`0x110`, action `0xB35A`) and "Cancel" (phrase `0xA3`, action `0xD2E2`),
+which brings the globe's list back. "LOAD GAME" shows the list at
+`0x208A`: the four files (phrases `0x10F` to `0x112`, action `0xB3B0`) and
+"Cancel". The n-th line is the file `DUNE37Sn.SAV` (see
+[../formats/save.md](../formats/save.md)). While these lists show, the
+mouse over the planet does not change them.
+
+For each file that is there, its clock is read, and for the first two its
+line is written into: with c the clock, the day ((c + 3) >> 4) + 1 goes in
+three digits over the end of the line's second run of digits (leading 0s
+as spaces, as in the results), and from three bytes after that run, the
+ten letters at (c & 15) × 10 of phrase `0x117`, the times of day. The lines
+keep what is written into them. When saving, a file that is there lights
+its line; when loading, a file that is missing greys its line.
+
+**Saving** into a log writes the line with the clock as it is now and
+draws it, writes the file, and shows phrase `0x113` ("save successful"),
+or `0x114` when the file could not be written, on the list's last line.
+After 300 ticks, a saved game brings the globe's list back; otherwise the
+list stays.
+
+**Loading** a file puts back the state, the dialogue lists and who holds
+each area; a file that cannot be read changes nothing. Then the globe
+shows the game loaded: when the results show, the frescoes slide back in
+first; the results are shown (above), and the planet turns to Paul.
 
 ## Leaving
 

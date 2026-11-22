@@ -29,8 +29,9 @@ and touch controls.
 > turns with your place marked, and a click on it takes you to the map of
 > that area. "See results" on the globe shows the day, your charisma,
 > the areas you hold, your spice and the men on each side, with the planet
-> coloured by who holds it. Giving orders, saving, travelling and the rest of the game are
-> not there yet.
+> coloured by who holds it, and "Save game" and "Load game" keep your
+> game, in the same files as the original. Giving orders, travelling and
+> the rest of the game are not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the
@@ -51,6 +52,18 @@ Copy `DUNE.DAT` and `DNCDPRG.EXE` from the root of your CD into a folder
 named `gamedata` next to the program, or start it with the folder: `./Mentat path/to/folder`.
 Without it, Mentat says what is missing.
 
+## Saved games
+
+Mentat keeps your games where your system keeps settings for programs:
+
+- Windows: `%APPDATA%\NilioDev\Mentat\saves`
+- macOS: `~/Library/Application Support/NilioDev/Mentat/saves`
+- Linux: `~/.local/share/NilioDev/Mentat/saves`
+
+They are the original's own files, `DUNE37S1.SAV` and `DUNE37S2.SAV`, so
+you can copy games saved in the original into that folder and play them on,
+and the original can load the games you save in Mentat.
+
 ## Controls
 
 | Action | Mouse | Keyboard | Gamepad |
@@ -64,6 +77,7 @@ Without it, Mentat says what is missing.
 | Look at the globe | On the map, click the small planet at the left of the panel; "EXIT GLOBE" or the button beside the list goes back | | |
 | Turn the globe | Click or hold an arrow; the middle turns it to you; click on the planet to see the map there | | |
 | See how you are doing | On the globe, "SEE RESULTS"; "STANDARD VISION" goes back | | |
+| Save or load a game | On the globe, "SAVE GAME" or "LOAD GAME", then a log; "Cancel" goes back | | |
 | Close Mentat | Window's close button | | Back |
 
 ## Build from source

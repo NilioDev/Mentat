@@ -9,6 +9,7 @@
 #include "mentat/engine/map_screen.hpp"
 #include "mentat/engine/panel.hpp"
 #include "mentat/engine/places.hpp"
+#include "mentat/engine/saved_games.hpp"
 #include "mentat/engine/talk.hpp"
 #include "mentat/engine/talker.hpp"
 #include "mentat/engine/world.hpp"
@@ -104,7 +105,9 @@ public:
     Play(Game& game, int language)
         : g_(game), d_(game.display()), world_(game.resources().program()), panel_(game, language),
           talk_(game, world_, panel_, *this, language), map_(game, world_, panel_),
-          globe_(game, world_, panel_, map_, language) {
+          saves_(game.platform().saveFolder, game.resources().program(), world_, talk_.dialogue(),
+                 [this]() -> std::vector<std::uint8_t>& { return map_.mapBytes(); }),
+          globe_(game, world_, panel_, map_, language, &saves_) {
         talk_.subtitles = subtitlesFor(language);
     }
 
@@ -262,7 +265,7 @@ private:
             if (static_cast<std::size_t>(line) < commands.size()) {
                 const Command c = commands[static_cast<std::size_t>(line)];
                 if (!(c.phrase & Command::kGrey)) {
-                    choose(c.action);
+                    choose(c.action, c.phrase);
                 }
             }
             return;
@@ -308,7 +311,7 @@ private:
     }
 
     // A command: one of the talk menu's, or talking to a person.
-    void choose(std::uint16_t action) {
+    void choose(std::uint16_t action, std::uint16_t phrase = 0) {
         if (talk_.command(action)) {
             return;
         }
@@ -316,7 +319,7 @@ private:
             toggleMap();
             return;
         }
-        if (screenCommand(action)) {
+        if (screenCommand(action, phrase)) {
             return;
         }
         const int c = Talk::characterOf(action);
@@ -334,14 +337,26 @@ private:
     }
 
     // A command for the map or the globe, whichever is shown.
-    bool screenCommand(std::uint16_t action) {
-        if (globe_.command(action)) {
+    bool screenCommand(std::uint16_t action, std::uint16_t phrase = 0) {
+        if (globe_.command(action, phrase)) {
+            if (globe_.loaded) {
+                globe_.loaded = false;
+                afterLoading();
+            }
             if (globe_.leaving) {
                 backToMap();
             }
             return true;
         }
         return map_.command(action);
+    }
+
+    // A saved game came back: what was counting for the game before starts
+    // again from the game loaded.
+    void afterLoading() {
+        hoursPassed_ = 0;
+        lastTick_ = g_.platform().ticks;
+        lit_ = -1;
     }
 
     // The globe in the map's panel: the globe's picture is drawn behind,
@@ -709,6 +724,7 @@ private:
     Panel panel_;
     Talk talk_;
     MapScreen map_;
+    SavedGames saves_;
     GlobeScreen globe_;
     bool endTalk_ = false;
     Surface ornamentStrip_{320, 200};
