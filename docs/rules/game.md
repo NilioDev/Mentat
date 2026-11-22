@@ -79,6 +79,8 @@ offset `0x375C`:
 
 | Moment | When |
 | --- | --- |
+| 1 | the globe is shown (see [globe_screen.md](globe_screen.md)) |
+| 2 | the map is shown (see [map.md](map.md)) |
 | 5 | outside, or in a place's first room |
 | 8, 9 | in a sietch (8 for the first seven kinds of sietch) |
 | `0x0A` | in room 3 of the palace |

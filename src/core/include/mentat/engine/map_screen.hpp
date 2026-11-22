@@ -39,6 +39,8 @@ public:
 
     // Opens the map on the player's place, drawn on the back buffer.
     void enter();
+    // Opens it with its middle at map point (longitude, latitude).
+    void enter(std::uint16_t longitude, int latitude);
     // Dissolves it onto the screen and writes the box that names the map
     // over it.
     void show();
@@ -53,6 +55,9 @@ public:
     // A command of the map's list or an arrow. False when it is not one of
     // the map's.
     bool command(std::uint16_t action);
+
+    // The map's points as they are now (with the marks the game adds).
+    const std::vector<std::uint8_t>& mapBytes() { return map().bytes(); }
 
     // The map's point at the middle of the view.
     std::uint16_t longitude() const { return longitude_; }

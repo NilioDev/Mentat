@@ -40,6 +40,8 @@ picture is copied to the screen and the changed colours are sent.
 
 | Type | What happens |
 | --- | --- |
+| `0x00` | **Rise** (the program asks for it upwards). The old screen is kept. In 19 steps, with s from 8 to 152 by 8, the 152 rows at the origin show: the old rows from s on at the top, then 8 rows of colour 7, then the back picture in place. Each step is followed by a wait of 6 ticks. |
+| `0x02` | **Spiral.** The back picture is copied to the screen in blocks of 8 × 4 pixels, in a square spiral from the block at (156, 74): 1 block right, 2 down, then for n = 2, 4, … 36: n left, n up, n + 1 right, n + 1 down, each side starting next to where the last one ended. Each side waits for the next tick. Blocks are placed by their offset in the screen, so one past the left or right edge runs on in the next or previous row. |
 | `0x10` | **Dissolve.** The 152 rows at the origin are blacked out through a 4 × 4 pattern: 16 steps, each doing one place of the pattern in every 4 × 4 block. Then the changed colours are sent and 16 more steps show the back picture through the same pattern. About 96 ticks. |
 | `0x30` | **Cut.** The changed colours are sent and the 152 rows at the origin are copied from the back picture. |
 | `0x34` | **Dissolve of the whole screen.** As `0x10`, but over all 200 rows. |

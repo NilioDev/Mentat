@@ -25,7 +25,9 @@ and touch controls.
 > meet: their face over the room and their own recorded voice, saying
 > what fits how far the story has come. "See Dune map" opens the map of
 > the planet around you with the places you know, and you can move it
-> with the arrows. Giving orders, travelling and the rest of the game are
+> with the arrows; the small planet beside it opens the globe, which
+> turns with your place marked, and a click on it takes you to the map of
+> that area. Giving orders, saving, travelling and the rest of the game are
 > not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
@@ -57,6 +59,8 @@ Without it, Mentat says what is missing.
 | Hear more, ask again, stop talking | Click a line of the talk menu | | |
 | Look at the map | Click "SEE DUNE MAP"; "EXIT MAPS" goes back | | |
 | Move the map | Click or hold an arrow; the middle goes back to you | | |
+| Look at the globe | On the map, click the small planet at the left of the panel; "EXIT GLOBE" or the button beside the list goes back | | |
+| Turn the globe | Click or hold an arrow; the middle turns it to you; click on the planet to see the map there | | |
 | Close Mentat | Window's close button | | Back |
 
 ## Build from source

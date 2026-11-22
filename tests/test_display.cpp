@@ -115,7 +115,65 @@ MTT_TEST("display: the dissolve ends on the new picture") {
     const std::uint32_t ticks = runGame(p, [&] { d.transition(Display::kDissolve); });
     MTT_CHECK(ticks >= 96 && ticks < 105); // 32 steps of 3 ticks
     MTT_CHECK(p.screen.at(0, 0) == 2 && p.screen.at(319, 199) == 2);
-    MTT_CHECK_THROWS(d.transition(0x02));
+    MTT_CHECK_THROWS(d.transition(0x04));
+}
+
+MTT_TEST("display: the rise moves the old picture up with a band under it") {
+    Platform p;
+    Display d(p, tables());
+    prepareChange(d);
+    for (int y = 0; y < 152; ++y) {
+        d.screen().fillRect(0, y, 320, 1, static_cast<std::uint8_t>(100 + y));
+    }
+    d.back().fillRect(0, 0, 320, 200, 2);
+    const std::uint32_t ticks = runGame(p, [&] { d.transition(Display::kRise, -1); });
+    MTT_CHECK(ticks >= 114 && ticks < 120); // 19 steps of 6 ticks
+    MTT_CHECK(p.screen.at(0, 0) == 2 && p.screen.at(319, 151) == 2);
+    MTT_CHECK(p.palette[0] == grey(40));
+    MTT_CHECK_THROWS(d.transition(Display::kRise));
+
+    // Part way: after the first step the old picture is 8 rows higher.
+    Display e(p, tables());
+    for (int y = 0; y < 152; ++y) {
+        e.screen().fillRect(0, y, 320, 1, static_cast<std::uint8_t>(100 + y));
+    }
+    e.back().fill(2);
+    bool seen = false;
+    Fiber fiber([&] { e.transition(Display::kRise, -1); });
+    p.fiber = &fiber;
+    fiber.resume();
+    seen = p.screen.at(5, 0) == 108 && p.screen.at(5, 143) == 251 && p.screen.at(5, 144) == 7 && p.screen.at(5, 151) == 7;
+    while (!fiber.finished()) {
+        p.ticks += 10;
+        fiber.resume();
+    }
+    p.fiber = nullptr;
+    MTT_CHECK(seen);
+}
+
+MTT_TEST("display: the spiral reaches the whole scene a side a tick") {
+    Platform p;
+    Display d(p, tables());
+    prepareChange(d);
+    const std::uint32_t ticks = runGame(p, [&] { d.transition(Display::kSpiral); });
+    MTT_CHECK(ticks >= 74 && ticks < 80);
+    MTT_CHECK(p.screen.at(0, 0) == 2 && p.screen.at(319, 199) == 2);
+
+    // The first side is the block right of the middle.
+    Display e(p, tables());
+    e.screen().fill(1);
+    e.back().fill(2);
+    Fiber fiber([&] { e.transition(Display::kSpiral); });
+    p.fiber = &fiber;
+    fiber.resume();
+    const bool first = p.screen.at(156, 74) == 2 && p.screen.at(163, 77) == 2 && p.screen.at(164, 74) == 1 &&
+                       p.screen.at(155, 74) == 1;
+    while (!fiber.finished()) {
+        p.ticks += 10;
+        fiber.resume();
+    }
+    p.fiber = nullptr;
+    MTT_CHECK(first);
 }
 
 MTT_TEST("display: a fade step moves part of the way") {

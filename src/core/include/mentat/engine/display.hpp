@@ -111,6 +111,8 @@ public:
     void fadeStep(int first, int count, int divisor);
 
     // --- Transitions (the original's numbers; see docs/rules/display.md)
+    static constexpr int kRise = 0x00;   // with direction -1: the old picture goes up
+    static constexpr int kSpiral = 0x02;
     static constexpr int kDissolve = 0x10;
     static constexpr int kCut = 0x30;
     static constexpr int kDissolveScreen = 0x34;
@@ -120,7 +122,10 @@ public:
 
     // Shows the back buffer on the screen with a transition, then copies
     // it over whole and sends the palette. Unknown numbers throw FormatError.
-    void transition(int type);
+    void transition(int type) { transition(type, 0); }
+    // `direction` is the program's second number for a transition; only
+    // the rise uses it.
+    void transition(int type, int direction);
 
     // Waits until `ticks` timer ticks have passed since `since`, and returns
     // the tick it stopped at.
@@ -132,6 +137,8 @@ private:
     void fadeDown(int chunk, int step, int rounds);
     void fadeUp(int chunk, int step, int rounds);
     void dissolve(int rows);
+    void rise();
+    void spiral();
 
     Platform& platform_;
     DisplayTables tables_;

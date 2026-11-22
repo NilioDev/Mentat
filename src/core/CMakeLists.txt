@@ -16,6 +16,7 @@ add_library(mtt_core STATIC
     src/engine/flat_map.cpp
     src/engine/map_screen.cpp
     src/engine/globe.cpp
+    src/engine/globe_screen.cpp
     src/engine/hnm_player.cpp
     src/engine/intro.cpp
     src/engine/actors.cpp

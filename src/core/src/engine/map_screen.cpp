@@ -98,8 +98,16 @@ ClipRect viewRect(const ProgramFile& program) {
 } // namespace
 
 void MapScreen::enter() {
+    std::uint16_t lon = 0;
+    int lat = 0;
+    playerPoint(lon, lat);
+    enter(lon, lat);
+}
+
+void MapScreen::enter(std::uint16_t longitude, int latitude) {
     active_ = true;
-    playerPoint(longitude_, latitude_);
+    longitude_ = longitude;
+    latitude_ = latitude;
     Display& d = g_.display();
     d.targetBack();
     drawFrame();
@@ -253,18 +261,7 @@ void MapScreen::drawPlaces() {
     }
 }
 
-void MapScreen::playerPoint(std::uint16_t& longitude, int& latitude) const {
-    // Inside a place, the place's point; otherwise the state keeps the
-    // longitude where the room is and the latitude in the place's low byte.
-    if (world_.inside()) {
-        const std::size_t here = World::placeRecord(world_.place() >> 8);
-        longitude = world_.u16(here + 2);
-        latitude = s16(world_.u16(here + 4));
-    } else {
-        longitude = static_cast<std::uint16_t>(world_.room());
-        latitude = static_cast<std::int8_t>(world_.place() & 0xFF);
-    }
-}
+void MapScreen::playerPoint(std::uint16_t& longitude, int& latitude) const { world_.position(longitude, latitude); }
 
 void MapScreen::tick() {
     if (boxShown_ && g_.platform().ticks - lastClick_ >= kBoxTicks) {
