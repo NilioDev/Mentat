@@ -117,6 +117,13 @@ Dialogue Dialogue::parse(std::span<const std::uint8_t> bytes) {
     return d;
 }
 
+void Dialogue::restore(std::span<const std::uint8_t> bytes) {
+    if (bytes.size() != bytes_.size()) {
+        throw FormatError("dialogue: saved lists of the wrong size");
+    }
+    *this = parse(bytes);
+}
+
 std::optional<std::size_t> Dialogue::list(std::size_t n) const {
     if (n >= lists_.size() || lists_[n] == kNoList) {
         return std::nullopt;

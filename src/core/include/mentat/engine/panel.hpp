@@ -85,9 +85,14 @@ public:
     void setCommands(std::vector<Command> commands);
     const std::vector<Command>& commands() const { return commands_; }
     void drawCommands();
+    // Draws one line of the list with `phrase` (with its grey and lit
+    // bits), whatever the list holds.
+    void drawLine(int line, std::uint16_t phrase) { drawCommandLine(line, phrase); }
 
     // The language's command file: menu words, names and short texts.
     const StringTable& phrases();
+    // Phrase n (from 1) of that file, to be written into.
+    std::string& editPhrase(std::uint16_t phrase);
 
 private:
     void drawCommandLine(int line, std::uint16_t phrase);

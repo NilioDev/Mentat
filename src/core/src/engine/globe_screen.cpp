@@ -6,6 +6,7 @@
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/map_screen.hpp"
 #include "mentat/engine/platform.hpp"
+#include "mentat/engine/saved_games.hpp"
 #include "mentat/engine/world.hpp"
 #include "mentat/data/string_table.hpp"
 #include "mentat/gfx/scene.hpp"
@@ -39,6 +40,21 @@ constexpr std::size_t kGlobeZones = 0x1DC6;
 // two bytes, then (phrase, action) pairs up to a phrase of 0.
 constexpr std::size_t kGlobeCommands = 0x204A;
 constexpr std::size_t kPlanetCommands = 0x2062;
+// The lists of saved games: the same form.
+constexpr std::size_t kSaveCommands = 0x207A;
+constexpr std::size_t kLoadCommands = 0x208A;
+// The first saved game's line; the others follow it.
+constexpr std::uint16_t kFirstSlotPhrase = 0x10F;
+// Only the first two lines show the day and time of their game.
+constexpr int kDatedSlots = 2;
+// The times of day, ten letters each.
+constexpr std::uint16_t kTimesPhrase = 0x117;
+constexpr int kTimeLength = 10;
+// After saving: a line of its own, for a while.
+constexpr std::uint16_t kSavedPhrase = 0x113;
+constexpr std::uint16_t kSaveErrorPhrase = 0x114;
+constexpr int kMessageLine = 4;
+constexpr int kMessageTicks = 300;
 
 // The planet turns a step for each picture, and the timer draws a line of
 // the next picture every tick.
@@ -119,8 +135,8 @@ constexpr int kMapCountedLess = 0x187;     // the share is out of the count less
 
 } // namespace
 
-GlobeScreen::GlobeScreen(Game& game, World& world, Panel& panel, MapScreen& map, int language)
-    : g_(game), world_(world), panel_(panel), map_(map), language_(language) {}
+GlobeScreen::GlobeScreen(Game& game, World& world, Panel& panel, MapScreen& map, int language, SavedGames* saves)
+    : g_(game), world_(world), panel_(panel), map_(map), language_(language), saves_(saves) {}
 
 Globe& GlobeScreen::globe() { return *globe_; }
 
@@ -129,6 +145,8 @@ void GlobeScreen::playerPoint(std::uint16_t& longitude, int& latitude) const { w
 void GlobeScreen::enter(std::uint16_t longitude, int latitude) {
     active_ = true;
     leaving = false;
+    loaded = false;
+    list_ = List::Globe;
     overPlanet_ = false;
     results_ = false;
     sideShift_ = 0;
@@ -299,11 +317,37 @@ void GlobeScreen::zoomFrom(int x, int y) {
     }
 }
 
-bool GlobeScreen::command(std::uint16_t action) {
+bool GlobeScreen::command(std::uint16_t action, std::uint16_t phrase) {
     if (!active_) {
         return false;
     }
+    const int slot = (phrase & Command::kPhrase) - kFirstSlotPhrase + 1;
     switch (action) {
+    case kSave:
+        openList(List::Save);
+        return true;
+    case kLoad:
+        openList(List::Load);
+        return true;
+    case kCancel:
+        openList(List::Globe);
+        return true;
+    case kSaveSlot:
+        if (list_ == List::Save && slot >= 1) {
+            int line = 0;
+            const auto& lines = panel_.commands();
+            while (static_cast<std::size_t>(line) < lines.size() &&
+                   (lines[static_cast<std::size_t>(line)].phrase & Command::kPhrase) != (phrase & Command::kPhrase)) {
+                ++line;
+            }
+            saveIn(slot, line);
+        }
+        return true;
+    case kLoadSlot:
+        if (list_ == List::Load && slot >= 1) {
+            loadFrom(slot);
+        }
+        return true;
     case kUp:
         globe_->tilt(kTiltStep);
         drawPlanet();
@@ -366,7 +410,7 @@ bool GlobeScreen::pointAt(int x, int y) {
         return false;
     }
     const bool over = onPlanet(x, y);
-    if (over == overPlanet_) {
+    if (over == overPlanet_ || list_ != List::Globe) {
         return false;
     }
     setCommands(over);
@@ -382,24 +426,180 @@ void GlobeScreen::setCommands(bool overPlanet) {
     overPlanet_ = overPlanet;
     const ProgramFile& program = g_.resources().program();
     std::vector<Command> list;
-    for (std::size_t at = (overPlanet ? kPlanetCommands : kGlobeCommands) + 2;; at += 4) {
+    std::size_t table = overPlanet ? kPlanetCommands : kGlobeCommands;
+    if (list_ == List::Save) {
+        table = kSaveCommands;
+    } else if (list_ == List::Load) {
+        table = kLoadCommands;
+    }
+    if (list_ != List::Globe) {
+        overPlanet = false;
+    }
+    for (std::size_t at = table + 2;; at += 4) {
         Command c{program.dataU16(at), program.dataU16(at + 2)};
         if (c.phrase == 0) {
             break;
         }
         list.push_back(c);
     }
-    if (!overPlanet) {
+    if (list_ != List::Globe) {
+        // A line for each saved game: those there are lit for saving, those
+        // missing greyed for loading, and the first two show their day.
+        for (Command& c : list) {
+            if (c.action != kSaveSlot && c.action != kLoadSlot) {
+                continue;
+            }
+            const int slot = (c.phrase & Command::kPhrase) - kFirstSlotPhrase + 1;
+            const auto clock = saves_ != nullptr ? saves_->clockOf(slot) : std::nullopt;
+            if (clock) {
+                writeSlot(slot, *clock);
+            }
+            if (list_ == List::Save && clock) {
+                c.phrase = static_cast<std::uint16_t>(c.phrase | Command::kLit);
+            }
+            if (list_ == List::Load && !clock) {
+                c.phrase = static_cast<std::uint16_t>(c.phrase | Command::kGrey);
+            }
+        }
+    } else if (!overPlanet) {
         // The second line shows the results, or goes back from them.
         if (list.size() > 1) {
             list[1] = results_ ? Command{kStandardVisionPhrase, kStandardVision} : Command{kSeeResultsPhrase, kSeeResults};
         }
-        // Loading, saving and leaving the game: not yet.
+        // Loading and saving need somewhere to keep the games; leaving the
+        // game is not there yet.
+        const bool canSave = saves_ != nullptr && saves_->available();
         for (std::size_t i = 2; i < list.size(); ++i) {
-            list[i].phrase = static_cast<std::uint16_t>(list[i].phrase | Command::kGrey);
+            if (!canSave || (list[i].action != kLoad && list[i].action != kSave)) {
+                list[i].phrase = static_cast<std::uint16_t>(list[i].phrase | Command::kGrey);
+            }
         }
     }
     panel_.setCommands(std::move(list));
+}
+
+namespace {
+
+// Writes v (at most 999) into the three bytes before `end`: leading 0s
+// become spaces, but the last digit always shows.
+void writeThree(std::string& s, std::size_t end, int v, bool keep = false) {
+    v = std::min(v, 999);
+    char hundreds = static_cast<char>('0' + v / 100);
+    if (hundreds == '0' && !keep) {
+        hundreds = ' ';
+    } else {
+        keep = true;
+    }
+    char tens = static_cast<char>('0' + (v / 10) % 10);
+    if (!keep && tens == '0') {
+        tens = ' ';
+    }
+    s[end - 3] = hundreds;
+    s[end - 2] = tens;
+    s[end - 1] = static_cast<char>('0' + v % 10);
+}
+
+// The same with five digits.
+void writeFive(std::string& s, std::size_t end, int v) {
+    const int thousands = v / 1000;
+    char high = static_cast<char>('0' + thousands / 10);
+    char low = static_cast<char>('0' + thousands % 10);
+    bool keep = true;
+    if (high == '0') {
+        high = ' ';
+        if (low == '0') {
+            low = ' ';
+            keep = false;
+        }
+    }
+    s[end - 5] = high;
+    s[end - 4] = low;
+    writeThree(s, end, v % 1000, keep);
+}
+
+} // namespace
+
+// --- Loading and saving
+
+void GlobeScreen::drawList() {
+    Display& d = g_.display();
+    d.targetScreen();
+    panel_.drawCommands();
+    d.targetBack();
+    panel_.drawCommands();
+}
+
+void GlobeScreen::openList(List list) {
+    list_ = list;
+    setCommands(false);
+    drawList();
+}
+
+// Writes the day and time of the game in `slot` into its line, as the
+// original does: the day over the second number, the time three letters on.
+void GlobeScreen::writeSlot(int slot, std::uint16_t clock) {
+    if (slot > kDatedSlots) {
+        return;
+    }
+    std::string& line = panel_.editPhrase(static_cast<std::uint16_t>(kFirstSlotPhrase + slot - 1));
+    const std::string& times = panel_.phrases().at(kTimesPhrase - 1u);
+    auto digit = [&](std::size_t i) { return i < line.size() && line[i] >= '0' && line[i] <= '9'; };
+    std::size_t end = 0;
+    for (int run = 0; run < 2; ++run) {
+        while (end < line.size() && !digit(end)) {
+            ++end;
+        }
+        while (digit(end)) {
+            ++end;
+        }
+    }
+    if (end < 3 || end > line.size()) {
+        return;
+    }
+    writeThree(line, end, ((clock + 3) >> 4) + 1);
+    const std::size_t from = static_cast<std::size_t>(clock & 0x0F) * kTimeLength;
+    for (std::size_t i = 0; i < static_cast<std::size_t>(kTimeLength); ++i) {
+        if (end + 3 + i < line.size() && from + i < times.size()) {
+            line[end + 3 + i] = times[from + i];
+        }
+    }
+}
+
+void GlobeScreen::saveIn(int slot, int line) {
+    if (saves_ == nullptr) {
+        return;
+    }
+    // The line shows the game as it is now, then a word on how it went.
+    writeSlot(slot, static_cast<std::uint16_t>(world_.clock()));
+    Display& d = g_.display();
+    d.targetScreen();
+    panel_.drawLine(line, static_cast<std::uint16_t>(kFirstSlotPhrase + slot - 1));
+    const bool saved = saves_->save(slot);
+    panel_.drawLine(kMessageLine, saved ? kSavedPhrase : kSaveErrorPhrase);
+    d.targetBack();
+    g_.waitTicks(kMessageTicks);
+    if (saved) {
+        openList(List::Globe);
+    } else {
+        drawList();
+    }
+}
+
+void GlobeScreen::loadFrom(int slot) {
+    if (saves_ == nullptr || !saves_->load(slot)) {
+        openList(List::Load);
+        return;
+    }
+    loaded = true;
+    list_ = List::Globe;
+    g_.removeTimer(kBarsTimer);
+    globe_->setMap(map_.mapBytes());
+    // The globe shows the results of the game loaded, turned to Paul.
+    if (results_) {
+        standardVision();
+    }
+    showResults();
+    turnToPlayer();
 }
 
 // --- The results
@@ -550,46 +750,6 @@ void GlobeScreen::countResults() {
     world_.setU16(kMenTheirs, static_cast<std::uint16_t>(theirs));
 }
 
-namespace {
-
-// Writes v (at most 999) into the three bytes before `end`: leading 0s
-// become spaces, but the last digit always shows.
-void writeThree(std::string& s, std::size_t end, int v, bool keep = false) {
-    v = std::min(v, 999);
-    char hundreds = static_cast<char>('0' + v / 100);
-    if (hundreds == '0' && !keep) {
-        hundreds = ' ';
-    } else {
-        keep = true;
-    }
-    char tens = static_cast<char>('0' + (v / 10) % 10);
-    if (!keep && tens == '0') {
-        tens = ' ';
-    }
-    s[end - 3] = hundreds;
-    s[end - 2] = tens;
-    s[end - 1] = static_cast<char>('0' + v % 10);
-}
-
-// The same with five digits.
-void writeFive(std::string& s, std::size_t end, int v) {
-    const int thousands = v / 1000;
-    char high = static_cast<char>('0' + thousands / 10);
-    char low = static_cast<char>('0' + thousands % 10);
-    bool keep = true;
-    if (high == '0') {
-        high = ' ';
-        if (low == '0') {
-            low = ' ';
-            keep = false;
-        }
-    }
-    s[end - 5] = high;
-    s[end - 4] = low;
-    writeThree(s, end, v % 1000, keep);
-}
-
-} // namespace
 
 std::size_t GlobeScreen::afterNumber(std::size_t at) const {
     auto digit = [&](std::size_t i) { return i < texts_.size() && texts_[i] >= '0' && texts_[i] <= '9'; };

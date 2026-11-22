@@ -28,7 +28,8 @@ using namespace mentat;
 int main(int argc, char** argv) {
     if (argc < 3) {
         std::fprintf(stderr, "usage: mentat-run GAME-FOLDER out-folder [--every S] [--until S] [--press S]...\n"
-                     "       [--mouse S,X,Y]... [--click S,X,Y]... [--subtitles 0|1|2] [--seed N]\n");
+                     "       [--mouse S,X,Y]... [--click S,X,Y]... [--subtitles 0|1|2] [--seed N]\n"
+                     "       [--saves FOLDER]\n");
         return 2;
     }
     double every = 2;
@@ -45,6 +46,7 @@ int main(int argc, char** argv) {
     std::vector<MouseStep> mouse;
     int subtitles = -1;
     int seed = -1;
+    std::filesystem::path saves;
     for (int i = 3; i + 1 < argc; i += 2) {
         const std::string opt = argv[i];
         if (opt == "--mouse" || opt == "--click") {
@@ -56,6 +58,10 @@ int main(int argc, char** argv) {
                 return 2;
             }
             mouse.push_back(MouseStep{at, x, y, opt == "--click"});
+            continue;
+        }
+        if (opt == "--saves") {
+            saves = argv[i + 1];
             continue;
         }
         const double v = std::stod(argv[i + 1]);
@@ -83,6 +89,7 @@ int main(int argc, char** argv) {
         MusicSystem music(MusicTables::load(dat, MusicCard::AdLibGold));
         Platform platform;
         platform.music = &music;
+        platform.saveFolder = saves;
         Game game(platform, dat, program, displayTables, &music);
         game.subtitles = subtitles;
         game.fixedSeed = seed;

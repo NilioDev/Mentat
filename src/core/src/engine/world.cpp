@@ -45,6 +45,13 @@ void World::setU16(std::size_t offset, std::uint16_t value) {
     setU8(offset + 1, static_cast<std::uint8_t>(value >> 8));
 }
 
+void World::restore(std::span<const std::uint8_t> bytes) {
+    if (bytes.size() != kSize) {
+        throw FormatError("state: wrong size");
+    }
+    bytes_.assign(bytes.begin(), bytes.end());
+}
+
 int World::day() const {
     // A day begins three parts before the clock's count of 16 comes round.
     return ((clock() + 3) >> 4) % kDaysInYear + 1;
@@ -54,6 +61,8 @@ void World::goTo(int room, int place) {
     setU16(kRoom, static_cast<std::uint16_t>(room));
     setU16(kPlace, static_cast<std::uint16_t>(place));
     setU8(kPlaceKind, static_cast<std::uint8_t>(room >> 8));
+    // Where the place's record is (counted from place 0).
+    setU16(kPlaceRecord, static_cast<std::uint16_t>(kPlaces + kPlaceSize * static_cast<std::size_t>(place >> 8) - kPlaceSize));
 }
 
 World::Character World::character(int index) const {

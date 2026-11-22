@@ -128,6 +128,11 @@ void runGame(App& app) {
     // version does).
     MusicSystem music(MusicTables::load(*app.archive, MusicCard::AdLibGold));
     app.platform.music = &music;
+    // Saved games go beside the player's own settings.
+    if (char* pref = SDL_GetPrefPath("NilioDev", "Mentat")) {
+        app.platform.saveFolder = std::filesystem::path(pref) / "saves";
+        SDL_free(pref);
+    }
     Game game(app.platform, *app.archive, *app.program, DisplayTables::fromDriver(app.archive->load("DNVGA.HSQ")),
               &music);
     while (runIntro(game, kEnglish) == IntroEnd::Finished) {

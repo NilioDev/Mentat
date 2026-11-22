@@ -57,7 +57,7 @@ public:
     bool command(std::uint16_t action);
 
     // The map's points as they are now (with the marks the game adds).
-    const std::vector<std::uint8_t>& mapBytes() { return map().bytes(); }
+    std::vector<std::uint8_t>& mapBytes() { return map().bytes(); }
 
     // The map's point at the middle of the view.
     std::uint16_t longitude() const { return longitude_; }

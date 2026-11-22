@@ -14,6 +14,7 @@ add_executable(mtt_tests
     test_play.cpp
     test_map.cpp
     test_talk.cpp
+    test_saves.cpp
 )
 target_link_libraries(mtt_tests PRIVATE mentat::core)
 target_compile_definitions(mtt_tests PRIVATE MENTAT_GAMEDATA_DIR="${PROJECT_SOURCE_DIR}/gamedata")

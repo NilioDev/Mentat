@@ -25,6 +25,9 @@ public:
     // The raw bytes of string `index`, without the end byte. Throws
     // FormatError when there is no such string.
     const std::string& at(std::size_t index) const;
+    // The same, to be written into, as the original writes numbers into its
+    // phrases.
+    std::string& edit(std::size_t index);
 
 private:
     std::vector<std::string> strings_;

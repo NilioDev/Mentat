@@ -30,7 +30,9 @@ add_library(mtt_core STATIC
     src/engine/videos.cpp
     src/engine/world.cpp
     src/engine/dialogue.cpp
+    src/engine/saved_games.cpp
     src/engine/talk.cpp
+    src/data/save_file.cpp
     src/data/string_table.cpp
     src/data/phrase_file.cpp
     src/data/voc.cpp

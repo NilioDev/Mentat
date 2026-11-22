@@ -3,6 +3,7 @@
 #include "test.hpp"
 
 #include "mentat/data/program_tables.hpp"
+#include "mentat/engine/dialogue.hpp"
 #include "mentat/engine/flat_map.hpp"
 #include "mentat/engine/fiber.hpp"
 #include "mentat/engine/game.hpp"
@@ -11,10 +12,14 @@
 #include "mentat/engine/map_screen.hpp"
 #include "mentat/engine/panel.hpp"
 #include "mentat/engine/platform.hpp"
+#include "mentat/engine/saved_games.hpp"
 #include "mentat/engine/world.hpp"
 #include "mentat/gfx/surface.hpp"
 
 #include <cstdint>
+#include <filesystem>
+#include <functional>
+#include <string>
 #include <set>
 #include <vector>
 
@@ -209,6 +214,42 @@ MTT_TEST("globe screen: opens on the map's middle, turns with the arrows and goe
     }
     MTT_CHECK(!globe.showingResults() && panel.commands()[1].action == GlobeScreen::kSeeResults);
     MTT_CHECK(back.at(5, 100) != 0xF0);
+    // With nowhere to keep games, loading and saving are greyed.
+    MTT_CHECK((panel.commands()[2].phrase & Command::kGrey) != 0 && (panel.commands()[3].phrase & Command::kGrey) != 0);
+    auto run = [&](const std::function<void()>& f) {
+        Fiber step(f);
+        p.fiber = &step;
+        while (!step.finished()) {
+            step.resume();
+            p.ticks += 1;
+        }
+        p.fiber = nullptr;
+    };
+    {
+        const auto folder = std::filesystem::temp_directory_path() / "mentat-test-globe-saves";
+        std::filesystem::remove_all(folder);
+        Dialogue said = Dialogue::parse(archive->load("DIALOGUE.HSQ"));
+        SavedGames saves(folder, *program, w, said, [&]() -> std::vector<std::uint8_t>& { return map.mapBytes(); });
+        GlobeScreen withSaves(g, w, panel, map, kEnglish, &saves);
+        withSaves.enter(map.longitude(), map.latitude());
+        MTT_CHECK((panel.commands()[2].phrase & Command::kGrey) == 0 && panel.commands()[3].action == GlobeScreen::kSave);
+        MTT_CHECK(withSaves.command(GlobeScreen::kSave) && panel.commands().size() == 3);
+        MTT_CHECK((panel.commands()[0].phrase & Command::kLit) == 0);
+        const std::uint16_t first = panel.commands()[0].phrase;
+        run([&] { withSaves.command(GlobeScreen::kSaveSlot, first); });
+        MTT_CHECK(saves.clockOf(1) == w.clock() && panel.commands().size() == 5);
+        MTT_CHECK(withSaves.command(GlobeScreen::kLoad));
+        MTT_CHECK((panel.commands()[0].phrase & Command::kGrey) == 0 && (panel.commands()[1].phrase & Command::kGrey) != 0);
+        // The line shows the day the game was saved.
+        MTT_CHECK(panel.phrases().at(first - 1u).find("DAY  1") != std::string::npos);
+        const int clock = w.clock();
+        w.setClock(clock + 40);
+        run([&] { withSaves.command(GlobeScreen::kLoadSlot, first); });
+        MTT_CHECK(withSaves.loaded && w.clock() == clock && withSaves.showingResults());
+        withSaves.leave();
+        std::filesystem::remove_all(folder);
+        globe.enter(map.longitude(), map.latitude());
+    }
     Fiber fiber([&] { globe.command(GlobeScreen::kExit); });
     p.fiber = &fiber;
     while (!fiber.finished()) {

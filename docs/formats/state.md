@@ -5,8 +5,8 @@ The original keeps the state of a game at the start of its data part (see
 the values the program file holds there; Mentat reads them from the
 player's own `DNCDPRG.EXE`, keeps them as the same bytes, and names the
 fields it knows. A saved game holds these bytes too, and the dialogue
-lists with what has been said (see [dialogue.md](dialogue.md)); its other
-parts are described when Mentat reads saved games.
+lists with what has been said (see [dialogue.md](dialogue.md)) and who
+holds the map's areas (see [save.md](save.md)).
 
 Offsets are data offsets; words are little-endian.
 
@@ -33,6 +33,7 @@ Offsets are data offsets; words are little-endian.
 | `0x100` | `0x1C` each | The places of Arrakis (see [../rules/places.md](../rules/places.md)) |
 | `0x8AA` | `0x1B` each | The troops, numbered from 1 (see below) |
 | `0xFD8` | 16 × 16 | The characters |
+| `0x114E` | 2 | Where the player's place's record is: `0xE4` + `0x1C` × the place's number, set on going to a room. The original uses it after loading a game, so a saved game must hold it |
 | `0x1152` | 2 | Which character each of the panel's two slots holds, `0xFF` for nothing |
 | `0x1176` | 2 | How far Paul sees: a sietch further away shows on the map as unknown (see [../rules/map.md](../rules/map.md)) |
 | `0x11DB` | 2 | A place the characters talk about; its name and kind go to `0x11ED` and `0x11EF` |
