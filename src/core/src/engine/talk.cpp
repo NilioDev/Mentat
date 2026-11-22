@@ -314,7 +314,7 @@ void Talk::afterLine(std::size_t at) {
         }
         if ((line.extra & DialogueLine::kNoteMask) && !line.said()) {
             // The original notes the line down for later.
-            notes_.push_back(static_cast<std::uint16_t>(((at - 2) >> 2) | ((character_ << 3) << 8)));
+            notes_.push_back(static_cast<std::uint16_t>(((at - 2) >> 2) | (static_cast<std::size_t>(character_) << 11)));
         }
         world_.setU8(kSaidSomething, 0xFF);
         dialogue_.markSaid(at);
