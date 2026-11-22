@@ -5,6 +5,7 @@
 #include "mentat/data/program_tables.hpp"
 #include "mentat/data/reader.hpp"
 #include "mentat/engine/game.hpp"
+#include "mentat/engine/map_screen.hpp"
 #include "mentat/engine/panel.hpp"
 #include "mentat/engine/places.hpp"
 #include "mentat/engine/talk.hpp"
@@ -80,6 +81,8 @@ constexpr int kSkyRefadeSteps = 0x30;
 constexpr std::size_t kMusicForMoment = 0x375C;
 // The mouse pointer: the arrow.
 constexpr std::size_t kArrowPointer = 0x2584;
+// A zone that repeats acts again this often while the button is held.
+constexpr std::uint32_t kRepeatTicks = 50;
 constexpr int kSceneBottom = 152;
 constexpr int kMusicFadeTicks = 0x12C;
 constexpr std::uint8_t kMusicWaits = 0x80;
@@ -99,7 +102,7 @@ class Play : public TalkHost {
 public:
     Play(Game& game, int language)
         : g_(game), d_(game.display()), world_(game.resources().program()), panel_(game, language),
-          talk_(game, world_, panel_, *this, language) {
+          talk_(game, world_, panel_, *this, language), map_(game, world_, panel_) {
         talk_.subtitles = subtitlesFor(language);
     }
 
@@ -111,6 +114,9 @@ public:
             if (endTalk_) {
                 endTalk_ = false;
                 leaveTalk();
+            }
+            if (map_.active()) {
+                map_.tick();
             }
             if (hoursPassed_ > 0) {
                 hoursPassed_ = 0;
@@ -130,6 +136,7 @@ private:
         // The music stops and the screen goes black at once.
         g_.stopMusic();
         d_.clear(d_.screen());
+        map_.setUp();
         world_.goTo(kStartRoom, kStartPlace);
         world_.setClock(kStartClock);
         world_.setU8(kPalaceOrnithopters, static_cast<std::uint8_t>(world_.u8(kPalaceOrnithopters) + 1));
@@ -176,9 +183,26 @@ private:
         lightCommand(commandUnder(x, y));
         const bool down = (p.mouseButtons & 1) != 0;
         const bool clicked = down && !buttonWasDown_;
+        const bool changed = down != buttonWasDown_;
         buttonWasDown_ = down;
+        if (changed && map_.active()) {
+            map_.clicked();
+        }
+        if (!down) {
+            repeatZone_ = -1;
+        }
         if (clicked) {
             click(x, y);
+            return;
+        }
+        // A zone that repeats goes on while the button stays down on it,
+        // every 50 ticks from the last time it acted.
+        if (down && repeatZone_ >= 0 && p.ticks - repeatSince_ >= kRepeatTicks) {
+            const Zone& z = panel_.zones()[static_cast<std::size_t>(repeatZone_)];
+            if ((z.flags & Zone::kActive) && z.contains(x, y)) {
+                repeatSince_ = p.ticks;
+                map_.command(z.action);
+            }
         }
     }
 
@@ -192,7 +216,7 @@ private:
                 return line;
             }
         }
-        if (y < kSceneBottom) {
+        if (y < kSceneBottom && !map_.active()) {
             const int c = g_.places().characterAt(x, y);
             if (c >= 0) {
                 const auto& commands = panel_.commands();
@@ -241,6 +265,21 @@ private:
         if (talk_.active()) {
             return;
         }
+        if (map_.active()) {
+            for (int i = 0; i < 6; ++i) {
+                const int n = Panel::kArrows + i;
+                const Zone& z = zones[static_cast<std::size_t>(n)];
+                if ((z.flags & Zone::kActive) && z.contains(x, y)) {
+                    if (z.flags & Zone::kRepeat) {
+                        repeatZone_ = n;
+                        repeatSince_ = g_.platform().ticks;
+                    }
+                    map_.command(z.action);
+                    return;
+                }
+            }
+            return;
+        }
         for (int i = 0; i < 4; ++i) {
             const Zone& z = zones[static_cast<std::size_t>(Panel::kArrows + 1 + i)];
             if ((z.flags & Zone::kActive) && z.contains(x, y)) {
@@ -255,6 +294,13 @@ private:
         if (talk_.command(action)) {
             return;
         }
+        if (action == MapScreen::kToggle) {
+            toggleMap();
+            return;
+        }
+        if (map_.command(action)) {
+            return;
+        }
         const int c = Talk::characterOf(action);
         if (c >= 0) {
             int x = -1;
@@ -267,6 +313,27 @@ private:
             }
             talk_.start(c, x, y);
         }
+    }
+
+    // "SEE DUNE MAP" opens the map; "EXIT MAPS" goes back to the room,
+    // which dissolves in.
+    void toggleMap() {
+        if (!map_.active()) {
+            map_.enter();
+            chooseMusic();
+            map_.show();
+            lit_ = -1;
+            return;
+        }
+        map_.leave();
+        d_.targetBack();
+        panel_.setLayout(kWalkLayout);
+        panel_.drawClock(world_);
+        g_.forgetPalette();
+        drawView();
+        d_.transition(Display::kDissolveScreen);
+        startWaitingMusic();
+        openOrnament();
     }
 
     // --- TalkHost
@@ -422,6 +489,9 @@ private:
     // When the hour turns: the colours move to the new sky a little every
     // 16 ticks.
     void fadeSky() {
+        if (map_.active()) {
+            return; // the sky is not shown
+        }
         const int n = skyOfTheHour();
         if (n == sky_) {
             return;
@@ -435,6 +505,11 @@ private:
     }
 
     void skyFadeTick() {
+        if (map_.active()) {
+            skyFadeLeft_ = 0;
+            g_.removeTimer(kSkyTimer);
+            return;
+        }
         const bool inside = world_.inside();
         d_.fadeStep(inside ? kInsideSkyFirst : kOutsideSkyFirst, inside ? kInsideSkyCount : kOutsideSkyCount,
                     skyFadeLeft_);
@@ -449,6 +524,9 @@ private:
 
     // What kind of moment it is, for the music; see docs/rules/game.md.
     int musicMoment() const {
+        if (map_.active()) {
+            return 2;
+        }
         const int room = world_.room();
         const int kind = room >> 8;
         if (world_.inside() && (room & 0xFF) != 1) {
@@ -571,6 +649,7 @@ private:
     World world_;
     Panel panel_;
     Talk talk_;
+    MapScreen map_;
     bool endTalk_ = false;
     Surface ornamentStrip_{320, 200};
     bool clockRunning_ = false;
@@ -582,6 +661,8 @@ private:
     int waitingTrack_ = 0;
     int lit_ = -1;
     bool buttonWasDown_ = false;
+    int repeatZone_ = -1;
+    std::uint32_t repeatSince_ = 0;
 };
 
 } // namespace

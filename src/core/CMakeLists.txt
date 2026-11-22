@@ -13,6 +13,8 @@ add_library(mtt_core STATIC
     src/engine/display.cpp
     src/engine/fiber.cpp
     src/engine/game.cpp
+    src/engine/flat_map.cpp
+    src/engine/map_screen.cpp
     src/engine/globe.cpp
     src/engine/hnm_player.cpp
     src/engine/intro.cpp

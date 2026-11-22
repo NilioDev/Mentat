@@ -7,6 +7,7 @@
 // docs/rules/display.md.
 #pragma once
 
+#include "mentat/engine/flat_map.hpp"
 #include "mentat/engine/platform.hpp"
 #include "mentat/gfx/palette.hpp"
 #include "mentat/gfx/scene.hpp"
@@ -24,6 +25,8 @@ struct DisplayTables {
     // The order in which the dissolve goes through the 16 places of a
     // 4 × 4 block, each as row × 320 + column.
     std::array<int, 16> dissolveOrder{};
+    // The rounded edge of the flat map at the poles.
+    FlatMap::Edges mapEdges{};
 
     static DisplayTables fromDriver(std::span<const std::uint8_t> driver); // throws FormatError
 };
@@ -35,6 +38,7 @@ public:
     Display& operator=(const Display&) = delete;
 
     Platform& platform() { return platform_; }
+    const DisplayTables& tables() const { return tables_; }
 
     // --- Buffers
     Surface& back() { return *back_; }

@@ -32,6 +32,7 @@ struct Zone {
     static constexpr std::uint16_t kActive = 0x80; // the mouse can use it
     static constexpr std::uint16_t kFill = 0x40;   // blacked out before drawing
     static constexpr std::uint16_t kHidden = 0x20; // not drawn
+    static constexpr std::uint16_t kRepeat = 0x4000; // acts again while the button is held
 
     bool contains(int x, int y) const { return x >= left && x < right && y >= top && y < bottom; }
 };
@@ -77,6 +78,8 @@ public:
     // The arrows for the ways out of a room: `exits` holds the room's four
     // exits (up, right, down, left).
     void setArrows(const World& world, const std::array<std::uint8_t, 4>& exits);
+    // Takes the six zones of the arrows from data offset `table` as they are.
+    void setArrowZones(std::size_t table);
 
     // The list of commands, five lines from `scroll`.
     void setCommands(std::vector<Command> commands);
@@ -88,6 +91,7 @@ public:
 
 private:
     void drawCommandLine(int line, std::uint16_t phrase);
+    void drawArrows();
 
     Game& game_;
     int language_;

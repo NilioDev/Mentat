@@ -7,10 +7,12 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 #include <vector>
 
 namespace mentat {
 
+class FlatMap;
 class ProgramFile;
 
 class World {
@@ -63,6 +65,20 @@ public:
     // in the room in the order the list of commands names them.
     std::vector<Character> findPresent();
 
+
+    // The places and their troops as the program sets them up when it
+    // starts: each place moves onto the nearest point of the map, which is
+    // marked as a place's; it learns the region of `regions` (MAP2.HSQ)
+    // it stands in and how big that is; and its troops take its point.
+    void setUpPlaces(FlatMap& map, std::span<const std::uint8_t> regions);
+
+    // Records: places from 1, troops from 1.
+    static constexpr std::size_t kPlaces = 0x100;
+    static constexpr std::size_t kPlaceSize = 0x1C;
+    static constexpr std::size_t kTroops = 0x8AA;
+    static constexpr std::size_t kTroopSize = 0x1B;
+    static std::size_t placeRecord(int n) { return kPlaces + kPlaceSize * static_cast<std::size_t>(n - 1); }
+    static std::size_t troopRecord(int n) { return kTroops + kTroopSize * static_cast<std::size_t>(n - 1); }
 
     const std::vector<std::uint8_t>& bytes() const { return bytes_; }
 

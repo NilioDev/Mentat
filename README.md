@@ -23,8 +23,10 @@ and touch controls.
 > and night, the palace's music and the mouse pointer, you can walk
 > through the palace with the arrows, and you can talk with the people you
 > meet: their face over the room and their own recorded voice, saying
-> what fits how far the story has come. The map, travelling and the rest
-> of the game are not there yet.
+> what fits how far the story has come. "See Dune map" opens the map of
+> the planet around you with the places you know, and you can move it
+> with the arrows. Giving orders, travelling and the rest of the game are
+> not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the
@@ -53,6 +55,8 @@ Without it, Mentat says what is missing.
 | Walk to another room | Click an arrow | | |
 | Talk to someone | Click the person or their name | | |
 | Hear more, ask again, stop talking | Click a line of the talk menu | | |
+| Look at the map | Click "SEE DUNE MAP"; "EXIT MAPS" goes back | | |
+| Move the map | Click or hold an arrow; the middle goes back to you | | |
 | Close Mentat | Window's close button | | Back |
 
 ## Build from source

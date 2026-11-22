@@ -12,6 +12,7 @@ add_executable(mtt_tests
     test_display.cpp
     test_characters.cpp
     test_play.cpp
+    test_map.cpp
     test_talk.cpp
 )
 target_link_libraries(mtt_tests PRIVATE mentat::core)

@@ -81,3 +81,4 @@ right edge goes on at the start of the next row.
 | File | Offset | Size | What |
 | --- | --- | --- | --- |
 | `DNVGA.HSQ` (unpacked) | `0x2ED7` | 16 × 2, then `0xFFFF` | The dissolve order: the offset (row × 320 + column, both 0 to 3) of each place of the 4 × 4 pattern |
+| `DNVGA.HSQ` (unpacked) | `0x7EF` | 8 + 56 + 56 | The flat map's rounded edge near the poles (see [map.md](map.md)) |

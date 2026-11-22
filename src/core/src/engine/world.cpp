@@ -3,6 +3,10 @@
 
 #include "mentat/data/program_file.hpp"
 #include "mentat/data/reader.hpp"
+#include "mentat/engine/flat_map.hpp"
+
+#include <array>
+#include <cstdlib>
 
 namespace mentat {
 
@@ -79,6 +83,49 @@ std::vector<World::Character> World::findPresent() {
     }
     setU16(kPresent, mask);
     return here;
+}
+
+void World::setUpPlaces(FlatMap& map, std::span<const std::uint8_t> regions) {
+    // How many points of the map each region has, counted from 7.
+    std::array<int, 256> size{};
+    size.fill(7);
+    for (const std::uint8_t r : regions) {
+        ++size[r];
+    }
+    std::vector<std::uint8_t>& points = map.bytes();
+    for (std::size_t place = kPlaces; u8(place) != 0xFF; place += kPlaceSize) {
+        const auto longitude = u16(place + 2);
+        const int latitude = static_cast<std::int16_t>(u16(place + 4));
+        const auto ring = static_cast<std::uint32_t>(2 * map.width(std::abs(latitude)));
+        const auto index = static_cast<std::uint32_t>(map.pointAt(longitude, latitude));
+        const auto at = static_cast<std::size_t>(map.rowStart(latitude)) + index;
+        if (at >= points.size() || at >= regions.size()) {
+            throw FormatError("world: a place falls outside the map");
+        }
+        setU16(place + 2, static_cast<std::uint16_t>((index << 16) / ring));
+        setU16(place + 6, static_cast<std::uint16_t>(at));
+        points[at] = static_cast<std::uint8_t>(points[at] | 0x40);
+        const std::uint8_t region = regions[at];
+        setU8(place + 0x10, region);
+        setU8(place + 0x11, static_cast<std::uint8_t>(size[region] >> 4));
+    }
+    // The troops of each place: where they are, and the kind of place in
+    // their own flags, with bit 7 for kinds 4 and 5 and those above 9.
+    for (std::size_t place = kPlaces; u8(place) != 0xFF; place += kPlaceSize) {
+        for (int troop = u8(place + 9); troop != 0;) {
+            const std::size_t t = troopRecord(troop);
+            setU16(t + 4, static_cast<std::uint16_t>(place));
+            setU16(t + 6, u16(place + 2));
+            setU16(t + 8, u16(place + 4));
+            const int kind = u8(place) & 0x0F;
+            std::uint8_t flags = static_cast<std::uint8_t>((u8(t + 0x12) & 0x70) | kind);
+            if ((kind > 3) != (kind > 5) || kind > 9) {
+                flags = static_cast<std::uint8_t>(flags | 0x80);
+            }
+            setU8(t + 0x12, flags);
+            troop = u8(t + 1);
+        }
+    }
 }
 
 } // namespace mentat
