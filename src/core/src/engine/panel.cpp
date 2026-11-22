@@ -214,6 +214,19 @@ void Panel::setArrows(const World& world, const std::array<std::uint8_t, 4>& exi
             z.flags = Zone::kActive;
         }
     }
+    drawArrows();
+}
+
+void Panel::setArrowZones(std::size_t table) {
+    const ProgramFile& program = game_.resources().program();
+    for (int i = 0; i < 6; ++i) {
+        zones_[static_cast<std::size_t>(kArrows + i)] = zoneAt(program, table + kZoneSize * static_cast<std::size_t>(i));
+    }
+    drawArrows();
+}
+
+void Panel::drawArrows() {
+    const ProgramFile& program = game_.resources().program();
     // Zone 2's pictures 3 to 5 leave the place behind the arrows to be filled.
     if (static_cast<std::uint16_t>(zones_[2].sprite - 3) < 3) {
         const ClipRect r = rectAt(program, kArrowPad);

@@ -24,14 +24,17 @@ Offsets are data offsets; words are little-endian.
 | `0x19` | 1 | Set when a line has been said |
 | `0x1B` | 1 | Counts "come with me" and "stop following me" |
 | `0x23` | 1 | While asking a character to come: 2 when Paul can pay, else 0 |
+| `0x28` | 1 | Troops rallied to Paul |
 | `0x2A` | 1 | How far the story has come |
 | `0x2B` | 1 | Set once the war with the Harkonnen has begun |
 | `0xFF` | 1 | Cleared when the story moves on |
 | `0xC8` | 1 | Messages received |
 | `0xC9` | 1 | Messages not seen yet |
 | `0x100` | `0x1C` each | The places of Arrakis (see [../rules/places.md](../rules/places.md)) |
+| `0x8AA` | `0x1B` each | The troops, numbered from 1 (see below) |
 | `0xFD8` | 16 × 16 | The characters |
 | `0x1152` | 2 | Which character each of the panel's two slots holds, `0xFF` for nothing |
+| `0x1176` | 2 | How far Paul sees: a sietch further away shows on the map as unknown (see [../rules/map.md](../rules/map.md)) |
 | `0x11DB` | 2 | A place the characters talk about; its name and kind go to `0x11ED` and `0x11EF` |
 | `0x11EB` | 2 × 15 | Phrases that lines name with codes `0x81` to `0x8F` (see [text.md](text.md)) |
 
@@ -44,8 +47,31 @@ Of a place's `0x1C` bytes, these are known so far:
 
 | Offset | Size | What |
 | --- | --- | --- |
-| 8 | 1 | The kind of place, which picks its rooms |
+| 0 | 1 | Low four bits: the kind of its troops' place (see the troops) |
+| 2 | 2 | Longitude, 65536 to a turn |
+| 4 | 2 | Latitude, negative north |
+| 6 | 2 | Its point's position in the map, set when the program starts |
+| 8 | 1 | The kind of place, which picks its rooms and its sprite on the map |
+| 9 | 1 | Its first troop, 0 for none |
+| `0x0A` | 1 | Flags: bit 7 not shown on the map |
+| `0x10` | 1 | Its region in `MAP2.HSQ`, set when the program starts |
+| `0x11` | 1 | The size of that region, set when the program starts |
 | `0x15` | 1 | Ornithopters kept there; a new game gives the palace one |
+
+A record whose first byte is `0xFF` ends the list.
+
+## Troops
+
+Of a troop's `0x1B` bytes, these are known so far:
+
+| Offset | Size | What |
+| --- | --- | --- |
+| 1 | 1 | The next troop of the same place, 0 for none |
+| 3 | 1 | What it does; below `0x80` it takes orders from the map |
+| 4 | 2 | Its place, as the place's offset in the state |
+| 6 | 2 | Its longitude |
+| 8 | 2 | Its latitude |
+| `0x12` | 1 | Low four bits: the kind of its place; bit 7 for kinds 4, 5 and above 9 |
 
 ## Characters
 

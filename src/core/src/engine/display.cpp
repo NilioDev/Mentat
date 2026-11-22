@@ -45,6 +45,7 @@ DisplayTables DisplayTables::fromDriver(std::span<const std::uint8_t> driver) {
     if (r.u16() != 0xFFFF) {
         throw FormatError("video driver: unexpected dissolve order");
     }
+    t.mapEdges = FlatMap::Edges::fromDriver(driver);
     return t;
 }
 
