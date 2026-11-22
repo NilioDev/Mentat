@@ -408,6 +408,20 @@ int drawScene(Surface& to, std::span<const std::uint8_t> scene, const SpriteShee
     return drawScene(Canvas(to), scene, sheet, tables, onPerson);
 }
 
+ClipRect spriteWordBounds(const SpriteSheet& sheet, std::uint16_t word, int x, int y, const SceneTables& tables) {
+    const SpriteView view = sheet.sprite(word & 0x01FF);
+    int w = view.header.width();
+    int h = view.header.height;
+    const int scale = (word >> 10) & 7;
+    if (scale != 0) {
+        const std::uint16_t divisor = tables.scaleDivisors[static_cast<std::size_t>(scale)];
+        const unsigned swapped = ((static_cast<unsigned>(w) & 0xFF) << 8) | (static_cast<unsigned>(w) >> 8);
+        w = static_cast<int>((swapped / divisor) & 0x3FF);
+        h = static_cast<int>(((static_cast<unsigned>(h) << 8) / divisor) & 0xFF);
+    }
+    return ClipRect{x, y, x + w, y + h};
+}
+
 void drawSpriteWord(const Canvas& to, const SpriteSheet& sheet, std::uint16_t word, int x, int y, const SceneTables& tables,
                     std::uint8_t modeOverride) {
     const std::size_t index = word & 0x01FF;
@@ -445,14 +459,15 @@ int drawScene(const Canvas& to, std::span<const std::uint8_t> scene, const Sprit
             const int x = r.u8() | ((command & 0x0200) != 0 ? 0x100 : 0);
             const int y = r.u8();
             const std::uint8_t modeOverride = r.u8();
+            const auto word = static_cast<std::uint16_t>((command & 0xFDFF) - 1);
             if ((command & 0x01FF) == 1) {
                 if (onPerson) {
-                    onPerson(slot, x, y);
+                    onPerson(PersonSlot{slot, x, y, word, modeOverride});
                 }
                 ++slot;
                 continue;
             }
-            drawSpriteWord(to, sheet, static_cast<std::uint16_t>((command & 0xFDFF) - 1), x, y, tables, modeOverride);
+            drawSpriteWord(to, sheet, word, x, y, tables, modeOverride);
             continue;
         }
         if ((command >> 8) == 0xC0) {

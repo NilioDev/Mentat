@@ -6,6 +6,7 @@
 #include "mentat/data/reader.hpp"
 #include "mentat/engine/game.hpp"
 
+#include <algorithm>
 #include <string>
 
 namespace mentat {
@@ -57,7 +58,7 @@ void Places::enter(int room, int place) {
     place_ = place & 0xFFFF;
 }
 
-int Places::roomByte() const {
+std::size_t Places::roomRecord() const {
     const ProgramFile& program = game_.resources().program();
     const int kind = (room_ >> 8) & 0xFF;
     const int number = room_ & 0xFF;
@@ -65,7 +66,20 @@ int Places::roomByte() const {
         throw FormatError("places: no room 0");
     }
     const std::size_t list = program.dataU16(kRoomTables + 2 * static_cast<std::size_t>(kind));
-    return program.dataU8(list + (static_cast<std::size_t>(number) - 1) * kRoomSize);
+    return list + (static_cast<std::size_t>(number) - 1) * kRoomSize;
+}
+
+int Places::roomByte() const {
+    return game_.resources().program().dataU8(roomRecord());
+}
+
+std::array<std::uint8_t, 4> Places::exits() const {
+    const std::size_t at = roomRecord();
+    std::array<std::uint8_t, 4> e{};
+    for (std::size_t i = 0; i < 4; ++i) {
+        e[i] = game_.resources().program().dataU8(at + 1 + i);
+    }
+    return e;
 }
 
 void Places::loadScenes() {
@@ -81,15 +95,32 @@ void Places::loadScenes() {
     scenesKind_ = kind;
 }
 
-void Places::drawPerson(int character, int x, int y) {
+void Places::drawPerson(int character, const PersonSlot& slot) {
     const int previous = game_.sheetResource();
     game_.selectSheet(kPersons);
-    game_.drawSprite(static_cast<std::uint16_t>(character * 2), x, y);
-    game_.drawSprite(static_cast<std::uint16_t>(character * 2 + 1), x, y);
+    ClipRect bounds{slot.x, slot.y, slot.x, slot.y};
+    for (int part = 0; part < 2; ++part) {
+        const auto word = static_cast<std::uint16_t>(slot.flags | (character * 2 + part));
+        drawSpriteWord(game_.canvas(), game_.sheet(), word, slot.x, slot.y, game_.sceneTables(), slot.mode);
+        const ClipRect r = spriteWordBounds(game_.sheet(), word, slot.x, slot.y, game_.sceneTables());
+        bounds.right = std::max(bounds.right, r.right);
+        bounds.bottom = std::max(bounds.bottom, r.bottom);
+    }
+    shown_.push_back(Shown{character, bounds});
     game_.selectSheet(previous);
 }
 
+int Places::characterAt(int x, int y) const {
+    for (auto it = shown_.rbegin(); it != shown_.rend(); ++it) {
+        if (x >= it->rect.left && x < it->rect.right && y >= it->rect.top && y < it->rect.bottom) {
+            return it->character;
+        }
+    }
+    return -1;
+}
+
 void Places::drawView() {
+    shown_.clear();
     Display& d = game_.display();
     d.clearRect(d.target(), game_.sceneTables().lineClip);
     const int code = roomByte();
@@ -130,12 +161,12 @@ void Places::drawView() {
         }
     }
     // The scene names its spots from the last one down.
-    drawScene(game_.canvas(), scene, game_.sheet(), game_.sceneTables(), [&](int slot, int x, int y) {
-        const int index = spots - 1 - slot;
+    drawScene(game_.canvas(), scene, game_.sheet(), game_.sceneTables(), [&](const PersonSlot& slot) {
+        const int index = spots - 1 - slot.slot;
         if (index < 0 || index >= kSpots || standing[static_cast<std::size_t>(index)] < 0) {
             return;
         }
-        drawPerson(standing[static_cast<std::size_t>(index)], x, y);
+        drawPerson(standing[static_cast<std::size_t>(index)], slot);
     });
 }
 

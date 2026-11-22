@@ -154,7 +154,7 @@ namespace {
 
 Font evenFont() {
     std::vector<std::uint8_t> file(Font::kFileSize, 0);
-    for (int c = 0; c < 256; ++c) {
+    for (int c = 0; c < 128; ++c) {
         file[static_cast<std::size_t>(c)] = 4;
     }
     return Font::parse(file);

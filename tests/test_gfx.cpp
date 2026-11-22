@@ -157,6 +157,20 @@ MTT_TEST("font: draws set bits from the left and advances by the width") {
     MTT_CHECK(throwsFormatError([] { (void)Font::parse(std::vector<std::uint8_t>(10)); }));
 }
 
+MTT_TEST("font: the small font follows the large one and fills its cells") {
+    std::vector<std::uint8_t> file(Font::kFileSize, 0);
+    file['A'] = 9;       // large width
+    file[128 + 'A'] = 4; // small width
+    file[256 + 128 * 9 + 'A' * 7 + 6] = 0xF0; // the small font's seventh row
+    const Font font = Font::parse(file, Font::Size::Small);
+    MTT_CHECK(font.height() == 7 && font.width('A') == 4);
+    MTT_CHECK(font.width(static_cast<std::uint8_t>(0xC1)) == font.width('@'));
+    Surface s(8, 7);
+    s.fill(9);
+    MTT_CHECK(font.draw(s, 0, 0, "A", 5, 3) == 4);
+    MTT_CHECK(s.at(0, 6) == 5 && s.at(3, 6) == 5 && s.at(0, 0) == 3 && s.at(4, 0) == 9);
+}
+
 MTT_TEST("png: writes a valid signature and image header") {
     Surface s(2, 1);
     Palette p;

@@ -81,13 +81,13 @@ MTT_TEST("scene: sprites, colour offset, mirroring and person places") {
     body.insert(body.end(), {10, 20, 0});
     put16(body, 2 | 0x4000 | 0x200); // sprite 1 mirrored, x + 256
     body.insert(body.end(), {10, 20, 0x30});
-    put16(body, 1); // a person's place
-    body.insert(body.end(), {50, 60, 0});
+    put16(body, 1 | 0x4400); // a person's place, mirrored and one size smaller
+    body.insert(body.end(), {50, 60, 0x20});
     const auto s = scene(body, 3);
     Surface screen;
     int calls = 0;
-    const int persons = drawScene(screen, s, sheet, tables(), [&](int slot, int x, int y) {
-        MTT_CHECK(slot == 0 && x == 50 && y == 60);
+    const int persons = drawScene(screen, s, sheet, tables(), [&](const PersonSlot& p) {
+        MTT_CHECK(p.slot == 0 && p.x == 50 && p.y == 60 && p.flags == 0x4400 && p.mode == 0x20);
         ++calls;
     });
     MTT_CHECK(persons == 3);

@@ -70,10 +70,21 @@ struct RoomNumber {
     static RoomNumber decode(int room);
 };
 
-// Called for each place in a scene where a person may stand, in drawing
-// order, so they can be drawn between the scene's other parts. `slot`
-// counts these places from 0.
-using PersonSlotFn = std::function<void(int slot, int x, int y)>;
+// A place in a scene where a person may stand. `slot` counts these places
+// from 0, in drawing order; `flags` holds the size and mirror bits of a
+// sprite word for the person drawn there, and `mode` the colour offset
+// (0 for the sprite's own).
+struct PersonSlot {
+    int slot = 0;
+    int x = 0;
+    int y = 0;
+    std::uint16_t flags = 0;
+    std::uint8_t mode = 0;
+};
+
+// Called for each person slot, so persons can be drawn between the scene's
+// other parts.
+using PersonSlotFn = std::function<void(const PersonSlot&)>;
 
 // Draws scene `scene` onto `to` (a 320 × 200 surface) with sprites from
 // `sheet`. Returns the number of persons the scene has room for (the
@@ -88,6 +99,9 @@ int drawScene(const Canvas& to, std::span<const std::uint8_t> scene, const Sprit
 // down, 14 mirrored. A colour offset other than 0 replaces the sprite's mode.
 void drawSpriteWord(const Canvas& to, const SpriteSheet& sheet, std::uint16_t word, int x, int y,
                     const SceneTables& tables, std::uint8_t modeOverride = 0);
+
+// The rectangle a sprite word covers when drawn at (x, y).
+ClipRect spriteWordBounds(const SpriteSheet& sheet, std::uint16_t word, int x, int y, const SceneTables& tables);
 
 // Draws a sprite at its own size, only where it falls inside `clip` (in
 // the same coordinates as x and y, before the canvas's rows are added).

@@ -265,7 +265,7 @@ void Display::fadeUp(int chunk, int step, int rounds) {
 
 // Blacks out the scene area through a 4 × 4 pattern, one pattern position
 // at a time, then shows the back buffer through the same pattern.
-void Display::dissolve() {
+void Display::dissolve(int rows) {
     const int origin = originRows_ * Surface::kScreenWidth;
     for (int pass = 0; pass < 2; ++pass) {
         if (pass == 1) {
@@ -273,7 +273,7 @@ void Display::dissolve() {
         }
         std::uint32_t due = platform_.ticks;
         for (const int offset : tables_.dissolveOrder) {
-            for (int block = 0; block < kSceneRows / 4; ++block) {
+            for (int block = 0; block < rows / 4; ++block) {
                 for (int column = 0; column < 80; ++column) {
                     const std::size_t at = static_cast<std::size_t>(origin + offset + block * 0x500 + column * 4);
                     if (at < screen_->size()) {
@@ -323,7 +323,10 @@ void Display::transition(int type) {
         flush();
         break;
     case kDissolve:
-        dissolve();
+        dissolve(kSceneRows);
+        break;
+    case kDissolveScreen:
+        dissolve(Surface::kScreenHeight);
         break;
     default:
         throw FormatError("display: unknown transition " + std::to_string(type));

@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
         const SpriteSheet sheet = SpriteSheet::parse(dat.load(argv[5]));
         Surface screen;
         const int persons = drawScene(screen, scenes.scene(static_cast<std::size_t>(std::stoul(argv[4]))), sheet, tables,
-                                      [](int slot, int x, int y) { std::printf("person %d at %d,%d\n", slot, x, y); });
+                                      [](const PersonSlot& p) { std::printf("person %d at %d,%d\n", p.slot, p.x, p.y); });
         std::printf("room for %d persons\n", persons);
         const std::string out = argv[6];
         if (out.size() > 4 && out.substr(out.size() - 4) == ".raw") {

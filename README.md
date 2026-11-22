@@ -18,7 +18,11 @@ and touch controls.
 > Harkonnens and their attack, with the original's fades, dissolves and
 > zoom. Like the original it starts over until you press a key; then come
 > the credits and the pages that tell the story, read by the narrator,
-> and the palace at dawn. It does not play the game yet.
+> and the palace at dawn. The game itself has begun: you start in the
+> throne room with Leto, with the control panel, the clock that runs day
+> and night, the palace's music and the mouse pointer, and you can walk
+> through the palace with the arrows. Talking, the map and the rest of
+> the game are not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the
@@ -44,6 +48,7 @@ Without it, Mentat says what is missing.
 | Action | Mouse | Keyboard | Gamepad |
 | --- | --- | --- | --- |
 | Skip a video | Click | Any key | Any button |
+| Walk to another room | Click an arrow | | |
 | Close Mentat | Window's close button | | Back |
 
 ## Build from source

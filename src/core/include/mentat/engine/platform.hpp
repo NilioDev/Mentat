@@ -11,6 +11,7 @@
 #include "mentat/gfx/palette.hpp"
 #include "mentat/gfx/surface.hpp"
 
+#include <array>
 #include <cstdint>
 #include <deque>
 #include <vector>
@@ -39,6 +40,34 @@ struct SoundCommand {
     std::vector<std::int16_t> wide;    // signed 16-bit stereo, left first (Music)
 };
 
+// A mouse pointer as the original keeps it: where its point is, and per
+// row of 16 pixels a mask of the screen pixels kept (bit 15 the leftmost)
+// and the pointer's own bits. A pixel that is not kept is white where the
+// pointer's bit is set and black where it is not.
+struct MouseCursor {
+    int hotX = 0;
+    int hotY = 0;
+    std::array<std::uint16_t, 16> keep{};
+    std::array<std::uint16_t, 16> bits{};
+
+    static constexpr std::uint8_t kBlack = 0x00;
+    static constexpr std::uint8_t kWhite = 0x0F;
+
+    // Draws the pointer with its point at (x, y), clipped to the surface.
+    void draw(Surface& to, int x, int y) const {
+        for (int row = 0; row < 16; ++row) {
+            for (int col = 0; col < 16; ++col) {
+                const std::uint16_t bit = static_cast<std::uint16_t>(0x8000u >> col);
+                if (keep[static_cast<std::size_t>(row)] & bit) {
+                    continue;
+                }
+                const bool white = (bits[static_cast<std::size_t>(row)] & bit) != 0;
+                to.set(x - hotX + col, y - hotY + row, white ? kWhite : kBlack);
+            }
+        }
+    }
+};
+
 struct Platform {
     // Set by the app.
     std::uint32_t ticks = 0;
@@ -52,6 +81,9 @@ struct Platform {
     // memory and colour registers) and sound to play.
     Surface screen;
     Palette palette;
+    // The mouse pointer, drawn over the screen when shown.
+    bool cursorShown = false;
+    MouseCursor cursor;
     std::vector<SoundCommand> sound;
 
     Fiber* fiber = nullptr;
