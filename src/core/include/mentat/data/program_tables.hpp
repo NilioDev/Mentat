@@ -37,4 +37,19 @@ inline constexpr int kCount = 37;
 // Video slot `index` (0..36). Throws FormatError.
 VideoInfo videoInfo(const ProgramFile& program, int index);
 
+// The original numbers the files it loads; this is the name in DUNE.DAT of
+// resource `index` (0..255), empty for an unused number. Throws FormatError.
+std::string resourceName(const ProgramFile& program, int index);
+
+namespace resource {
+inline constexpr int kFirstPortrait = 0x02; // LETO.HSQ; portrait n is kFirstPortrait + n
+inline constexpr int kFirstRoomPictures = 0x13;
+inline constexpr int kPersons = 0x26;
+inline constexpr int kSunrise = 0x2E;
+inline constexpr int kBackgrounds = 0x30;
+inline constexpr int kFirstSubtitles = 0x69; // IRUL1.HSQ, one per language
+inline constexpr int kFirstScene = 0xA1;     // SIET.SAL
+inline constexpr int kFirstMusic = 0xA4;     // track n is kFirstMusic + n
+} // namespace resource
+
 } // namespace mentat

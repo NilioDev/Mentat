@@ -3,6 +3,7 @@
 
 #include "mentat/data/reader.hpp"
 #include "mentat/data/voc.hpp"
+#include "mentat/engine/display.hpp"
 #include "mentat/gfx/surface.hpp"
 
 #include <utility>
@@ -20,12 +21,12 @@ constexpr std::size_t kRateByte = 0x1E;
 
 HnmPlayer::HnmPlayer(HnmFile file, Options options) : file_(std::move(file)), options_(options) {}
 
-void HnmPlayer::start(Platform& platform, Surface& target, Palette& palette) {
-    palette.applyBlocks(file_.headerPalette());
+void HnmPlayer::start(Platform& platform, Display& display) {
+    display.applyPaletteBlocks(file_.headerPalette());
     next_ = 0;
     soundRate_ = 0;
     if (file_.frameCount() > 0) {
-        show(platform, target, palette, file_.frame(0));
+        show(platform, display, file_.frame(0), false);
     }
 }
 
@@ -38,7 +39,7 @@ bool HnmPlayer::due(const Platform& platform, const HnmFrame& frame) const {
     return platform.ticks - lastFrameTick_ >= static_cast<std::uint32_t>(options_.delayTicks);
 }
 
-bool HnmPlayer::step(Platform& platform, Surface& target, Palette& palette) {
+bool HnmPlayer::step(Platform& platform, Display& display) {
     if (finished()) {
         return false;
     }
@@ -46,11 +47,11 @@ bool HnmPlayer::step(Platform& platform, Surface& target, Palette& palette) {
     if (!due(platform, frame)) {
         return false;
     }
-    show(platform, target, palette, frame);
+    show(platform, display, frame, true);
     return true;
 }
 
-void HnmPlayer::show(Platform& platform, Surface& target, Palette& palette, const HnmFrame& frame) {
+void HnmPlayer::show(Platform& platform, Display& display, const HnmFrame& frame, bool sendPalette) {
     if (!frame.sound.empty()) {
         if (soundRate_ == 0) {
             // First sound: a silent buffer as long as the chunk plays first.
@@ -71,10 +72,21 @@ void HnmPlayer::show(Platform& platform, Surface& target, Palette& palette, cons
         }
     }
     if (!frame.palette.empty()) {
-        palette.applyBlocks(frame.palette);
+        display.applyPaletteBlocks(frame.palette);
+        if (sendPalette) {
+            display.flush();
+        }
     }
-    drawHnmPicture(target, HnmFile::decodePicture(frame.video), options_.spaced);
-    lastFrameTick_ = platform.ticks;
+    drawHnmPicture(display.target(), HnmFile::decodePicture(frame.video), options_.spaced, display.originRows());
+    // The original checks for the next frame all the time, so a frame
+    // comes when it is due. Here the game runs once per app frame; a frame
+    // that is late only by that much keeps the original's schedule.
+    const auto delay = static_cast<std::uint32_t>(options_.delayTicks);
+    if (next_ > 0 && frame.sound.empty() && delay > 0 && platform.ticks - lastFrameTick_ < 2 * delay) {
+        lastFrameTick_ += delay;
+    } else {
+        lastFrameTick_ = platform.ticks;
+    }
     ++next_;
 }
 

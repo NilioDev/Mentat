@@ -12,6 +12,7 @@
 
 namespace mentat {
 
+class Display;
 class Surface;
 
 class HnmPlayer {
@@ -23,11 +24,15 @@ public:
 
     HnmPlayer(HnmFile file, Options options);
 
-    // Shows the first frame: applies the header palette and draws it.
-    void start(Platform& platform, Surface& target, Palette& palette);
+    // Opens the video the way the original does: the header palette goes
+    // into the display's palette (not yet sent to the screen) and the first
+    // frame is drawn on the display's target, its palette part also going
+    // into the display's palette unsent.
+    void start(Platform& platform, Display& display);
 
-    // Draws the next frame when it is due. Returns true when it drew one.
-    bool step(Platform& platform, Surface& target, Palette& palette);
+    // Draws the next frame on the display's target when it is due; its
+    // palette part is sent to the screen first. True when it drew one.
+    bool step(Platform& platform, Display& display);
 
     bool finished() const { return next_ >= file_.frameCount(); }
     std::size_t framesShown() const { return next_; }
@@ -35,7 +40,7 @@ public:
 
 private:
     bool due(const Platform& platform, const HnmFrame& frame) const;
-    void show(Platform& platform, Surface& target, Palette& palette, const HnmFrame& frame);
+    void show(Platform& platform, Display& display, const HnmFrame& frame, bool sendPalette);
 
     HnmFile file_;
     Options options_;

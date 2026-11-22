@@ -1,0 +1,121 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// The original's picture buffers and palettes, and the ways it moves
+// pictures between them: the back buffer where scenes are put together, the
+// screen, a clean copy of the background, the palette being prepared and a
+// spare one, and the transitions from one picture to the next. See
+// docs/rules/display.md.
+#pragma once
+
+#include "mentat/engine/platform.hpp"
+#include "mentat/gfx/palette.hpp"
+#include "mentat/gfx/surface.hpp"
+
+#include <array>
+#include <bitset>
+#include <cstdint>
+#include <span>
+
+namespace mentat {
+
+// Values the transitions take from the player's DNVGA.HSQ (unpacked).
+struct DisplayTables {
+    // The order in which the dissolve goes through the 16 places of a
+    // 4 × 4 block, each as row × 320 + column.
+    std::array<int, 16> dissolveOrder{};
+
+    static DisplayTables fromDriver(std::span<const std::uint8_t> driver); // throws FormatError
+};
+
+class Display {
+public:
+    Display(Platform& platform, const DisplayTables& tables);
+    Display(const Display&) = delete;
+    Display& operator=(const Display&) = delete;
+
+    Platform& platform() { return platform_; }
+
+    // --- Buffers
+    Surface& back() { return *back_; }
+    Surface& screen() { return *screen_; }
+    Surface& saved() { return saved_; }
+    Surface& aux() { return aux_; }
+    Surface& target() { return *target_; }
+
+    void targetBack() { target_ = back_; }
+    void targetScreen() { target_ = screen_; }
+    void targetAux() { target_ = &aux_; }
+
+    // Runs `draw` with the back buffer as the drawing target and as "the
+    // screen", so a step that would show something at once only prepares it.
+    template <typename F>
+    void prepare(F&& draw) {
+        targetBack();
+        Surface* screen = screen_;
+        screen_ = back_;
+        draw();
+        screen_ = screen;
+    }
+
+    // Rows that everything drawn by position is moved down by. The opening
+    // uses 24 to centre the 152-row scenes on the screen.
+    int originRows() const { return originRows_; }
+    void setOriginRows(int rows) { originRows_ = rows; }
+
+    void clear(Surface& s) { s.fill(0); }
+    // Copies the whole back buffer to the screen.
+    void showBack();
+
+    // --- Palettes
+    // The palette being prepared. Changes reach the screen on flush().
+    Palette& palette() { return shadow_; }
+    Palette& spare() { return spare_; }
+    void markChanged(int colour) { dirty_.set(static_cast<std::size_t>(colour & 0xFF)); anyDirty_ = true; }
+    void markChanged(const std::bitset<256>& colours);
+    void applyPaletteBlocks(std::span<const std::uint8_t> blocks);
+    // Sends the changed colours to the screen.
+    void flush();
+    // spare = palette, for a later fade.
+    void keepPalette() { spare_ = shadow_; }
+    // Moves `count` colours from `first` a 1/`divisor` part of the way to
+    // the spare palette and sends them to the screen at once.
+    void fadeStep(int first, int count, int divisor);
+
+    // --- Transitions (the original's numbers; see docs/rules/display.md)
+    static constexpr int kDissolve = 0x10;
+    static constexpr int kCut = 0x30;
+    static constexpr int kFadeInFromBlack = 0x36;
+    static constexpr int kFadeToBlack = 0x38;
+    static constexpr int kFadeThroughBlack = 0x3A;
+
+    // Shows the back buffer on the screen with a transition, then copies
+    // it over whole and sends the palette. Unknown numbers throw FormatError.
+    void transition(int type);
+
+    // Waits until `ticks` timer ticks have passed since `since`, and returns
+    // the tick it stopped at.
+    std::uint32_t waitTicks(std::uint32_t since, std::uint32_t ticks);
+
+private:
+    std::uint32_t waitUntil(std::uint32_t due);
+    void sendColours(int first, int count);
+    void fadeDown(int chunk, int step, int rounds);
+    void fadeUp(int chunk, int step, int rounds);
+    void dissolve();
+
+    Platform& platform_;
+    DisplayTables tables_;
+    Surface backStore_;
+    Surface* back_;
+    Surface* screen_;
+    Surface* target_;
+    Surface saved_;
+    Surface aux_;
+    int originRows_ = 0;
+    Palette shadow_;
+    Palette spare_;
+    std::bitset<256> dirty_;
+    bool anyDirty_ = false;
+};
+
+} // namespace mentat

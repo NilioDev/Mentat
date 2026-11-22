@@ -5,6 +5,7 @@
 #pragma once
 
 #include <array>
+#include <bitset>
 #include <cstdint>
 #include <span>
 
@@ -26,8 +27,9 @@ public:
 
     // Reads palette blocks from the reader's position up to and including the
     // end marker, and applies them. Throws FormatError on damaged data.
-    void applyBlocks(Reader& reader);
-    void applyBlocks(std::span<const std::uint8_t> blocks);
+    // `touched`, when given, gets a bit set for each colour a block wrote.
+    void applyBlocks(Reader& reader, std::bitset<256>* touched = nullptr);
+    void applyBlocks(std::span<const std::uint8_t> blocks, std::bitset<256>* touched = nullptr);
 
     // A colour scaled to 8 bits per channel, the way a VGA card shows it.
     static std::uint8_t to8Bit(std::uint8_t sixBit) {

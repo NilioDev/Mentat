@@ -110,7 +110,7 @@ HnmPicture HnmFile::decodePicture(std::span<const std::uint8_t> video) {
     return pic;
 }
 
-void drawHnmPicture(Surface& to, const HnmPicture& pic, bool spaced) {
+void drawHnmPicture(Surface& to, const HnmPicture& pic, bool spaced, int originRows) {
     switch (pic.kind) {
     case HnmPicture::Kind::None:
         return;
@@ -124,14 +124,14 @@ void drawHnmPicture(Surface& to, const HnmPicture& pic, bool spaced) {
     case HnmPicture::Kind::Sprite: {
         const SpriteView view = readSprite(pic.bytes);
         if (!spaced) {
-            drawSprite(to, view, pic.x, pic.y);
+            drawSprite(to, view, pic.x, pic.y + originRows);
             return;
         }
         const SpritePixels px = decodeSprite(view);
         for (int y = 0; y < px.height; ++y) {
             for (int x = 0; x < px.drawnWidth; ++x) {
                 const std::size_t i = static_cast<std::size_t>(y) * static_cast<std::size_t>(px.width) + static_cast<std::size_t>(x);
-                to.set(pic.x + 2 * x, pic.y + 2 * y, px.pixels[i]);
+                to.set(pic.x + 2 * x, pic.y + originRows + 2 * y, px.pixels[i]);
             }
         }
         return;

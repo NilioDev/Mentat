@@ -34,12 +34,12 @@ SpriteSheet SpriteSheet::parse(std::vector<std::uint8_t> bytes) {
     return sheet;
 }
 
-void SpriteSheet::applyPalette(Palette& palette) const {
+void SpriteSheet::applyPalette(Palette& palette, std::bitset<256>* touched) const {
     if (!hasPalette()) {
         return;
     }
     Reader r(std::span<const std::uint8_t>(bytes_).subspan(2, paletteEnd_ - 2));
-    palette.applyBlocks(r);
+    palette.applyBlocks(r, touched);
 }
 
 SpriteView SpriteSheet::sprite(std::size_t index) const {

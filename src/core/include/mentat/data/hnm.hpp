@@ -63,7 +63,8 @@ private:
 
 // Draws a decoded picture onto a screen-sized surface. `spaced` draws each
 // pixel of a sprite picture in every second column and row, the way the
-// original shows its full-motion videos.
-void drawHnmPicture(Surface& to, const HnmPicture& picture, bool spaced = false);
+// original shows its full-motion videos. A sprite picture is moved down by
+// `originRows`, like everything the original draws by position.
+void drawHnmPicture(Surface& to, const HnmPicture& picture, bool spaced = false, int originRows = 0);
 
 } // namespace mentat

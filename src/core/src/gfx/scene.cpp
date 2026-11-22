@@ -28,11 +28,11 @@ constexpr int kPixels = Surface::kScreenWidth * Surface::kScreenHeight;
 // Pixels that land in the bytes after the picture are dropped.
 class Pen {
 public:
-    Pen(Surface& to, int x, int y) : to_(to) {
+    Pen(const Canvas& to, int x, int y) : to_(to.surface) {
         if (y >= Surface::kScreenHeight || y < 0) {
             y = Surface::kScreenHeight - 1;
         }
-        at_ = (y * kWidth + x) & 0xFFFF;
+        at_ = ((y + to.originRows) * kWidth + x) & 0xFFFF;
     }
     void put(std::uint8_t colour) {
         if (at_ < kPixels) {
@@ -127,7 +127,7 @@ struct Point {
 constexpr std::uint16_t kLastOfFirstSide = 0x4000;
 constexpr std::uint16_t kLastOfSecondSide = 0x8000;
 
-void drawShape(Surface& to, Reader& r, std::uint16_t command, std::vector<std::uint16_t>& rows) {
+void drawShape(const Canvas& to, Reader& r, std::uint16_t command, std::vector<std::uint16_t>& rows) {
     const std::uint8_t base = static_cast<std::uint8_t>(command & 0xFF);
     const std::uint8_t flags = static_cast<std::uint8_t>(command >> 8);
     const int gradX = static_cast<std::int8_t>(r.u8()) * 16;
@@ -196,7 +196,7 @@ void drawShape(Surface& to, Reader& r, std::uint16_t command, std::vector<std::u
 // Draws a sprite at its own size the way the original's screen driver
 // does: rows start at y × 320 + x in the screen's bytes, so a sprite that
 // runs off the right edge comes back at the left one row lower.
-void drawSpriteLinear(Surface& to, const SpriteView& view, int x, int y) {
+void drawSpriteLinear(const Canvas& to, const SpriteView& view, int x, int y) {
     const SpritePixels px = decodeSprite(view);
     const bool flipX = (view.header.widthAndFlags & SpriteHeader::kFlipX) != 0;
     const bool flipY = (view.header.widthAndFlags & SpriteHeader::kFlipY) != 0;
@@ -270,7 +270,7 @@ RoomNumber RoomNumber::decode(int room) {
     return out;
 }
 
-void drawScaledSprite(Surface& to, const SpriteSheet& sheet, std::size_t index, std::uint8_t mode, bool flipX,
+void drawScaledSprite(const Canvas& to, const SpriteSheet& sheet, std::size_t index, std::uint8_t mode, bool flipX,
                       bool flipY, std::uint16_t divisor, int x, int y) {
     SpriteView view = sheet.sprite(index);
     const int width = view.header.width();
@@ -313,7 +313,9 @@ void drawScaledSprite(Surface& to, const SpriteSheet& sheet, std::size_t index, 
     }
 }
 
-void drawSceneLine(Surface& to, int x0, int y0, int x1, int y1, std::uint8_t colour, const ClipRect& clip) {
+void drawSceneLine(const Canvas& canvas, int x0, int y0, int x1, int y1, std::uint8_t colour, const ClipRect& clip) {
+    Surface& to = canvas.surface;
+    const int origin = canvas.originRows;
     const int dy = s16(y1 - y0);
     const int dx = s16(x1 - x0);
     if (dy == 0) {
@@ -323,7 +325,7 @@ void drawSceneLine(Surface& to, int x0, int y0, int x1, int y1, std::uint8_t col
         const int from = std::min(x0, x0 + dx);
         for (int x = from; x <= from + std::abs(dx); ++x) {
             if (x >= clip.left && x < clip.right) {
-                to.set(x, y0, colour);
+                to.set(x, y0 + origin, colour);
             }
         }
         return;
@@ -343,7 +345,7 @@ void drawSceneLine(Surface& to, int x0, int y0, int x1, int y1, std::uint8_t col
         }
         for (int y = from; y <= from + count; ++y) {
             if (y >= clip.top && y < clip.bottom) {
-                to.set(x0, y, colour);
+                to.set(x0, y + origin, colour);
             }
         }
         return;
@@ -371,14 +373,38 @@ void drawSceneLine(Surface& to, int x0, int y0, int x1, int y1, std::uint8_t col
             y += stepY;
         }
         if (inside(clip, x, y)) {
-            to.set(x, y, colour);
+            to.set(x, y + origin, colour);
         }
     }
 }
 
 int drawScene(Surface& to, std::span<const std::uint8_t> scene, const SpriteSheet& sheet, const SceneTables& tables,
               const PersonSlotFn& onPerson) {
-    if (to.width() != Surface::kScreenWidth || to.height() != Surface::kScreenHeight) {
+    return drawScene(Canvas(to), scene, sheet, tables, onPerson);
+}
+
+void drawSpriteWord(const Canvas& to, const SpriteSheet& sheet, std::uint16_t word, int x, int y, const SceneTables& tables,
+                    std::uint8_t modeOverride) {
+    const std::size_t index = word & 0x01FF;
+    const bool flipX = (word & SpriteHeader::kFlipX) != 0;
+    const bool flipY = (word & SpriteHeader::kFlipY) != 0;
+    const int scale = (word >> 10) & 7;
+    if (scale != 0) {
+        const std::uint8_t mode = modeOverride != 0 ? modeOverride : sheet.sprite(index).header.mode;
+        drawScaledSprite(to, sheet, index, mode, flipX, flipY, tables.scaleDivisors[static_cast<std::size_t>(scale)], x, y);
+        return;
+    }
+    SpriteView view = sheet.sprite(index);
+    view.header.widthAndFlags |= static_cast<std::uint16_t>(word & (SpriteHeader::kFlipX | SpriteHeader::kFlipY));
+    if (modeOverride != 0) {
+        view.header.mode = modeOverride;
+    }
+    drawSpriteLinear(to, view, x, y);
+}
+
+int drawScene(const Canvas& to, std::span<const std::uint8_t> scene, const SpriteSheet& sheet, const SceneTables& tables,
+              const PersonSlotFn& onPerson) {
+    if (to.surface.width() != Surface::kScreenWidth || to.surface.height() != Surface::kScreenHeight) {
         throw FormatError("scene: drawn on a surface that is not the screen's size");
     }
     Reader r(scene);
@@ -401,22 +427,7 @@ int drawScene(Surface& to, std::span<const std::uint8_t> scene, const SpriteShee
                 ++slot;
                 continue;
             }
-            const std::uint16_t sprite = static_cast<std::uint16_t>((command & 0xFDFF) - 1);
-            const std::size_t index = sprite & 0x01FF;
-            const bool flipX = (sprite & SpriteHeader::kFlipX) != 0;
-            const bool flipY = (sprite & SpriteHeader::kFlipY) != 0;
-            const int scale = (sprite >> 10) & 7;
-            if (scale != 0) {
-                const std::uint8_t mode = modeOverride != 0 ? modeOverride : sheet.sprite(index).header.mode;
-                drawScaledSprite(to, sheet, index, mode, flipX, flipY, tables.scaleDivisors[static_cast<std::size_t>(scale)], x, y);
-                continue;
-            }
-            SpriteView view = sheet.sprite(index);
-            view.header.widthAndFlags |= static_cast<std::uint16_t>(sprite & (SpriteHeader::kFlipX | SpriteHeader::kFlipY));
-            if (modeOverride != 0) {
-                view.header.mode = modeOverride;
-            }
-            drawSpriteLinear(to, view, x, y);
+            drawSpriteWord(to, sheet, static_cast<std::uint16_t>((command & 0xFDFF) - 1), x, y, tables, modeOverride);
             continue;
         }
         if ((command >> 8) == 0xC0) {
