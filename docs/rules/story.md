@@ -53,6 +53,16 @@ s = −(c × c / 2):
 
 "Centred" takes half the sprite's width and height off the position.
 
+### The planet
+
+Pages 2 and 6 draw space scrolled by `0x20`, then sprite 2 of `FRESK.HSQ`
+(resource 1) at (`0x5B`, `0x14`), and the planet over it (see
+[globe.md](globe.md)), turned and tilted as the program keeps at data
+`0x197C`: the rotation as a part of 65 536 (6500 gives step 39) and the
+tilt (−4, used as −32). Then `STARS.HSQ` is chosen again. While the page
+shows, the planet turns: each finished picture is copied to the screen
+over the rectangle from (96, 15) to (234, 134).
+
 ### The desert
 
 The sky's picture file seen from a room (resource `0x29`) is chosen, and

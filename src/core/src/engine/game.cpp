@@ -130,6 +130,10 @@ void Game::removeTimer(int id) {
 
 // Each timer adds up the ticks since the timers last ran; when it reaches
 // its interval it keeps the remainder and runs.
+namespace {
+constexpr std::uint32_t kMaxRunsPerCheck = 64;
+} // namespace
+
 void Game::runTimers() {
     const std::uint32_t now = platform_.ticks;
     const std::uint32_t elapsed = now - timersRan_;
@@ -149,9 +153,24 @@ void Game::runTimers() {
             it->count = count;
             continue;
         }
-        it->count = it->interval != 0 ? count % it->interval : count;
+        // The original checks many times a tick, so a job falls due at
+        // most once a tick; our checks come a few ticks apart, so a job
+        // with a short interval runs once for each interval that passed.
+        std::uint32_t runs = 1;
+        if (it->interval != 0) {
+            runs = std::min<std::uint32_t>(count / it->interval, kMaxRunsPerCheck);
+            it->count = count % it->interval;
+        } else {
+            it->count = count;
+        }
         const TimerFn fn = it->fn;
-        fn();
+        for (std::uint32_t r = 0; r < runs; ++r) {
+            // A run may remove its own timer.
+            if (r > 0 && std::none_of(timers_.begin(), timers_.end(), [id](const Timer& t) { return t.id == id; })) {
+                break;
+            }
+            fn();
+        }
     }
 }
 

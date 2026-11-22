@@ -13,6 +13,7 @@ add_library(mtt_core STATIC
     src/engine/display.cpp
     src/engine/fiber.cpp
     src/engine/game.cpp
+    src/engine/globe.cpp
     src/engine/hnm_player.cpp
     src/engine/intro.cpp
     src/engine/actors.cpp

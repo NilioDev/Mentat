@@ -5,6 +5,7 @@
 #include "mentat/data/reader.hpp"
 #include "mentat/engine/attack_view.hpp"
 #include "mentat/engine/game.hpp"
+#include "mentat/engine/globe.hpp"
 #include "mentat/engine/places.hpp"
 #include "mentat/engine/talker.hpp"
 #include "mentat/engine/text_box.hpp"
@@ -52,6 +53,7 @@ constexpr int kZoomStepTicks = 6;
 constexpr int kVideoTimer = 0x70C;
 constexpr int kSunriseTimer = 0x826;
 constexpr int kPaletteFadeTimer = 0x3916;
+constexpr int kGlobeTimer = 0xB9AE;
 
 // The steps' work, named by where the original keeps it.
 enum Action : std::uint16_t {
@@ -141,6 +143,13 @@ constexpr int kDawnSky = 0x0C;
 constexpr int kDawnTicks = 0x4B0;
 constexpr int kDawnFadeSteps = 0x40;
 constexpr int kDawnFadeTicks = 0x10;
+// The planet: where the program keeps its first view, the frame around
+// it, and the part of the screen it covers.
+constexpr std::size_t kGlobeView = 0x197C; // rotation (of 0x10000) and tilt
+constexpr int kGlobeFrameSprite = 2;
+constexpr int kGlobeFrameX = 0x5B;
+constexpr int kGlobeFrameY = 0x14;
+constexpr ClipRect kGlobeArea{96, 15, 235, 135};
 
 // Which COMMAND file holds each language's text.
 int commandFile(int language) {
@@ -280,7 +289,7 @@ private:
         switch (page) {
         case 1: space(0); break;
         case 2:
-        case 6: space(0x20); break;
+        case 6: globePage(); break;
         case 3: desert(); break;
         case 4:
         case 7: act(kPaul); break;
@@ -320,6 +329,30 @@ private:
         const int x = c <= 0x14 ? 4 * c + 0xF2 : static_cast<std::int16_t>(2 * shift + 0x3E2);
         drawCentred((c >> 2) + 0x25, x, 0x67);
         drawCentred(c + 3, ((static_cast<std::uint16_t>(-shift) & 0xFFFF) >> 4) + 0x80, 0x4F);
+    }
+
+    // Space further on, with the planet turning in front: it is drawn
+    // whole, then redrawn a line every tick, and each finished picture is
+    // shown and turned a step.
+    void globePage() {
+        space(0x20);
+        if (!globe_) {
+            Resources& r = g_.resources();
+            globe_.emplace(r.load(resource::kLatitudes), r.load(resource::kProjection), r.load(resource::kMap));
+        }
+        const ProgramFile& program = g_.resources().program();
+        const int rotation = (Globe::kTurn * program.dataU16(kGlobeView)) >> 16;
+        globe_->setView(rotation, Globe::viewTilt(static_cast<std::int16_t>(program.dataU16(kGlobeView + 2))));
+        g_.selectSheet(resource::kFresk);
+        g_.drawSprite(kGlobeFrameSprite, kGlobeFrameX, kGlobeFrameY);
+        globe_->drawAll(d_.target());
+        g_.selectSheet(resource::kStars);
+        g_.addTimer(kGlobeTimer, 1, [this] {
+            if (globe_->drawLine(d_.back())) {
+                d_.copyRect(d_.back(), d_.screen(), kGlobeArea);
+                globe_->turn(1);
+            }
+        });
     }
 
     // The desert: the sky of the hour in rows of tiles, its colours set at
@@ -380,6 +413,7 @@ private:
         g_.removeTimer(kVideoTimer);
         g_.removeTimer(kPaletteFadeTimer);
         g_.removeTimer(kSunriseTimer);
+        g_.removeTimer(kGlobeTimer);
     }
 
     static bool known(std::uint16_t action) {
@@ -985,6 +1019,7 @@ private:
     int fadeLeft_ = 0;
     int skyFadeLeft_ = 0;
     std::optional<Font> font_;
+    std::optional<Globe> globe_;
     std::optional<StringTable> text_;
 };
 

@@ -47,6 +47,7 @@ VideoInfo videoInfo(const ProgramFile& program, int index);
 std::string resourceName(const ProgramFile& program, int index);
 
 namespace resource {
+inline constexpr int kFresk = 0x01;
 inline constexpr int kFirstPortrait = 0x02; // LETO.HSQ; portrait n is kFirstPortrait + n
 inline constexpr int kFirstRoomPictures = 0x13;
 inline constexpr int kDawnPalace = 0x1B; // XPLAIN9.HSQ
@@ -59,9 +60,12 @@ inline constexpr int kBackgrounds = 0x30;
 inline constexpr int kFirstIntroPicture = 0x56; // INT02.HSQ
 inline constexpr int kPalacePicture = 0x62;
 inline constexpr int kFirstSubtitles = 0x69; // IRUL1.HSQ, one per language
+inline constexpr int kProjection = 0x92;     // GLOBDATA.HSQ
 inline constexpr int kFirstScene = 0xA1;     // SIET.SAL
 inline constexpr int kFirstMusic = 0xA4;     // track n is kFirstMusic + n
+inline constexpr int kLatitudes = 0xBA;      // TABLAT.BIN
 inline constexpr int kFont = 0xBB;           // DNCHAR.BIN
+inline constexpr int kMap = 0xBF;            // MAP.HSQ
 inline constexpr int kFirstCommands = 0xC0;  // COMMAND1.HSQ, one per language
 } // namespace resource
 
