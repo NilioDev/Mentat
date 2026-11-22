@@ -53,6 +53,8 @@ constexpr std::size_t kMessagesSeen = 0xC9;
 constexpr int kWormProgress = 0x4F;
 constexpr int kPalace = 1;
 constexpr int kEntrance = 1;
+// The room that shows the sky through its windows.
+constexpr int kSkyRoom = 0x2005;
 constexpr int kMessageRoom = 8;
 constexpr int kPaulsRoom = 9;
 // The palace's ornithopters: a new game gives it one.
@@ -758,9 +760,26 @@ private:
         chooseMusic();
         places.present = world_.present();
         places.absent = world_.away();
-        places.drawView();
+        const int room = world_.room();
+        if (world_.inside() && room == kSkyRoom) {
+            places.drawView([&] { places.drawSky(); });
+        } else if (world_.inside() && (room & 0xFF) == kEntrance) {
+            places.drawView([&] { drawEntranceView(); });
+            drawParkedOrnithopters();
+            setSky();
+        } else {
+            places.drawView();
+        }
         panel_.drawOrnament();
     }
+
+    // A place's first room looks outside, with the ornithopters kept there.
+    void drawEntranceView() {
+        const std::size_t record = World::placeRecord(world_.place() >> 8);
+        g_.places().drawOutside(world_.u8(record + 8), world_.u8(record));
+    }
+
+    void drawParkedOrnithopters() { g_.places().drawOrnithopters(ornithoptersHere(), (world_.room() >> 8) < 0x20); }
 
     // The commands of the room the player is in, before the people in it;
     // see docs/rules/game.md.

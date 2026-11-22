@@ -7,6 +7,7 @@
 #include "mentat/engine/flat_map.hpp"
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/map_screen.hpp"
+#include "mentat/engine/places.hpp"
 #include "mentat/engine/talker.hpp"
 #include "mentat/engine/world.hpp"
 #include "mentat/gfx/sprite_sheet.hpp"
@@ -20,12 +21,6 @@ namespace {
 
 constexpr int kPanelSheet = 0;
 constexpr int kCockpitSheet = 0x24; // ORNYPAN.HSQ
-
-// The sky: four rows of tiles 40 × 20, the first four pictures of the
-// sky file.
-constexpr int kSkyRows = 4;
-constexpr int kSkyTileWidth = 40;
-constexpr int kSkyTileHeight = 20;
 
 // In the program's data: the map's rectangle, the cockpit's pictures drawn
 // before the map and those drawn over it, as (sprite, x, y) up to 0xFFFF.
@@ -112,12 +107,7 @@ void Cockpit::enter() {
 void Cockpit::drawScene() {
     const ProgramFile& program = g_.resources().program();
     g_.display().targetBack();
-    g_.selectSheet(resource::kSky);
-    for (int row = 0; row < kSkyRows; ++row) {
-        for (int x = 0; x < Surface::kScreenWidth; x += kSkyTileWidth) {
-            g_.drawSprite(static_cast<std::uint16_t>(row), x, row * kSkyTileHeight);
-        }
-    }
+    g_.places().drawSky();
     auto drawList = [&](std::size_t at) {
         for (; program.dataU16(at) != 0xFFFF; at += 6) {
             g_.drawSprite(program.dataU16(at), s16(program.dataU16(at + 2)), s16(program.dataU16(at + 4)));

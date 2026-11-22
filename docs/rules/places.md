@@ -31,7 +31,26 @@ that is closed. In the palace, the throne room (10) leads up to Paul's room
 (9), right to room 5 and down to room 4.
 
 Entering a room first clears the line clip, then draws the room (see
-[scenes.md](scenes.md)).
+[scenes.md](scenes.md)). Two kinds of rooms have more behind the scene,
+drawn after the clearing:
+
+- Room 5 of the palace (`0x2005`) shows the sky through its windows: the
+  sky tiles, sprites 0 to 3 of `SKY.HSQ` (resource `0x28`), sprite *r*
+  along row *r* at x = 0, 40, … 280 and y = 20*r*.
+- A place's first room, its entrance, looks outside. Behind the scene is
+  sprite 0, at (0, 0), of a picture file chosen by the kind of place, from
+  the five bytes at data offset `0x1972` (a sietch, the palace, a village,
+  the fortress, the rest, as in the table above), unless the matching
+  count in the five bytes after them is 0. For the villages (picture file
+  `0x7F`), half the first word of the village's name less 5 is added.
+  After the scene, the ornithopters kept at the place (byte `0x15` of its
+  record) stand in front of it, from `ORNY.HSQ` (resource `0x33`), each
+  sprite clipped to the scene's 320 × 152: from (`0x95`, `0x39`) in a
+  sietch or (`0xCA`, `0x49`) elsewhere, sprite 0 there, sprite 1 at (+6,
+  +30), sprite 2 at (+4, +50) and sprite 8, the folded wings, at (−`0x51`,
+  −3); each further ornithopter `0x46` to the right and `0x0A` lower. The
+  sky's colours for the hour are then set again, over those of the
+  pictures.
 
 ## Persons
 
