@@ -55,6 +55,26 @@ component rises only when the rounds left are no more than the number of
 steps it still needs. It first rises by d modulo the step (when that is not
 0) and then by whole steps.
 
+## Zoom
+
+The zoom enlarges a part of the back picture to the 320 × 152 scene rows
+of the screen. Each level takes a part of a fixed size, its top-left corner
+at the centre less half the size (never below 0), and repeats source
+pixels in a fixed pattern:
+
+| Level | Part | Columns | Rows |
+| --- | --- | --- | --- |
+| 1 | 280 × 133 | each group of 7 pixels gives 8, the first doubled | each group of 7 rows gives 8, the last doubled |
+| 2 | 240 × 114 | each 3 give 4, the first doubled | each 3 give 4, the last doubled |
+| 3 | 213 × 100 | each 2 give 3, the first doubled; the last pixel twice | each 2 give 3, the last doubled |
+| 4 | 160 × 76 | each twice | each twice |
+| 5 | 107 × 51 | each three times; the last twice | each three times; the last twice |
+| 6 | 80 × 38 | each four times | each four times |
+| 7 | 40 × 19 | each eight times | each eight times |
+
+The source is read straight through memory, so a part that runs off the
+right edge goes on at the start of the next row.
+
 ## Tables
 
 | File | Offset | Size | What |

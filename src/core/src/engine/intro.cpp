@@ -3,7 +3,11 @@
 
 #include "mentat/data/program_tables.hpp"
 #include "mentat/data/reader.hpp"
+#include "mentat/engine/attack_view.hpp"
 #include "mentat/engine/game.hpp"
+#include "mentat/engine/places.hpp"
+#include "mentat/engine/talker.hpp"
+#include "mentat/gfx/sprite_sheet.hpp"
 
 #include <string>
 #include <vector>
@@ -21,6 +25,22 @@ constexpr int kOpeningOrigin = 24;
 // Places in the program's data.
 constexpr std::size_t kSubtitleFrames = 0x35A8;
 constexpr std::size_t kSunriseSprites = 0x1500;
+
+constexpr std::size_t kPaulBackground = 0x1526;
+constexpr std::size_t kFeydBackground = 0x154E;
+constexpr std::size_t kFeydGuards = 0x155C;
+constexpr std::size_t kBaronBackground = 0x153A;
+
+// How long a portrait's first idle animation lasts, in groups of four frames.
+constexpr int kLongMood = 0x1E;
+// Paul's portrait file comes 0x2D after the first portrait.
+constexpr int kPaulPortrait = 0x2D;
+// The phrase every character says in the opening.
+constexpr int kOpeningPhrase = 0x190;
+constexpr int kSceneRows = 152;
+constexpr std::size_t kZoomCentres = 0x27B6;
+constexpr std::size_t kZoomSteps = 0x2792;
+constexpr int kZoomStepTicks = 6;
 
 // Timer numbers (the original's own, so a step can remove another's).
 constexpr int kVideoTimer = 0x70C;
@@ -45,6 +65,47 @@ enum Action : std::uint16_t {
     kPlayOnScreen = 0x06BD,
     kSunriseOpen = 0x07FD,
     kSunriseRun = 0x085D,
+    // Part two: the flight over the desert, the palace, the sietch and the
+    // Harkonnens.
+    kDesertOpen = 0x06CE,
+    kDesert2Open = 0x06D3,
+    kDesert3Open = 0x06D8,
+    kPlantOpen = 0x06EA,
+    kSkyFadeAndVideo = 0x06FC,
+    kVideoOnTimer = 0x0704,
+    kCorridor = 0x0972,
+    kThroneRoomWithJessica = 0x098A,
+    kLeto = 0x0995,
+    kJessica = 0x0771,
+    kSietchRoom = 0x077C,
+    kChani = 0x0788,
+    kZoomAndSpeak = 0x078D,
+    kSpeak = 0x0798,
+    kKynes = 0x07A3,
+    kStilgar = 0x07C6,
+    kPaul = 0x07EE,
+    kPalaceOutside = 0x09A5,
+    kSunsetFortress = 0x0868,
+    kSunsetRun = 0x087B,
+    kFeyd = 0x0886,
+    kBaron = 0x09AD,
+    kBaronLeaves = 0x08B6,
+    kVersesOpen = 0x0711,
+    kVersesPlay = 0x071D,
+    kAttack = 0x0ACD,
+    kSietchWithSound = 0x07E0,
+    kPicture02 = 0x0737,
+    kPicture04 = 0x073C,
+    kPicture05 = 0x0740,
+    kPicture06 = 0x0747,
+    kPicture07 = 0x074B,
+    kPicture08 = 0x0752,
+    kPicture09 = 0x0756,
+    kPicture10 = 0x075A,
+    kPicture11 = 0x075E,
+    kPicture13 = 0x0762,
+    kPicture14 = 0x0766,
+    kPicture15 = 0x076A,
 };
 
 struct Step {
@@ -74,7 +135,7 @@ std::vector<Step> readScript(const ProgramFile& program) {
 
 class Intro {
 public:
-    Intro(Game& game, int language) : g_(game), d_(game.display()), language_(language) {}
+    Intro(Game& game, int language) : g_(game), d_(game.display()), attack_(game), language_(language) {}
 
     IntroEnd run() {
         const std::vector<Step> steps = readScript(g_.resources().program());
@@ -91,8 +152,13 @@ public:
                 // Not built yet: the opening ends here for now.
                 return finish(IntroEnd::Finished);
             }
-            d_.prepare([&] { act(step.prepare); });
-            if (!g_.waitMusic(step.musicAfter)) {
+            // Until it is shown, nothing of the step reaches the screen,
+            // not even the frames of a face that is already moving.
+            d_.beginPrepare();
+            act(step.prepare);
+            const bool waited = g_.waitMusic(step.musicAfter);
+            d_.endPrepare();
+            if (!waited) {
                 return finish(IntroEnd::Skipped);
             }
             if (step.transition >= 0) {
@@ -111,6 +177,7 @@ public:
 
 private:
     IntroEnd finish(IntroEnd end) {
+        d_.endPrepare();
         d_.clear(d_.screen());
         d_.setOriginRows(0);
         g_.closeVideo();
@@ -119,6 +186,8 @@ private:
     }
 
     void resetStep() {
+        g_.talker().stop();
+        attack_.stop();
         g_.removeTimer(kVideoTimer);
         g_.removeTimer(kPaletteFadeTimer);
         g_.removeTimer(kSunriseTimer);
@@ -142,6 +211,45 @@ private:
         case kPlayOnScreen:
         case kSunriseOpen:
         case kSunriseRun:
+        case kDesertOpen:
+        case kDesert2Open:
+        case kDesert3Open:
+        case kPlantOpen:
+        case kSkyFadeAndVideo:
+        case kVideoOnTimer:
+        case kCorridor:
+        case kThroneRoomWithJessica:
+        case kLeto:
+        case kJessica:
+        case kSietchRoom:
+        case kChani:
+        case kZoomAndSpeak:
+        case kSpeak:
+        case kKynes:
+        case kStilgar:
+        case kPaul:
+        case kPalaceOutside:
+        case kSunsetFortress:
+        case kSunsetRun:
+        case kFeyd:
+        case kBaron:
+        case kBaronLeaves:
+        case kVersesOpen:
+        case kVersesPlay:
+        case kAttack:
+        case kSietchWithSound:
+        case kPicture02:
+        case kPicture04:
+        case kPicture05:
+        case kPicture06:
+        case kPicture07:
+        case kPicture08:
+        case kPicture09:
+        case kPicture10:
+        case kPicture11:
+        case kPicture13:
+        case kPicture14:
+        case kPicture15:
             return true;
         default:
             return false;
@@ -203,6 +311,136 @@ private:
             return true;
         case kSunriseRun:
             g_.addTimer(kSunriseTimer, 9, [this] { sunriseTick(); });
+            return true;
+        case kDesertOpen:
+            openRaisedVideo(video::kDesert1);
+            return true;
+        case kDesert2Open:
+            openRaisedVideo(video::kDesert2);
+            return true;
+        case kDesert3Open:
+            g_.talker().stop();
+            skyFadeLeft_ = 0x30;
+            loadSkyPalette(0x12);
+            openRaisedVideo(video::kDesert3);
+            return true;
+        case kPlantOpen:
+            openRaisedVideo(video::kPlant);
+            return true;
+        case kSkyFadeAndVideo:
+            skyFadeLeft_ = 0x3F;
+            g_.addTimer(kPaletteFadeTimer, 16, [this] { skyFadeTick(); });
+            startVideoTimer();
+            return true;
+        case kVideoOnTimer:
+            startVideoTimer();
+            return true;
+        case kCorridor:
+            d_.clear(d_.target());
+            showRoom(0x2002, 0x0180, 0);
+            return true;
+        case kThroneRoomWithJessica:
+            showRoom(0x2004, 0x0180, 0x0002);
+            return true;
+        case kLeto:
+            showRoom(0x200A, 0x0180, 0);
+            showCharacter(0, 0, kLongMood);
+            return true;
+        case kJessica:
+            showRoom(0x2004, 0x0180, 0);
+            showCharacter(1, 0, kLongMood);
+            return true;
+        case kSietchRoom:
+            d_.clear(d_.target());
+            showRoom(0x0803, 0x1080, g_.places().present);
+            return true;
+        case kChani:
+            showCharacter(7, 0, kLongMood);
+            return true;
+        case kZoomAndSpeak:
+            if (&d_.back() != &d_.screen()) {
+                d_.flush();
+            }
+            if (!g_.talker().speaking()) {
+                zoomOnFace(g_.talker().character());
+            }
+            return speak();
+        case kSpeak:
+            return speak();
+        case kKynes:
+            g_.selectSheet(resource::kSunrise);
+            drawSpriteListAt(kSunriseSprites);
+            g_.drawSprite(1, 0x54, 0x0B);
+            d_.saveBackground();
+            showCharacter(6, 0, kLongMood);
+            return true;
+        case kStilgar:
+            showRoom(0x0802, 0x1080, 0x0100);
+            g_.places().present = 0;
+            showCharacter(5, 0, kLongMood);
+            return true;
+        case kPaul:
+            g_.selectSheet(resource::kBackgrounds);
+            drawSpriteListAt(kPaulBackground);
+            d_.saveBackground();
+            showCharacter(kPaulPortrait, 0, 1, 1);
+            return true;
+        case kPalaceOutside:
+            d_.clear(d_.target());
+            showPicture(resource::kPalacePicture);
+            return true;
+        case kSunsetFortress:
+            sunrisePicture(0x0B);
+            g_.drawSprite(7, 0x13, 0x4A);
+            return true;
+        case kSunsetRun:
+            g_.addTimer(kSunriseTimer, 16, [this] { sunriseTick(); });
+            return true;
+        case kFeyd:
+            g_.selectSheet(resource::kBackgrounds);
+            fillScene(0xDE);
+            drawSpriteListAt(kFeydBackground);
+            drawClippedListAt(kFeydGuards);
+            d_.saveBackground();
+            showCharacter(10, 0x3A, kLongMood);
+            return true;
+        case kBaron:
+            g_.selectSheet(resource::kBackgrounds);
+            drawSpriteListAt(kBaronBackground);
+            d_.saveBackground();
+            showCharacter(9, 0x52, kLongMood);
+            return true;
+        case kBaronLeaves:
+            return baronLeaves();
+        case kVersesOpen:
+            openRaisedVideo(video::kVerses);
+            return true;
+        case kVersesPlay:
+            return playVerses();
+        case kAttack:
+            attack_.start();
+            return true;
+        case kSietchWithSound:
+            // The original loads sound 4 here for later; ours are read
+            // when played.
+            showRoom(0x0804, 0x1080, g_.places().present);
+            return true;
+        case kPicture02:
+        case kPicture04:
+        case kPicture06:
+        case kPicture08:
+        case kPicture09:
+        case kPicture10:
+        case kPicture11:
+        case kPicture13:
+        case kPicture14:
+            showPicture(pictureFor(action));
+            return true;
+        case kPicture05:
+        case kPicture07:
+        case kPicture15:
+            d_.clear(d_.target());
+            showPicture(pictureFor(action));
             return true;
         default:
             throw FormatError("opening: unknown step " + std::to_string(action));
@@ -295,6 +533,204 @@ private:
         }
     }
 
+    // --- Part two
+
+    // The flight videos sit at the opening's origin whatever the target.
+    void openRaisedVideo(int slot) { g_.openVideo(slot); }
+
+    // From now on a new frame of the video is shown on every tick.
+    void startVideoTimer() {
+        g_.addTimer(kVideoTimer, 0, [this] { videoTick(); });
+        videoTick();
+    }
+
+    void videoTick() {
+        d_.targetBack();
+        if (g_.videoStep()) {
+            d_.copyRect(d_.back(), d_.screen(), ClipRect{0, 0, 320, kSceneRows});
+        }
+    }
+
+    // Sprite `n` of the sky picture file seen from a room holds the
+    // colours 73 to 223; they go into the spare palette, for the sky fade.
+    void loadSkyPalette(int n) {
+        const int sheet = resource::kSky + 1;
+        g_.selectSheetKeepPalette(sheet);
+        const SpriteView v = g_.sheet().sprite(static_cast<std::size_t>(n));
+        Reader r(v.data);
+        r.skip(2);
+        const auto rgb = r.bytes(151 * 3);
+        for (std::size_t i = 0; i < 151; ++i) {
+            d_.spare()[73 + i] = Colour{rgb[i * 3], rgb[i * 3 + 1], rgb[i * 3 + 2]};
+        }
+    }
+
+    void skyFadeTick() {
+        d_.fadeStep(73, 151, skyFadeLeft_);
+        if (--skyFadeLeft_ <= 0) {
+            skyFadeLeft_ = 0;
+            g_.removeTimer(kPaletteFadeTimer);
+        }
+    }
+
+    // Goes to a room and draws it, with `present` standing in it, as the
+    // new background.
+    void showRoom(int room, int place, std::uint16_t present) {
+        g_.places().present = present;
+        g_.places().enter(room, place);
+        g_.indoors = true;
+        g_.talker().stop();
+        g_.places().drawView();
+        d_.saveBackground();
+    }
+
+    void showCharacter(int character, int shiftRight, int mood, int variant = 0) {
+        g_.talker().show(character, shiftRight, variant, mood);
+    }
+
+    bool speak() {
+        g_.talker().speak(kOpeningPhrase);
+        return true;
+    }
+
+    // A close-up on the face of the character shown: the program lists the
+    // zoom levels to show in turn (0xFF: hold for 300 ticks; 0: done), each
+    // for at least 6 ticks, around a point it keeps per character.
+    void zoomOnFace(int character) {
+        const ProgramFile& program = g_.resources().program();
+        const std::size_t centre = kZoomCentres + 4 * static_cast<std::size_t>(character);
+        const int cx = program.dataU16(centre);
+        const int cy = program.dataU16(centre + 2);
+        if (cx != 0 || cy != 0) {
+            Platform& p = g_.platform();
+            for (std::size_t at = kZoomSteps;; ++at) {
+                const int level = program.dataU8(at);
+                if (level == 0) {
+                    break;
+                }
+                if (level >= 0x80) {
+                    waitTicksOnly(300);
+                    continue;
+                }
+                const std::uint32_t start = p.ticks;
+                d_.zoom(level, std::max(cx - Display::zoomWidth(level) / 2, 0), std::max(cy - Display::zoomHeight(level) / 2, 0));
+                waitTicksOnly(static_cast<int>(kZoomStepTicks - (p.ticks - start)));
+                if (at > kZoomSteps + 16) {
+                    throw FormatError("program: zoom list does not end");
+                }
+            }
+        }
+        d_.copyRect(d_.back(), d_.screen(), ClipRect{0, 0, 320, kSceneRows});
+    }
+
+    // Waits without looking at the input or running the timers.
+    void waitTicksOnly(int ticks) {
+        Platform& p = g_.platform();
+        const std::uint32_t start = p.ticks;
+        while (static_cast<int>(p.ticks - start) < ticks) {
+            p.waitFrame();
+        }
+    }
+
+    std::vector<std::uint16_t> readList(std::size_t at) {
+        std::vector<std::uint16_t> list;
+        const ProgramFile& program = g_.resources().program();
+        for (;; at += 2) {
+            list.push_back(program.dataU16(at));
+            if ((list.size() - 1) % 3 == 0 && list.back() == 0xFFFF) {
+                return list;
+            }
+            if (list.size() > 300) {
+                throw FormatError("program: sprite list does not end");
+            }
+        }
+    }
+
+    void drawSpriteListAt(std::size_t at) { g_.drawSpriteList(readList(at)); }
+
+    // A list of plain sprite numbers, each clipped to the scene.
+    void drawClippedListAt(std::size_t at) {
+        const auto list = readList(at);
+        const Canvas canvas = g_.canvas();
+        for (std::size_t i = 0; i + 2 < list.size(); i += 3) {
+            drawSpriteClipped(canvas, g_.sheet().sprite(list[i]), static_cast<std::int16_t>(list[i + 1]),
+                              static_cast<std::int16_t>(list[i + 2]), g_.sceneTables().lineClip);
+        }
+    }
+
+    void fillScene(std::uint8_t colour) {
+        const ClipRect c = g_.sceneTables().lineClip;
+        Surface& t = d_.target();
+        for (int y = c.top; y < c.bottom; ++y) {
+            for (int x = c.left; x < c.right; ++x) {
+                t.set(x, y + d_.originRows(), colour);
+            }
+        }
+    }
+
+    static int pictureFor(std::uint16_t action) { return resource::kFirstIntroPicture + pictureNumber(action); }
+
+    static int pictureNumber(std::uint16_t action) {
+        switch (action) {
+        case kPicture02: return 0;
+        case kPicture04: return 1;
+        case kPicture05: return 2;
+        case kPicture06: return 3;
+        case kPicture07: return 4;
+        case kPicture08: return 5;
+        case kPicture09: return 6;
+        case kPicture10: return 7;
+        case kPicture11: return 8;
+        case kPicture13: return 9;
+        case kPicture14: return 10;
+        default: return 11;
+        }
+    }
+
+    // A full picture: sprite 0 of its file at the top left.
+    void showPicture(int res) {
+        g_.selectSheet(res);
+        g_.drawSprite(0, 0, 0);
+    }
+
+    // The video plays to its end with sound effect 8, which stops at its
+    // eleventh frame; each frame is copied to the screen.
+    bool playVerses() {
+        g_.playSound(8);
+        d_.targetBack();
+        for (;;) {
+            if (g_.videoStep()) {
+                d_.copyRect(d_.back(), d_.screen(), ClipRect{0, 0, 320, kSceneRows});
+                if (g_.videoFrame() == 11) {
+                    g_.stopSound();
+                }
+                if (g_.videoDone()) {
+                    return true;
+                }
+            }
+            if (g_.pollInput()) {
+                return false;
+            }
+            g_.platform().waitFrame();
+        }
+    }
+
+    // The Baron's two halves slide in from the left, drawn straight on the
+    // screen over the kept background.
+    bool baronLeaves() {
+        g_.selectSheet(resource::kBackgrounds);
+        d_.saveBackground();
+        const ClipRect scene = g_.sceneTables().lineClip;
+        for (int x = -0x60; x <= 0; x += 0x20) {
+            d_.copyRect(d_.saved(), d_.back(), scene);
+            const Canvas canvas = g_.canvas();
+            drawSpriteClipped(canvas, g_.sheet().sprite(5), x, 0x0D, scene);
+            drawSpriteClipped(canvas, g_.sheet().sprite(6), x, 0x0D, scene);
+            d_.copyRect(d_.back(), d_.screen(), scene);
+        }
+        return true;
+    }
+
     // --- The sunrise over the dunes
 
     // Sprite `n` of the sunrise picture file holds a palette for colours
@@ -353,10 +789,12 @@ private:
 
     Game& g_;
     Display& d_;
+    AttackView attack_;
     int language_;
     int subtitle_ = 0;
     int sunriseIndex_ = 0;
     int fadeLeft_ = 0;
+    int skyFadeLeft_ = 0;
 };
 
 } // namespace

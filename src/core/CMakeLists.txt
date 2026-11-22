@@ -15,12 +15,17 @@ add_library(mtt_core STATIC
     src/engine/game.cpp
     src/engine/hnm_player.cpp
     src/engine/intro.cpp
+    src/engine/actors.cpp
+    src/engine/attack_view.cpp
+    src/engine/places.cpp
     src/engine/resources.cpp
+    src/engine/talker.cpp
     src/engine/videos.cpp
     src/data/string_table.cpp
     src/data/voc.cpp
     src/gfx/font.cpp
     src/gfx/palette.cpp
+    src/gfx/portrait.cpp
     src/gfx/sprite.cpp
     src/gfx/sprite_sheet.cpp
     src/gfx/surface.cpp

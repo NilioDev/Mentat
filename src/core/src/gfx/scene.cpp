@@ -378,6 +378,31 @@ void drawSceneLine(const Canvas& canvas, int x0, int y0, int x1, int y1, std::ui
     }
 }
 
+void drawSpriteClipped(const Canvas& to, const SpriteView& view, int x, int y, const ClipRect& clip) {
+    const SpritePixels px = decodeSprite(view);
+    const bool flipX = (view.header.widthAndFlags & SpriteHeader::kFlipX) != 0;
+    const bool flipY = (view.header.widthAndFlags & SpriteHeader::kFlipY) != 0;
+    for (int row = 0; row < px.height; ++row) {
+        const int py = flipY ? y + px.height - 1 - row : y + row;
+        const int sy = py + to.originRows;
+        if (py < clip.top || py >= clip.bottom || sy < 0 || sy >= to.surface.height()) {
+            continue;
+        }
+        for (int col = 0; col < px.width; ++col) {
+            const std::size_t i = static_cast<std::size_t>(row) * static_cast<std::size_t>(px.width) +
+                                  static_cast<std::size_t>(col);
+            if (!px.opaque[i]) {
+                continue;
+            }
+            const int pxX = flipX ? x + px.drawnWidth - 1 - col : x + col;
+            if (pxX < clip.left || pxX >= clip.right || pxX < 0 || pxX >= to.surface.width()) {
+                continue;
+            }
+            to.surface.set(pxX, sy, px.pixels[i]);
+        }
+    }
+}
+
 int drawScene(Surface& to, std::span<const std::uint8_t> scene, const SpriteSheet& sheet, const SceneTables& tables,
               const PersonSlotFn& onPerson) {
     return drawScene(Canvas(to), scene, sheet, tables, onPerson);

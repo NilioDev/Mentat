@@ -23,7 +23,12 @@ struct VideoInfo {
 
 namespace video {
 inline constexpr int kMoon1 = 2;
+inline constexpr int kVerses = 14;
 inline constexpr int kTitle = 15;
+inline constexpr int kDesert1 = 16;
+inline constexpr int kDesert2 = 17;
+inline constexpr int kDesert3 = 18;
+inline constexpr int kPlant = 19;
 inline constexpr int kCredits = 20;
 inline constexpr int kVirgin = 21;
 inline constexpr int kCryo = 22;
@@ -45,8 +50,11 @@ namespace resource {
 inline constexpr int kFirstPortrait = 0x02; // LETO.HSQ; portrait n is kFirstPortrait + n
 inline constexpr int kFirstRoomPictures = 0x13;
 inline constexpr int kPersons = 0x26;
+inline constexpr int kSky = 0x28; // and 0x29 for the sky seen from inside a room
 inline constexpr int kSunrise = 0x2E;
 inline constexpr int kBackgrounds = 0x30;
+inline constexpr int kFirstIntroPicture = 0x56; // INT02.HSQ
+inline constexpr int kPalacePicture = 0x62;
 inline constexpr int kFirstSubtitles = 0x69; // IRUL1.HSQ, one per language
 inline constexpr int kFirstScene = 0xA1;     // SIET.SAL
 inline constexpr int kFirstMusic = 0xA4;     // track n is kFirstMusic + n

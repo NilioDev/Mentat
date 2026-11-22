@@ -10,6 +10,7 @@
 #include "mentat/engine/hnm_player.hpp"
 #include "mentat/engine/platform.hpp"
 #include "mentat/engine/resources.hpp"
+#include "mentat/data/voc.hpp"
 #include "mentat/gfx/scene.hpp"
 
 #include <cstdint>
@@ -20,18 +21,35 @@
 
 namespace mentat {
 
+class Places;
+class Talker;
+
 class Game {
 public:
     // `music` may be null: the game then runs without music, as the
     // original does without a sound card.
     Game(Platform& platform, DatArchive& archive, const ProgramFile& program, const DisplayTables& displayTables,
          MusicSystem* music);
+    ~Game();
+    Game(const Game&) = delete;
+    Game& operator=(const Game&) = delete;
 
     Platform& platform() { return platform_; }
     Resources& resources() { return resources_; }
     Display& display() { return display_; }
     const SceneTables& sceneTables() const { return sceneTables_; }
     Canvas canvas() { return Canvas(display_.target(), display_.originRows()); }
+
+    Talker& talker() { return *talker_; }
+    Places& places() { return *places_; }
+
+    // A random number from the original's generator, masked with `mask`.
+    int random(int mask);
+    // A number from the original's second generator (all 16 bits).
+    int random2();
+    // Whether the characters speak in a room (their recordings have an
+    // inside and an outside version).
+    bool indoors = true;
 
     // --- Sprite sheets
     // Makes a picture file the one sprites are drawn from. Its palette goes
@@ -80,6 +98,12 @@ public:
     // A voice that is speaking is waited for instead.
     bool pause(int ticks);
 
+    // --- Sound effects
+    // Plays effect `n` (resource 0xAE + n) on the digital channel.
+    // A part marked to repeat plays until stopSound().
+    void playSound(int n);
+    void stopSound();
+
     // --- Videos (one at a time, like the original)
     // Opens video slot `index` and draws its first frame on the target;
     // its palette goes into the display's palette without being sent.
@@ -100,6 +124,7 @@ private:
         TimerFn fn;
     };
     void runTimers();
+    void keepLooping();
 
     Platform& platform_;
     Resources resources_;
@@ -112,6 +137,11 @@ private:
     std::vector<Timer> timers_;
     std::uint32_t timersRan_ = 0;
     std::unique_ptr<HnmPlayer> video_;
+    std::uint16_t randomSeed_ = 0;
+    std::uint16_t randomSeed2_ = 0;
+    VocPart looping_;
+    std::unique_ptr<Talker> talker_;
+    std::unique_ptr<Places> places_;
 };
 
 } // namespace mentat

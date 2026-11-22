@@ -17,7 +17,7 @@ inline constexpr int kItalian = 4;
 inline constexpr int kSpanish = 5;
 
 enum class IntroEnd {
-    Finished, // every step played
+    Finished, // every step played: the original then starts it over
     Skipped,  // the player pressed a key or a button
 };
 

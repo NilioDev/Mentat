@@ -9,6 +9,7 @@
 
 #include "mentat/engine/platform.hpp"
 #include "mentat/gfx/palette.hpp"
+#include "mentat/gfx/scene.hpp"
 #include "mentat/gfx/surface.hpp"
 
 #include <array>
@@ -46,15 +47,21 @@ public:
     void targetScreen() { target_ = screen_; }
     void targetAux() { target_ = &aux_; }
 
-    // Runs `draw` with the back buffer as the drawing target and as "the
-    // screen", so a step that would show something at once only prepares it.
-    template <typename F>
-    void prepare(F&& draw) {
+    // From beginPrepare() to endPrepare() the back buffer is the drawing
+    // target and also "the screen", so what would show at once (an
+    // animation's frame too) is only prepared until it is shown.
+    void beginPrepare() {
         targetBack();
-        Surface* screen = screen_;
-        screen_ = back_;
-        draw();
-        screen_ = screen;
+        if (hiddenScreen_ == nullptr) {
+            hiddenScreen_ = screen_;
+            screen_ = back_;
+        }
+    }
+    void endPrepare() {
+        if (hiddenScreen_ != nullptr) {
+            screen_ = hiddenScreen_;
+            hiddenScreen_ = nullptr;
+        }
     }
 
     // Rows that everything drawn by position is moved down by. The opening
@@ -63,6 +70,22 @@ public:
     void setOriginRows(int rows) { originRows_ = rows; }
 
     void clear(Surface& s) { s.fill(0); }
+    // Copies a rectangle (moved down by the origin) from one buffer to
+    // another; nothing happens when they are the same buffer.
+    void copyRect(const Surface& from, Surface& to, const ClipRect& rect);
+    // Blacks out a rectangle (moved down by the origin).
+    void clearRect(Surface& s, const ClipRect& rect);
+    // Shows a part of the back buffer enlarged on the screen's scene area.
+    // `level` 1 to 7 picks the enlargement (from 8/7 up to 8 times); the
+    // part starts at (x, y). See docs/rules/display.md.
+    void zoom(int level, int x, int y);
+    // The size of the part each zoom level enlarges.
+    static int zoomWidth(int level);
+    static int zoomHeight(int level);
+
+    // Keeps the target as the clean background that portraits and
+    // animations restore from.
+    void saveBackground() { saved_ = *target_; }
     // Copies the whole back buffer to the screen.
     void showBack();
 
@@ -107,6 +130,7 @@ private:
     DisplayTables tables_;
     Surface backStore_;
     Surface* back_;
+    Surface* hiddenScreen_ = nullptr;
     Surface* screen_;
     Surface* target_;
     Surface saved_;

@@ -57,6 +57,105 @@ void Display::showBack() {
     }
 }
 
+void Display::copyRect(const Surface& from, Surface& to, const ClipRect& rect) {
+    if (&from == &to) {
+        return;
+    }
+    for (int y = std::max(rect.top, 0); y < rect.bottom; ++y) {
+        const int row = y + originRows_;
+        if (row < 0 || row >= to.height() || row >= from.height()) {
+            continue;
+        }
+        for (int x = std::max(rect.left, 0); x < rect.right && x < to.width(); ++x) {
+            to.set(x, row, from.at(x, row));
+        }
+    }
+}
+
+void Display::clearRect(Surface& s, const ClipRect& rect) {
+    for (int y = std::max(rect.top, 0); y < rect.bottom; ++y) {
+        const int row = y + originRows_;
+        if (row < 0 || row >= s.height()) {
+            continue;
+        }
+        for (int x = std::max(rect.left, 0); x < rect.right && x < s.width(); ++x) {
+            s.set(x, row, 0);
+        }
+    }
+}
+
+namespace {
+
+// For each enlargement: how a group of source pixels is repeated, the same
+// way across a row and down a column. A group of `in` pixels becomes the
+// listed source pixels, `groups` times; `last` more source pixels may
+// follow, each repeated `lastTimes` times.
+struct ZoomPattern {
+    int width;
+    int height;
+    std::vector<int> group; // source offsets within a group, one per pixel drawn
+    int in;
+    int lastTimes; // 0: no extra pixel at the end
+    std::vector<int> rowGroup;
+    int rowIn;
+    int rowLastTimes;
+};
+
+const ZoomPattern& zoomPattern(int level) {
+    static const std::array<ZoomPattern, 8> patterns = {{
+        {320, 152, {0}, 1, 0, {0}, 1, 0},
+        {280, 133, {0, 0, 1, 2, 3, 4, 5, 6}, 7, 0, {0, 1, 2, 3, 4, 5, 6, 6}, 7, 0},
+        {240, 114, {0, 0, 1, 2}, 3, 0, {0, 1, 2, 2}, 3, 0},
+        {213, 100, {0, 0, 1}, 2, 2, {0, 1, 1}, 2, 0},
+        {160, 76, {0, 0}, 1, 0, {0, 0}, 1, 0},
+        {107, 51, {0, 0, 0}, 1, 2, {0, 0, 0}, 1, 2},
+        {80, 38, {0, 0, 0, 0}, 1, 0, {0, 0, 0, 0}, 1, 0},
+        {40, 19, {0, 0, 0, 0, 0, 0, 0, 0}, 1, 0, {0, 0, 0, 0, 0, 0, 0, 0}, 1, 0},
+    }};
+    return patterns[static_cast<std::size_t>(std::clamp(level, 0, 7))];
+}
+
+std::vector<int> zoomMap(const std::vector<int>& group, int in, int lastTimes, int size, int limit) {
+    std::vector<int> map;
+    const int groups = (size - (lastTimes != 0 ? 1 : 0)) / in;
+    for (int g = 0; g < groups; ++g) {
+        for (const int k : group) {
+            map.push_back(g * in + k);
+        }
+    }
+    for (int i = 0; i < lastTimes; ++i) {
+        map.push_back(groups * in);
+    }
+    if (static_cast<int>(map.size()) > limit) {
+        map.resize(static_cast<std::size_t>(limit));
+    }
+    return map;
+}
+
+} // namespace
+
+int Display::zoomWidth(int level) { return zoomPattern(level).width; }
+int Display::zoomHeight(int level) { return zoomPattern(level).height; }
+
+void Display::zoom(int level, int x, int y) {
+    const ZoomPattern& p = zoomPattern(level);
+    const auto cols = zoomMap(p.group, p.in, p.lastTimes, p.width, Surface::kScreenWidth);
+    const auto rows = zoomMap(p.rowGroup, p.rowIn, p.rowLastTimes, p.height, kSceneRows);
+    for (std::size_t r = 0; r < rows.size(); ++r) {
+        const int from = y + rows[r] + originRows_;
+        const int to = static_cast<int>(r) + originRows_;
+        for (std::size_t c = 0; c < cols.size(); ++c) {
+            const int fx = x + cols[c];
+            // The original reads straight through memory, so a part that
+            // runs off the right edge goes on at the next row.
+            const int linear = from * Surface::kScreenWidth + fx;
+            if (linear >= 0 && static_cast<std::size_t>(linear) < back_->size()) {
+                screen_->set(static_cast<int>(c), to, back_->data()[linear]);
+            }
+        }
+    }
+}
+
 void Display::markChanged(const std::bitset<256>& colours) {
     dirty_ |= colours;
     if (colours.any()) {
