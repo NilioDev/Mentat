@@ -73,7 +73,9 @@ news sent to you: the sender's hologram rises over the device and speaks.
 When the Emperor demands spice, Duncan shows you the stock and proposes
 amounts to send: answer ACCEPT, REFUSE or ARGUE; take him to the message
 room and the spice goes, and the Emperor's mood and his next demand follow
-from how much he got.
+from how much he got. Stilgar offers you the water of life, which only a
+leader with enough charisma survives, and, when the time comes, asks
+whether to launch the last attack on the Harkonnens' palace.
 In the palace, the middle of the arrows shows a plan of its rooms and who
 is in them. Reach the Harkonnens' throne room and the story ends as the
 original's does: the last scene, "THE END" and the cast, after which the

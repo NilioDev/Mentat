@@ -1065,3 +1065,39 @@ MTT_TEST("world: the Emperor's reply goes to the news by his mood") {
     w.emperorReplies();
     MTT_CHECK(w.u16(0x117B) == 0x0C0B && w.u8(0x11BB) == 1);
 }
+
+MTT_TEST("world: Stilgar's attack sends the army troops with weapons to the palace") {
+    std::vector<std::uint8_t> map(2 * kMiddle + 512, 0x05);
+    FlatMap m(smallLatitudes(), map, FlatMap::Edges{});
+    World w;
+    const std::size_t sietch = World::placeRecord(1);
+    const std::size_t palace = World::placeRecord(2);
+    MTT_CHECK(palace == 0x11C);
+    w.setU8(sietch + 8, 0x01);
+    w.setU16(sietch + 2, 0);
+    w.setU16(sietch + 4, 2);
+    w.setU8(palace + 8, 0x30);
+    w.setU16(palace + 2, 30000);
+    w.setU16(palace + 4, 40);
+    w.setU8(World::placeRecord(3), 0xFF);
+    for (int n = 1; World::troopRecord(n) < 0xFBB; ++n) {
+        w.setU8(World::troopRecord(n) + 3, 0xA0); // nobody's
+    }
+    w.setU8(sietch + 9, 1);
+    for (const int n : {1, 2}) {
+        const std::size_t t = World::troopRecord(n);
+        w.setU8(t, static_cast<std::uint8_t>(n));
+        w.setU8(t + 1, n == 1 ? 2 : 0);
+        w.setU8(t + 3, 4); // the army
+        w.setU16(t + 4, static_cast<std::uint16_t>(sietch));
+        w.setU16(t + 8, 2);
+    }
+    w.setU8(World::troopRecord(1) + 0x19, 0x04); // weapons
+    w.setU8(0xC2, 6);
+    w.launchAttack(m);
+    MTT_CHECK(w.u8(0xC2) == 7);
+    const std::size_t one = World::troopRecord(1);
+    MTT_CHECK(w.u16(one + 4) == palace && (w.u8(one + 3) & 0x40) != 0);
+    MTT_CHECK(w.u16(one + 8) != 2 || w.u16(one + 6) != 0); // it has made steps
+    MTT_CHECK(w.u16(World::troopRecord(2) + 4) == sietch && w.u8(World::troopRecord(2) + 3) == 4);
+}

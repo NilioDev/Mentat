@@ -142,6 +142,7 @@ constexpr int kEntranceHall = 1;
 
 // Duncan, who looks after the spice.
 constexpr int kDuncan = 3;
+constexpr int kStilgar = 5;
 constexpr std::size_t kAnswers = 0x1A; // how many questions Paul answered in this talk
 constexpr std::size_t kAnswer = 0x9F;  // the last answer: 1 accept, 2 refuse, 3 argue
 constexpr std::size_t kQuestionMenu = 0x1FFE;
@@ -463,6 +464,12 @@ void Talk::afterLine(std::size_t at) {
     }
     resume_ = next;
     finished_ = ended;
+    if (afterSpeech_) {
+        afterSpeech_ = false;
+        if (waterOfLife) {
+            waterOfLife();
+        }
+    }
 }
 
 // --- What lines do
@@ -487,11 +494,15 @@ void Talk::runAction(const DialogueLine& line) {
     case 8:
         if (character_ == kDuncan) {
             world_.prepareShipment();
+        } else if (character_ == kStilgar) {
+            afterSpeech_ = true;
         }
         break;
     case 9:
         if (character_ == kDuncan) {
             world_.decideShipment(bill_);
+        } else if (character_ == kStilgar && attackLaunched) {
+            attackLaunched();
         }
         break;
     case 10: findLabel(line.phrase); break;
@@ -525,8 +536,7 @@ void Talk::runAction(const DialogueLine& line) {
         break;
     default:
         // The others start things this port does not have yet (the
-        // smuggler's trade, the water of life, the last attack, the
-        // chiefs' places).
+        // smuggler's trade, Jessica's powers, the chiefs' places).
         break;
     }
 }

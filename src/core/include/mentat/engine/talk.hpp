@@ -94,6 +94,11 @@ public:
     // "Give orders to troop": the talk ends and the caller opens the
     // orders' screen.
     std::function<void()> ordersAsked;
+    // Stilgar's water of life: called once his line is spoken, whatever
+    // Paul answered (state byte 0x9F says it).
+    std::function<void()> waterOfLife;
+    // Stilgar sends the troops to the Harkonnens' palace.
+    std::function<void()> attackLaunched;
 
     // Talking in a box over the map, as a troop's chief does when given
     // orders: the face in a small frame, the text beside it, no voice.
@@ -269,6 +274,7 @@ private:
 
     // A question of Duncan's is open; about a smuggler's bill.
     bool asking_ = false;
+    bool afterSpeech_ = false; // the water of life follows the line
     bool bill_ = false;
     // A few words a line shows beside the face once it is said, such as
     // an amount of spice: in the small font on its own background.
