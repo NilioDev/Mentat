@@ -31,9 +31,24 @@ The character now counts as met: its bit is set in the words at `0x0E` and
 | Line | Phrase | What it does |
 | --- | --- | --- |
 | TALK TO ME | `0x9F` | The next line |
-| COME WITH ME | `0x91` | Asks the character to go with Paul; greyed when the character's flags have bit 7. When the character goes with Paul already (bit 6), this line is STOP FOLLOWING ME (`0x92`) instead |
+| COME WITH ME | `0x91` | Asks the character to go with Paul; greyed when the character's flags have bit 7. When the character goes with Paul already (bit 6), this line is STOP FOLLOWING ME (`0x92`) instead. Other characters have another line here (below) |
 | WHAT ? | `0x95` | The voice says the last line again |
 | STOP TALKING | `0x94` | Ends the talk |
+
+The second line is decided in this order:
+
+1. For anyone but the Harkonnens' captain (character 12), while the
+   captain is in the room (bit 12 of the word at `0x12`) and not
+   overpowered (bit 4 of `0x10A7`): OVERPOWER THE PRISONER (`0x9C`,
+   action `0x9584`; not built yet).
+2. For the chiefs of Paul's troops (character 15): GIVE ORDERS TO TROOP
+   (`0x93`, action `0x5A03`; the orders are not built yet).
+3. For the Fremen of a troop not yet Paul's (character 14): WORK FOR ME
+   (`0x96`, action `0x95C1`), or RALLY ME (`0x97`) once bit 4 of state
+   byte `0x0A` is set.
+4. Otherwise COME WITH ME as in the table.
+
+The talk sets state byte `0x11CA` to 1 when it starts.
 
 ## Which line comes next
 
@@ -102,13 +117,18 @@ looks through it twice.
 
 ### Going with Paul
 
-"Come with me" sets `0x23` to 2 when the spice at `0xAC` is 1000 or more
+"Work for me" sets `0x23` to 2 when the spice at `0xAC` is 1000 or more
 and a quarter of (100 less `0x29`) is more than `0x36`, else to 0, while
-the answer is chosen; then it is 0 again. One more is counted at `0x1B`.
+the answer is chosen; "come with me" leaves `0x23` as it is. Either way
+it is 0 again afterwards. One more is counted at `0x1B`.
 When the answer is yes, the character gets flag bit 6, its bit in the word
 at `0x10`, and, when at least 2 parts of the day have passed since it last
 left Paul, the clock as when it joined him. "Stop following me" undoes
 this, keeping the clock as when it left.
+
+For the Fremen (character 14) a yes enlists their troop instead (see
+[people.md](people.md)); the menu then becomes that of the troop's chief
+(character 15), while the same face goes on talking.
 
 When the talk ends and the character goes with Paul, it takes a slot of
 the panel (`0x1152`): the first free one, or else the second, the first
@@ -153,8 +173,10 @@ line of its first list that has lines), so each character counts from 1.
 Page k of a line (from 0) uses the recording with the letter `A` + k after
 it, as does a line with flag bit 4: it has several recordings and picks
 one by what it names (a place, a number) or else at random among the
-first four. The recording name is as in [portraits.md](portraits.md); in
-the palace's entrance hall the outside one is used.
+first four. The recording name is as in [portraits.md](portraits.md), by
+the character counted this way (not by the face shown); for character 14
+the recordings numbered `0x2C` and `0x2D` are character 12's. In the
+palace's entrance hall the outside one is used.
 
 ## Ending
 

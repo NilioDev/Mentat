@@ -44,6 +44,13 @@ public:
     std::uint16_t absent = 0;
     // Turns which free spot each character takes.
     int spotTurn = 0;
+    // More chiefs of Paul's troops standing here besides the first; they
+    // count as characters 16 on.
+    int moreChiefs = 0;
+    // The person's picture each character is shown with (sprites 2n and
+    // 2n + 1 of the persons sheet), and how far further down; character
+    // n's own when not set.
+    std::function<int(int character, int& down)> personOf;
 
     // Draws the room on the display's target, with the characters in it.
     // `background`, when given, is drawn after the clearing, before the

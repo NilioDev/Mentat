@@ -99,11 +99,14 @@ void Places::loadScenes() {
 void Places::drawPerson(int character, const PersonSlot& slot) {
     const int previous = game_.sheetResource();
     game_.selectSheet(kPersons);
-    ClipRect bounds{slot.x, slot.y, slot.x, slot.y};
+    int down = 0;
+    const int person = personOf ? personOf(character, down) : character;
+    const int y = slot.y + down;
+    ClipRect bounds{slot.x, y, slot.x, y};
     for (int part = 0; part < 2; ++part) {
-        const auto word = static_cast<std::uint16_t>(slot.flags | (character * 2 + part));
-        drawSpriteWord(game_.canvas(), game_.sheet(), word, slot.x, slot.y, game_.sceneTables(), slot.mode);
-        const ClipRect r = spriteWordBounds(game_.sheet(), word, slot.x, slot.y, game_.sceneTables());
+        const auto word = static_cast<std::uint16_t>(slot.flags | (person * 2 + part));
+        drawSpriteWord(game_.canvas(), game_.sheet(), word, slot.x, y, game_.sceneTables(), slot.mode);
+        const ClipRect r = spriteWordBounds(game_.sheet(), word, slot.x, y, game_.sceneTables());
         bounds.right = std::max(bounds.right, r.right);
         bounds.bottom = std::max(bounds.bottom, r.bottom);
     }
@@ -240,6 +243,21 @@ void Places::drawView(const std::function<void()>& background) {
             if ((mask & 1) == 0) {
                 continue;
             }
+            int spot = (character + (spotTurn & 0x0F)) % spots;
+            if (standing[static_cast<std::size_t>(spot)] != -1) {
+                spot = 0;
+                while (spot < spots && standing[static_cast<std::size_t>(spot)] != -1) {
+                    ++spot;
+                }
+                if (spot >= spots) {
+                    continue;
+                }
+            }
+            standing[static_cast<std::size_t>(spot)] = character;
+        }
+        // The other chiefs take the spots after, the same way.
+        for (int k = 1; k <= moreChiefs; ++k) {
+            const int character = 15 + k;
             int spot = (character + (spotTurn & 0x0F)) % spots;
             if (standing[static_cast<std::size_t>(spot)] != -1) {
                 spot = 0;
