@@ -5,8 +5,9 @@ off for it: the ornithopter takes off from the place's entrance, the
 desert goes by in the videos with a small map in the top right corner,
 and at the place the ornithopter comes down in front of its entrance.
 This page covers flying to a place, flying off over the desert, and what
-a companion sees on the way and the Harkonnens' zones. Being caught in a
-zone and flying from the desert are not covered yet.
+a companion sees on the way and the Harkonnens' zones. Being caught ends
+the game (see [game_over.md](game_over.md)). Flying from the desert is
+not covered yet.
 
 ## Choosing the place
 
@@ -219,7 +220,7 @@ is no longer greyed. In it: when the count is 0, `0x23` becomes 4;
 "SKIP TO DESTINATION" is greyed (from the next time a list is drawn, and
 in the list shown when it heads it); the count goes down by `0x20` (8
 bits). When it comes back to 0, 8 steps in a row in the zone, Paul is
-caught.
+caught and the game ends (see [game_over.md](game_over.md)).
 
 ### A companion speaks
 

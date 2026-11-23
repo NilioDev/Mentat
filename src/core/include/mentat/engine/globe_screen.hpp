@@ -44,6 +44,12 @@ public:
     GlobeScreen(Game& game, World& world, Panel& panel, MapScreen& map, int language, SavedGames* saves = nullptr);
 
     bool active() const { return active_; }
+
+    // The list of saved games to load, in the panel, with the globe shown
+    // or not (when the game is over). loadSlot() loads the one a line of
+    // it names; false when there is none.
+    void showLoadList();
+    bool loadSlot(std::uint16_t phrase);
     bool showingResults() const { return results_; }
 
     // Draws the globe screen on the back buffer, the planet facing map

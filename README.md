@@ -36,7 +36,9 @@ and touch controls.
 > at the place, or skip straight there. A click on the desert flies off
 > that way, steered with the arrows. A companion on board points out a
 > hidden sietch you fly past, and you are warned when you enter the
-> Harkonnens' zone. Giving orders and the rest of the game are not there
+> Harkonnens' zone; fly on and they catch you, and the game ends with the
+original's flashes, video and words, where you can start again, load a
+game or stop. Giving orders and the rest of the game are not there
 > yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
@@ -86,6 +88,7 @@ and the original can load the games you save in Mentat.
 | Fly to a place | In the palace's entrance, "TAKE AN ORNITHOPTER", then click a place on the small map; "Cancel" goes back | | |
 | Fly over the desert | In the cockpit, click the desert; the arrows turn; "BACK TO STARTING POINT" goes home | | |
 | While flying | "SKIP TO DESTINATION" lands at once; "CHANGE DESTINATION" opens the map again | | |
+| After the game ends | "RESTART GAME", "LOAD GAME" or "EXIT GAME"; " WHAT ? " says it again | | |
 | Save or load a game | On the globe, "SAVE GAME" or "LOAD GAME", then a log; "Cancel" goes back | | |
 | Close Mentat | Window's close button | | Back |
 

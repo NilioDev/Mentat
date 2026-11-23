@@ -310,6 +310,25 @@ bool Talker::speak(int phrase, int variant) {
     return true;
 }
 
+bool Talker::playVoice(int character, int phrase, int variant) {
+    endSpeech();
+    DatArchive& archive = game_.resources().archive();
+    std::string name = voiceName(character, phrase, game_.indoors, variant);
+    if (archive.directory().find(name) == nullptr) {
+        name = voiceName(character, phrase, !game_.indoors, variant);
+        if (archive.directory().find(name) == nullptr) {
+            return false;
+        }
+    }
+    const VocSound voice = Voc::parse(archive.read(name));
+    Platform& p = game_.platform();
+    game_.stopSound();
+    for (const VocPart& part : voice.parts) {
+        p.queueSound(SoundChannel::Digital, part.rate, part.samples);
+    }
+    return true;
+}
+
 void Talker::speechTick() {
     if (!speaking_) {
         return;

@@ -529,6 +529,17 @@ void GlobeScreen::drawList() {
     panel_.drawCommands();
 }
 
+void GlobeScreen::showLoadList() { openList(List::Load); }
+
+bool GlobeScreen::loadSlot(std::uint16_t phrase) {
+    const int slot = (phrase & Command::kPhrase) - kFirstSlotPhrase + 1;
+    if (saves_ == nullptr || slot < 1 || !saves_->load(slot)) {
+        return false;
+    }
+    list_ = List::Globe;
+    return true;
+}
+
 void GlobeScreen::openList(List list) {
     list_ = list;
     setCommands(false);

@@ -749,6 +749,14 @@ void Flight::land() {
     world_.enterPlace(destination_);
 }
 
+void Flight::stop() {
+    active_ = false;
+    paused = false;
+    notice = Notice::None;
+    noticedBy = -1;
+    caught = false;
+}
+
 int Flight::approachVideo() const {
     const int kind = world_.u8(destination_ + 8);
     int slot = kFirstApproach;

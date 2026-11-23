@@ -642,5 +642,16 @@ MTT_TEST("flight: a companion sees a hidden place ahead, and the Harkonnens' zon
         f.step();
         w.position(lon, lat);
         MTT_CHECK(lat == -0x19 && f.notice == Flight::Notice::Zone && !f.caught);
+        // Ignoring the warnings, deeper into the zone: caught after eight
+        // steps in a row inside it.
+        int inZone = 0;
+        while (!f.caught && inZone < 20) {
+            f.endNotice();
+            f.step();
+            w.position(lon, lat);
+            ++inZone;
+        }
+        MTT_CHECK(f.caught && f.paused);
+        MTT_CHECK(inZone == 7);
     }
 }
