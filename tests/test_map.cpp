@@ -195,6 +195,50 @@ MTT_TEST("map screen: opens on the palace and the arrows move it") {
     MTT_CHECK(!map.active() && !map.command(MapScreen::kUp));
 }
 
+MTT_TEST("map screen: a click on a place shows its label, another click takes it away") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
+    World w(*program);
+    Panel panel(g, kEnglish);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    map.enter();
+    Display& d = g.display();
+    d.copyRect(d.back(), d.screen(), map.view());
+    const std::size_t palace = World::placeRecord(1);
+    // The palace is in the middle; its label, the name alone, to its right.
+    map.click(158, 75);
+    MTT_CHECK(map.labelled() == palace);
+    const ClipRect r = map.label();
+    MTT_CHECK(r.left == 175 && r.top == 61 && r.right == 281 && r.bottom == 91);
+    MTT_CHECK(d.screen().at(175, 61) != d.back().at(175, 61) || d.screen().at(200, 80) != d.back().at(200, 80));
+    // Again on the same place: it goes, the map shows again.
+    map.click(160, 76);
+    MTT_CHECK(map.labelled() == 0 && d.screen().at(200, 80) == d.back().at(200, 80));
+    map.click(160, 76);
+    MTT_CHECK(map.labelled() == palace);
+    // Far from any place: it goes.
+    map.click(60, 40);
+    MTT_CHECK(map.labelled() == 0);
+    // A fort whose inside is shown gets the tallest label; one Paul knows
+    // the inside of gets the middle one, with the battle.
+    w.setU8(palace + 8, 0x28);
+    w.setU8(palace + 0x0A, 0x18);
+    map.click(160, 76);
+    MTT_CHECK(map.label().bottom - map.label().top == w.u8(0x11D0));
+    map.click(160, 76);
+    w.setU8(palace + 0x0A, 0x02);
+    map.click(160, 76);
+    MTT_CHECK(map.label().bottom - map.label().top == w.u8(0x11D1));
+    // Moving the map takes it away.
+    MTT_CHECK(map.command(MapScreen::kUp) && map.labelled() == 0);
+}
+
 MTT_TEST("places: the palace's entrance looks outside, with its ornithopter in front") {
     auto archive = test::openGameData();
     auto program = test::openProgram();

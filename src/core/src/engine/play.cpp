@@ -454,6 +454,9 @@ private:
                     return;
                 }
             }
+            if (map_.active() && y < kSceneBottom) {
+                map_.click(x, y);
+            }
             if (globe_.active() && y < kSceneBottom) {
                 globe_.click(x, y);
                 if (globe_.leaving) {

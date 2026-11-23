@@ -25,9 +25,10 @@ and touch controls.
 > meet: their face over the room and their own recorded voice, saying
 > what fits how far the story has come. "See Dune map" opens the map of
 > the planet around you with the places you know, and you can move it
-> with the arrows; the small planet beside it opens the globe, which
-> turns with your place marked, and a click on it takes you to the map of
-> that area. "See results" on the globe shows the day, your charisma,
+> with the arrows; a click on a place shows its label, with what it is,
+> its name and, for places you know, the battle there or its equipment.
+> The small planet beside it opens the globe, which turns with your
+> place marked, and a click on it takes you to the map of that area. "See results" on the globe shows the day, your charisma,
 > the areas you hold, your spice and the men on each side, with the planet
 > coloured by who holds it, and "Save game" and "Load game" keep your
 > game, in the same files as the original. In the palace's entrance you
@@ -82,6 +83,7 @@ and the original can load the games you save in Mentat.
 | Hear more, ask again, stop talking | Click a line of the talk menu | | |
 | Look at the map | Click "SEE DUNE MAP"; "EXIT MAPS" goes back | | |
 | Move the map | Click or hold an arrow; the middle goes back to you | | |
+| See what a place is | On the map, click the place; click it again or elsewhere to close the label | | |
 | Look at the globe | On the map, click the small planet at the left of the panel; "EXIT GLOBE" or the button beside the list goes back | | |
 | Turn the globe | Click or hold an arrow; the middle turns it to you; click on the planet to see the map there | | |
 | See how you are doing | On the globe, "SEE RESULTS"; "STANDARD VISION" goes back | | |
