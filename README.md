@@ -45,7 +45,8 @@ and touch controls.
 > game or stop. In a sietch you meet its Fremen, who can agree to work
 > for you. Their chief then takes your orders on the map, answering in a
 > box with his face: he tells you about his troop, and you can have it
-> specialize in spice or in the army, or send it somewhere: point at a
+> specialize in spice or in the army, give it equipment the sietch keeps
+> or take some back, or send it somewhere: point at a
 > place on the small map of the regions, and if the chief agrees the troop
 > sets off and walks there hour by hour, its mark crossing the map. A
 > troop that reaches a place where nobody else is takes it; taking a
@@ -60,7 +61,7 @@ and touch controls.
 > story gets that far, "See spice density" on the map opens that small
 > map of the regions you know, coloured by their spice or, with a click on
 > its bar, by the work of your troops there; point at a place to see who
-> is there, or click it to move the map to it. The troops' equipment, the
+> is there, or click it to move the map to it. The
 > chiefs' messages and the rest of the game are not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
@@ -106,6 +107,7 @@ and the original can load the games you save in Mentat.
 | Move the map | Click or hold an arrow; the middle goes back to you | | |
 | See what a place is | On the map, click the place; click it again or elsewhere to close the label | | |
 | Send a troop somewhere | In its orders, "MOVE TROOP", then click a place on the small map; "Cancel" or a click outside it goes back | | |
+| Equip a troop | In its orders, "MODIFY EQUIPMENT", then click a piece in the chief's box to give it back or in the box below to take it; "Done" or a click elsewhere ends | | |
 | See the spice and your troops' work | On the map, "SEE SPICE DENSITY"; click its bar to switch, a place to go there, the box at its top left (or the command again) to close it | | |
 | Look at the globe | On the map, click the small planet at the left of the panel; "EXIT GLOBE" or the button beside the list goes back | | |
 | Turn the globe | Click or hold an arrow; the middle turns it to you; click on the planet to see the map there | | |

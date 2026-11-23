@@ -42,6 +42,9 @@ The chief is character 15. Before each line the state learns his troop
 is the next that may be said after the last one, passing over lines said
 before only when they have flag bit 5, and starting over at the list's
 start when nothing more is found. "Ask for more information" says the next.
+When a line leaves the answer "maybe" (`0x80`, see
+[talking.md](talking.md)), the chief shows what his troop holds in his
+box, as when modifying it (below).
 
 ## The commands
 
@@ -128,6 +131,55 @@ names:
 Any other occupation can always be done, and nothing more happens. For
 these three, bit 4 of byte 3 keeps whether the troop cannot; when that
 changes from cannot to can, the work starts again from now as above.
+
+## Modifying the equipment
+
+"Modify equipment" sets the commands to the list at `0x2012` (only
+"done"). Unless the chief's last line showed what his troop holds, he says
+the next line of his news, again up to four lines in all, until one does.
+
+Then two boxes are drawn on the screen, from the chief's box (its left,
+top, right and bottom): the troop's from left plus `0x7D` and top plus
+`0x2B` to the chief's right and bottom, and the place's from left plus
+`0x30` and the chief's bottom plus 1 (less `0x6D` when that is `0x70` or
+more), `0x28` rows high, to the same right. Their border and fill colours
+are the data bytes `0x193E` and `0x193F`, and `0x1948` and `0x1949`.
+
+What the troop holds is the bits of its byte `0x19` from bit 7 down to
+bit 1, one piece each; the state's byte `0x3D` keeps the byte. What the
+place has spare is its counts less those its troops hold (see above). Each
+list is drawn as on the map's label (see [map.md](map.md)): for each kind
+with a count, its sprite (data `0x192F` on) in a column of that many,
+the columns side by side, one pixel apart; "none" (phrase `0x69`) moved 12
+right and 5 down when the list is empty. The troop's starts at the
+chief's left plus `0x80` and top plus `0x2D`, its columns ending at the
+chief's bottom, "none" in colour `0xF0`. The place's starts at its box's
+left plus `0x50` and top plus 4, ending at its bottom, in the colour
+of its border on the ground of its fill; then phrase `0x6F` in the same
+colours from its left plus 8 and that row (5 lower when it has nothing),
+each new line 10 rows lower.
+
+A click inside the chief's box on a column of the troop's list (from its
+left up to its sprite's width plus one) gives that piece back to the
+place; elsewhere in the chief's box it does nothing. A click inside the
+place's box on a column takes that piece when the troop holds none of
+that kind. Either way both boxes are drawn again. The insides of the
+boxes are what lies strictly between their edges. Any other click is
+"done".
+
+The original finds the place's spare again from the records whenever the
+place is learned (each hour, see [days.md](days.md)), so a piece given
+back in the same hour may not show; Mentat keeps the counts as clicked.
+
+"Done": both boxes are taken off the screen, the troop's byte `0x19`
+takes the pieces it holds (bit 0 clear), and its mark is found again. The
+state's byte `0x3D` becomes the bits it gained, `0x3E` those it gave
+back, and `0x3F` is `0x40` when it gained a harvester (bit 6) at Paul's
+home (`0x1150`), else 0. A troop in ecology (occupation 8) has its ability
+to work checked (below). Then the state learns the troop, the situation
+at `0x23` becomes `0x0C`, and the chief answers with the first line of his
+list 4 that may be said; with none, he says the next two lines of his
+news. The orders come back.
 
 ## Moving the troop
 
@@ -216,6 +268,6 @@ marks when the troop is on the move and near, or its place is in sight.
 
 ## Not built yet
 
-Modifying equipment, the chief's voice in the box, the troop shown three
+The chief's voice in the box, the troop shown three
 sietches, searching for equipment, espionage, attacking, the wind-trap, the orders
 from the map for troops on the move, and what troops do day by day.

@@ -536,3 +536,68 @@ MTT_TEST("orders: a troop shown a place on the small map sets off and walks ther
     }
     MTT_CHECK(there);
 }
+
+MTT_TEST("orders: a troop takes equipment the sietch keeps and gives it back") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g, kEnglish);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    w.setU8(0x2A, 4);
+    const std::size_t sietch = World::placeRecord(14);
+    w.enterPlace(sietch);
+    w.goTo((w.room() & 0xFF00) | 2, w.place());
+    const int troop = w.u8(sietch + 9);
+    MTT_CHECK(troop != 0);
+    w.enlist(troop);
+    const std::size_t t = World::troopRecord(troop);
+    // The sietch keeps a piece of the second kind.
+    for (std::size_t i = 0; i < 7; ++i) {
+        w.setU8(sietch + 0x14 + i, i == 1 ? 1 : 0);
+    }
+
+    FakeHost host;
+    Talk talk(g, w, panel, host, kEnglish);
+    SpiceMap spice(g, w, panel, map);
+    Orders orders(g, w, panel, map, talk, spice);
+    auto run = [&](const std::function<void()>& f) {
+        Fiber fiber([&] {
+            g.display().targetBack();
+            f();
+        });
+        p.fiber = &fiber;
+        while (!fiber.finished()) {
+            fiber.resume();
+            ++p.ticks;
+        }
+        p.fiber = nullptr;
+    };
+    run([&] { orders.open(troop); });
+    run([&] { orders.command(Orders::kOccupation); });
+    run([&] { orders.command(Orders::kSpice); });
+    MTT_CHECK(panel.commands()[2].action == Orders::kEquipment && !(panel.commands()[2].phrase & Command::kGrey));
+    w.setU8(t + 0x19, 0);
+
+    // "Done" alone is offered; the place's box is under the chief's.
+    run([&] { orders.command(Orders::kEquipment); });
+    MTT_CHECK(orders.equipping() && panel.commands().size() == 1 && panel.commands()[0].action == Orders::kCancel);
+    const ClipRect place = orders.placeBox();
+    MTT_CHECK(place.left == orders.box().left + 0x30 && place.bottom - place.top == 0x28);
+    // Its first piece is taken, and "done" keeps it.
+    run([&] { orders.click(place.left + 0x52, place.top + 6); });
+    run([&] { orders.command(Orders::kCancel); });
+    MTT_CHECK(!orders.equipping() && w.u8(t + 0x19) == 0x40 && w.u8(0x3D) == 0x40 && w.u8(0x3E) == 0);
+    MTT_CHECK(w.u8(0x23) == 0x0C && panel.commands().size() == 5);
+
+    // Given back from the chief's box; a click elsewhere is "done".
+    run([&] { orders.command(Orders::kEquipment); });
+    run([&] { orders.click(orders.box().left + 0x82, orders.box().top + 0x2F); });
+    run([&] { orders.click(300, 120); });
+    MTT_CHECK(!orders.equipping() && w.u8(t + 0x19) == 0 && w.u8(0x3D) == 0 && w.u8(0x3E) == 0x40);
+}

@@ -236,7 +236,14 @@ public:
             return orders_.active() ? std::vector<ClipRect>{orders_.box()} : std::vector<ClipRect>{};
         };
         map_.covers = [this] {
-            return spice_.shown() ? std::vector<ClipRect>{spice_.frame()} : std::vector<ClipRect>{};
+            std::vector<ClipRect> covers;
+            if (spice_.shown()) {
+                covers.push_back(spice_.frame());
+            }
+            if (orders_.equipping()) {
+                covers.push_back(orders_.placeBox());
+            }
+            return covers;
         };
         g_.places().personOf = [this](int c, int& down) { return personOf(c, down); };
     }
@@ -465,7 +472,7 @@ private:
             if (line >= 0 && static_cast<std::size_t>(line) < commands.size() &&
                 !(commands[static_cast<std::size_t>(line)].phrase & Command::kGrey)) {
                 choose(commands[static_cast<std::size_t>(line)].action, commands[static_cast<std::size_t>(line)].phrase);
-            } else if (orders_.choosing()) {
+            } else if (orders_.choosing() || orders_.equipping()) {
                 orders_.click(x, y);
             } else {
                 choose(Orders::kNoMoreOrders);
