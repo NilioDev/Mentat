@@ -147,6 +147,13 @@ public:
     // it (`x`, `y`, or negative), says the first line of its list 7 that
     // may be said. False when there is none. endRemark() ends it.
     bool sceneLine(int c, int x, int y, int face, int variant);
+    // A scene's line said with no face, as over the small map of the
+    // regions: the voice of the first line of character `c`'s list 7 that
+    // may be said.
+    bool sceneVoice(int c);
+    // A scene's line in a box, as a troop's chief talks when given orders:
+    // the first line of list 7 that may be said.
+    bool sceneBox(int c, int face, int variant, const Box& box);
     // News in the message room: character `c`, zoomed in on (`x`, `y`)
     // where its hologram stands, says the first line of its list 4 that
     // may be said, with "Viewed" and " WHAT ? " to choose from. False when
@@ -191,6 +198,7 @@ private:
     void afterLine(std::size_t at);
     void runAction(const DialogueLine& line);
     void speak();
+    void recording(int& who, int& number, int& variant);
     void drawBackground(int x, int y);
     void restartFace();
     void drawSubtitle(const ClipRect* clip);
