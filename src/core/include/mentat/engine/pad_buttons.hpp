@@ -28,8 +28,8 @@ public:
     // The buttons, in SDL's order of gamepad buttons.
     static constexpr std::size_t kButtons = 26;
 
-    // As Mentat comes: A clicks, B right-clicks, the direction pad jumps,
-    // Back quits and the rest press a key.
+    // As Mentat comes: A and X click, B and Y right-click, the direction
+    // pad jumps, Back does nothing and the rest press a key.
     PadButtons();
 
     PadAction action(std::size_t button) const {
