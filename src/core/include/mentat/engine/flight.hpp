@@ -72,6 +72,8 @@ public:
     bool playApproach();
     // Ends the flight in the place reached.
     void land();
+    // Ends the flight where it is: the game is over.
+    void stop();
     // How the place is reached, by its kind: 6 a sietch's video, 7 a
     // palace's, 9 a fort's; 8 and 10 the ornithopter lands in front.
     int approachVideo() const;

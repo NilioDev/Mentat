@@ -33,6 +33,9 @@ public:
     // moves the mouth with it. False when there is no recording. `variant`
     // picks one of the other recordings of the phrase (0 for the usual).
     bool speak(int phrase, int variant = 0);
+    // Plays character `character`'s recording of `phrase` with no face to
+    // move. False when there is none.
+    bool playVoice(int character, int phrase, int variant = 0);
 
     // Shows the face again from scratch: a new idle sequence (`mood` as in
     // show()), all of it drawn.

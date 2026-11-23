@@ -14,10 +14,13 @@
 #include "mentat/engine/saved_games.hpp"
 #include "mentat/engine/talk.hpp"
 #include "mentat/engine/talker.hpp"
+#include "mentat/engine/text_box.hpp"
 #include "mentat/engine/world.hpp"
+#include "mentat/gfx/font.hpp"
 
 #include <chrono>
 #include <cmath>
+#include <optional>
 #include <vector>
 
 namespace mentat {
@@ -78,6 +81,37 @@ constexpr std::uint16_t kGoOn = 0xD2E2;
 constexpr std::size_t kNoArrows = 0x1D1E;
 // The ornithopter's cabin, behind a companion's face.
 constexpr int kCabinSheet = 0x34; // ORNYCAB.HSQ
+
+// The end of the game. Its reasons: 2, caught by the Harkonnens. Each has
+// a phrase of the commands' text from 0xBA on, and a character whose face
+// is shown and whose recording 0xFFF says it (none from 0x80), from the
+// table at data offset 0x225D.
+constexpr int kCaught = 2;
+constexpr std::uint16_t kFirstEndPhrase = 0xBA;
+constexpr std::size_t kEndFaces = 0x225D;
+constexpr int kEndVoice = 0xFFF;
+// The clock shows the last day.
+constexpr std::uint16_t kEndClock = 0x16C5;
+// The videos: Paul's death, then, to start again, another.
+constexpr int kDeathVideo = 12;   // DEAD.HNM
+constexpr int kRestartVideo = 13; // DEAD2.HNM
+// The face's frame: (left, top, right, bottom), its edge's colour and its
+// inside's; and the box the words are laid out in.
+constexpr std::size_t kEndFrame = 0x2254;
+constexpr ClipRect kEndText{88, 3, 288, 64};
+constexpr std::uint8_t kEndTextColour = 0xF0;
+// The sky flashes three times: from the colours of sky 0x28 back toward
+// those of the hour, a step every 3 ticks.
+constexpr int kFlashSky = 0x28;
+constexpr int kFlashes = 3;
+constexpr int kFlashStepTicks = 3;
+// The commands: start again, load, leave, what; leaving asks first.
+constexpr std::size_t kEndCommands = 0x20A2;
+constexpr std::size_t kLeaveCommands = 0x20B4;
+constexpr std::uint16_t kRestart = 0x0E47;
+constexpr std::uint16_t kLeave = 0x0E3E;
+constexpr std::uint16_t kLeaveYes = 0x003A;
+constexpr std::uint16_t kLeaveNo = 0xD2E2;
 constexpr int kLastOrnithopterStep = 0x20;
 constexpr int kOrnithopterStepTicks = 0x14;
 constexpr int kSoundStep = 0x0D;
@@ -156,6 +190,9 @@ public:
     void run() {
         start();
         for (;;) {
+            if (quit_) {
+                return;
+            }
             g_.waitTicks(1);
             runClock();
             if (endTalk_) {
@@ -188,6 +225,9 @@ private:
         g_.stopMusic();
         d_.clear(d_.screen());
         map_.setUp();
+        if (newGame_.empty()) {
+            newGame_ = saves_.contents();
+        }
         world_.goTo(kStartRoom, kStartPlace);
         world_.setClock(kStartClock);
         world_.setU8(kPalaceOrnithopters, static_cast<std::uint8_t>(world_.u8(kPalaceOrnithopters) + 1));
@@ -473,6 +513,9 @@ private:
             }
             return true;
         }
+        if (over_) {
+            return endCommand(action, phrase);
+        }
         if (noticeShown_) {
             if (action == kGoOn) {
                 endNotice();
@@ -611,6 +654,10 @@ private:
             arrive();
             return;
         }
+        if (flight_.caught) {
+            gameOver(kCaught);
+            return;
+        }
         if (flight_.notice != Flight::Notice::None && !noticeShown_) {
             showNotice();
         }
@@ -671,6 +718,183 @@ private:
             openOrnament();
         }
         lit_ = -1;
+    }
+
+    // --- The end of the game
+
+    // The sky flashes three times, then the video of Paul's death; over its
+    // last picture, the face of who tells of it, in its frame, and the
+    // words; the clock shows the last day.
+    void gameOver(int reason) {
+        over_ = true;
+        overReason_ = reason;
+        flashSky();
+        g_.closeVideo();
+        flight_.stop();
+        noticeShown_ = false;
+        talk_.endRemark();
+        clockRunning_ = false;
+        world_.setClock(kEndClock);
+        flight_.playVideo(kDeathVideo);
+
+        // The frame: filled, then its edge, then the face in it.
+        const ProgramFile& program = g_.resources().program();
+        d_.targetBack();
+        const ClipRect frame{program.dataU16(kEndFrame), program.dataU16(kEndFrame + 2), program.dataU16(kEndFrame + 4),
+                             program.dataU16(kEndFrame + 6)};
+        Surface& to = d_.back();
+        const int o = d_.originRows();
+        const std::uint8_t edge = program.dataU8(kEndFrame + 8);
+        to.fillRect(frame.left, frame.top + o, frame.right - frame.left, frame.bottom - frame.top,
+                    program.dataU8(kEndFrame + 9));
+        to.fillRect(frame.left, frame.top + o, frame.right - frame.left, 1, edge);
+        to.fillRect(frame.left, frame.bottom - 1 + o, frame.right - frame.left, 1, edge);
+        to.fillRect(frame.left, frame.top + o, 1, frame.bottom - frame.top, edge);
+        to.fillRect(frame.right - 1, frame.top + o, 1, frame.bottom - frame.top, edge);
+        const auto face = static_cast<std::int8_t>(program.dataU8(kEndFaces + static_cast<std::size_t>(reason)));
+        if (face >= 0) {
+            g_.selectSheet(resource::kFirstPortrait + face);
+            const int count = static_cast<int>(g_.sheet().size());
+            g_.drawSprite(static_cast<std::uint16_t>(count - 3), frame.left + 1, frame.top + 1);
+            g_.drawSprite(static_cast<std::uint16_t>(count - 2), frame.left + 1, frame.top + 1);
+        }
+        if (!endFont_) {
+            endFont_ = Font::parse(g_.resources().load(resource::kFont), Font::Size::Large);
+        }
+        const std::string& words = panel_.phrases().at(static_cast<std::size_t>(kFirstEndPhrase + reason - 1));
+        const ClipRect box{kEndText.left, kEndText.top + o, kEndText.right, kEndText.bottom + o};
+        drawTextBox(to, *endFont_, words, box, kEndTextColour);
+        d_.flush();
+        d_.copyRect(d_.back(), d_.screen(), ClipRect{0, 0, 320, kSceneBottom});
+        panel_.drawClock(world_);
+        d_.targetScreen();
+        panel_.drawClock(world_);
+        d_.targetBack();
+        sayEnd();
+        endList_ = EndList::Main;
+        setEndCommands(kEndCommands);
+        showPointer(kArrowPointer);
+    }
+
+    // The words are said by the one who tells of the end, the two
+    // recordings in turn.
+    void sayEnd() {
+        const auto face = static_cast<std::int8_t>(
+            g_.resources().program().dataU8(kEndFaces + static_cast<std::size_t>(overReason_)));
+        if (face < 0) {
+            return;
+        }
+        g_.talker().playVoice(std::min<int>(face, 14), kEndVoice, endTake_ ? 1 : 0);
+        endTake_ = !endTake_;
+    }
+
+    void flashSky() {
+        // The sky's colours as the last room had them: those of a place's
+        // rooms while flying from it.
+        const bool inside = world_.inside() || world_.flying();
+        loadSky(skyOfTheHour(), d_.spare(), inside);
+        const int first = inside ? kInsideSkyFirst : kOutsideSkyFirst;
+        const int count = inside ? kInsideSkyCount : kOutsideSkyCount;
+        auto step = [&](int left) {
+            g_.waitTicks(kFlashStepTicks);
+            d_.fadeStep(first, count, left);
+        };
+        for (int i = 0; i < kFlashes; ++i) {
+            Palette& now = d_.palette();
+            loadSky(kFlashSky, now, inside);
+            for (int c = first; c < first + count; ++c) {
+                d_.markChanged(c);
+            }
+            d_.flush();
+            for (int left = 0x20; left >= 0x10; --left) {
+                step(left);
+            }
+        }
+        for (int left = 0x0F; left > 0; --left) {
+            step(left);
+        }
+    }
+
+    void setEndCommands(std::size_t table) {
+        const ProgramFile& program = g_.resources().program();
+        std::vector<Command> commands;
+        for (std::size_t at = table + 2; program.dataU16(at) != 0; at += 4) {
+            commands.push_back(Command{program.dataU16(at), program.dataU16(at + 2)});
+        }
+        panel_.setCommands(std::move(commands));
+        d_.targetScreen();
+        panel_.drawCommands();
+        d_.targetBack();
+        panel_.drawCommands();
+        lit_ = -1;
+    }
+
+    bool endCommand(std::uint16_t action, std::uint16_t phrase) {
+        switch (endList_) {
+        case EndList::Main:
+            if (action == kRestart) {
+                restart();
+            } else if (action == GlobeScreen::kLoad) {
+                endList_ = EndList::Load;
+                globe_.showLoadList();
+                lit_ = -1;
+            } else if (action == kLeave) {
+                endList_ = EndList::Leave;
+                setEndCommands(kLeaveCommands);
+            } else if (action == Talk::kWhat) {
+                endTake_ = !endTake_; // the same recording again
+                sayEnd();
+            }
+            return true;
+        case EndList::Leave:
+            if (action == kLeaveYes) {
+                quit_ = true;
+            } else if (action == kLeaveNo) {
+                endList_ = EndList::Main;
+                setEndCommands(kEndCommands);
+            }
+            return true;
+        case EndList::Load:
+            if (action == GlobeScreen::kCancel) {
+                endList_ = EndList::Main;
+                setEndCommands(kEndCommands);
+            } else if (action == GlobeScreen::kLoadSlot && globe_.loadSlot(phrase)) {
+                resumeGame();
+            }
+            return true;
+        }
+        return true;
+    }
+
+    // "RESTART GAME": another video, then a new game.
+    void restart() {
+        g_.talker().halt();
+        g_.stopSound();
+        flight_.playVideo(kRestartVideo);
+        saves_.restore(newGame_);
+        over_ = false;
+        start();
+    }
+
+    // A saved game was loaded: it goes on where it was.
+    void resumeGame() {
+        over_ = false;
+        g_.talker().halt();
+        g_.stopSound();
+        afterLoading();
+        d_.targetBack();
+        g_.forgetPalette();
+        panel_.drawAll();
+        panel_.setLayout(kWalkLayout);
+        panel_.drawClock(world_);
+        panel_.drawSlots(world_);
+        drawView();
+        d_.transition(Display::kDissolveScreen);
+        openOrnament();
+        startWaitingMusic();
+        clockRunning_ = true;
+        lastTick_ = g_.platform().ticks;
+        showPointer(kArrowPointer);
     }
 
     // The place is reached: the approach, or the ornithopter landing in
@@ -858,8 +1082,8 @@ private:
 
     // Puts sky `n`'s colours in `to`: from inside a room the colours of
     // the windows, from outside those of the sky; then the panel's.
-    void loadSky(int n, Palette& to) {
-        const bool inside = world_.inside();
+    void loadSky(int n, Palette& to) { loadSky(n, to, world_.inside()); }
+    void loadSky(int n, Palette& to, bool inside) {
         g_.selectSheetKeepPalette(resource::kSky + (inside ? 1 : 0));
         const SpriteView v = g_.sheet().sprite(static_cast<std::size_t>(n));
         Reader r(v.data);
@@ -1102,6 +1326,17 @@ private:
     bool endTalk_ = false;
     // A companion's remark or the cockpit's warning is shown.
     bool noticeShown_ = false;
+    // The game is over: why, which list of commands is shown, and which of
+    // the two recordings is said next.
+    bool over_ = false;
+    int overReason_ = 0;
+    enum class EndList { Main, Leave, Load };
+    EndList endList_ = EndList::Main;
+    bool endTake_ = false;
+    bool quit_ = false;
+    // The game as it starts, for starting again.
+    std::vector<std::uint8_t> newGame_;
+    std::optional<Font> endFont_;
     Surface ornamentStrip_{320, 200};
     bool clockRunning_ = false;
     std::uint32_t lastTick_ = 0;
