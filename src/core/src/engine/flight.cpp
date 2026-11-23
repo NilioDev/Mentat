@@ -255,7 +255,6 @@ void Flight::begin() {
 
 void Flight::show() {
     Display& d = g_.display();
-    const ProgramFile& program = g_.resources().program();
     paused = false;
     d.targetBack();
     drawCommands();
