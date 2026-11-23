@@ -53,6 +53,12 @@ constexpr std::uint16_t kContactTroops = 0x86CC; // the map's "contact Fremen tr
 constexpr std::size_t kRallied = 0x28;           // how many troops work for Paul
 constexpr std::size_t kReach = 0x1176;           // how far Paul reaches his troops
 constexpr int kLastFremenTroop = 0x43;
+constexpr std::uint16_t kFindProspectors = 0x5B1E;
+constexpr std::uint16_t kTakeOrnithopterFromMap = 0x42D9;
+constexpr std::size_t kGoThereList = 0x20DA;      // "go there flying an orni", "cancel"
+constexpr std::uint16_t kGoThereFlying = 0x50DB;
+constexpr std::size_t kRoomKind = 0x08;           // the kind of rooms Paul is in; 0xFF outside
+constexpr std::size_t kRoomNumber = 0x0B;
 constexpr std::size_t kNewMessages = 0x21E8;
 constexpr std::size_t kOldMessages = 0x21EC;
 constexpr std::size_t kLookAtMirror = 0x21F0;
@@ -1228,6 +1234,7 @@ private:
             }
             if (map_.active() && y < kSceneBottom) {
                 map_.click(x, y);
+                placeMenu();
             }
             if (globe_.active() && y < kSceneBottom) {
                 globe_.click(x, y);
@@ -1281,6 +1288,13 @@ private:
         }
         if (action == MapScreen::kToggle) {
             toggleMap();
+            return;
+        }
+        if (action == kTakeOrnithopterFromMap && map_.active() && !orders_.active()) {
+            // To the place's first room, and away from there.
+            world_.goTo((world_.room() & 0xFF00) | 1, world_.place());
+            toggleMap();
+            openCockpit();
             return;
         }
         if (action == Cockpit::kOpen && !cockpit_.active()) {
@@ -1574,6 +1588,21 @@ private:
             }
             return true;
         }
+        if (map_.active() && goingTo_ != 0) {
+            if (action == kGoThereFlying) {
+                goThereFlying();
+                return true;
+            }
+            if (action == Orders::kCancel) {
+                map_.hideLabel();
+                leavePlaceMenu();
+                return true;
+            }
+        }
+        if (map_.active() && action == kFindProspectors) {
+            findProspectors();
+            return true;
+        }
         if (map_.active() && spice_.shown()) {
             // The arrows move the small map; its middle puts the map back
             // on Paul under it.
@@ -1593,7 +1622,83 @@ private:
             contactTroops();
             return true;
         }
-        return map_.command(action);
+        const bool done = map_.command(action);
+        if (goingTo_ != 0 && map_.labelled() == 0) {
+            leavePlaceMenu(); // the label went with the view
+        }
+        return done;
+    }
+
+    // "Find prospectors": the map moves to the prospectors' troop, whose
+    // orders open when Paul can reach it and the small map is not open.
+    void findProspectors() {
+        constexpr int kProspectors = 3;
+        orders_.setLastTroop(kProspectors);
+        const std::size_t t = World::troopRecord(kProspectors);
+        map_.hideBox();
+        map_.hideLabel();
+        map_.centreOn(world_.u16(t + 6), static_cast<std::int16_t>(world_.u16(t + 8)));
+        if (spice_.shown()) {
+            spice_.redraw();
+            return;
+        }
+        const bool here = !(world_.u8(t + 3) & 0x40) && world_.inside() &&
+                          world_.u16(t + 4) == World::placeRecord(world_.place() >> 8);
+        if (world_.u16(kReach) > 1 || here) {
+            contactTroops();
+        }
+    }
+
+    // A place's label on the map: from a sietch, or near the entrance
+    // elsewhere, Paul may fly there; the map's commands come back when the
+    // label goes.
+    void placeMenu() {
+        const std::size_t place = map_.labelled();
+        const std::size_t here = world_.inside() ? World::placeRecord(world_.place() >> 8) : 0;
+        if (place != 0 && place != here && !orders_.active() && !spice_.shown()) {
+            const int kind = world_.u8(kRoomKind);
+            if (kind != 0xFF && here != 0 && (world_.u8(kRoomNumber) <= 2 || kind < 0x20)) {
+                std::vector<Command> list{commandAt(kGoThereList + 2), commandAt(kGoThereList + 6)};
+                if (!list.empty() && world_.freeEquipment(here)[1] == 0) {
+                    list[0].phrase = static_cast<std::uint16_t>(list[0].phrase | Command::kGrey);
+                }
+                goingTo_ = place;
+                showCommands(std::move(list));
+                return;
+            }
+        }
+        leavePlaceMenu();
+    }
+
+    void leavePlaceMenu() {
+        if (goingTo_ == 0) {
+            return;
+        }
+        goingTo_ = 0;
+        showCommands(map_.commands());
+    }
+
+    void showCommands(std::vector<Command> list) {
+        panel_.setCommands(std::move(list));
+        d_.targetScreen();
+        panel_.drawCommands();
+        d_.targetBack();
+        panel_.drawCommands();
+        lit_ = -1;
+    }
+
+    // "Go there flying an orni": from the place's first room, away to the
+    // place of the label.
+    void goThereFlying() {
+        const std::size_t to = goingTo_;
+        goingTo_ = 0;
+        map_.hideLabel();
+        world_.goTo((world_.room() & 0xFF00) | 1, world_.place());
+        toggleMap();
+        Cockpit::Destination d;
+        d.chosen = true;
+        d.record = to;
+        launch(d);
     }
 
     // "Contact Fremen troops" on the map: the orders of the troop at Paul's
@@ -1684,6 +1789,11 @@ private:
     void flyTo(const Cockpit::Destination& to) {
         cockpit_.confirm();
         cockpit_.leave();
+        launch(to);
+    }
+
+    // The ornithopter flies to `to`: it takes off first unless flying.
+    void launch(const Cockpit::Destination& to) {
         if (to.record != 0) {
             flight_.setDestination(to.record);
         } else {
@@ -2072,6 +2182,7 @@ private:
             return;
         }
         spice_.forget();
+        goingTo_ = 0;
         map_.leave();
         d_.targetBack();
         panel_.setLayout(kWalkLayout);
@@ -2524,6 +2635,7 @@ private:
     World::People people_;
     std::size_t chief_ = 0; // which of the chiefs here Paul talks to
     int walkingTo_ = 0;     // the room Paul went for when someone spoke up
+    std::size_t goingTo_ = 0; // the place of the label while "go there" is offered
     bool takingOff_ = false;
     bool endTalk_ = false;
     // A companion's remark or the cockpit's warning is shown.

@@ -185,11 +185,17 @@ The map's commands are kept at data offset `0x20F2`: two bytes, then
   first troop has its byte 3 below `0x80`. Otherwise it keeps its phrase,
   greyed while the map shows no troop's mark.
 - The third, the spice density, is greyed until the story (state byte
-  `0x2A`) reaches 5; until then there is no fifth command.
+  `0x2A`) reaches 5; until then there is no fifth command, "find
+  prospectors".
   The spice density opens the map of the regions, see
   [spice_map.md](spice_map.md).
-- The fourth, taking an ornithopter, is greyed (taking one from the map
-  is not built yet).
+- The fourth, taking an ornithopter, is greyed when the kind of rooms
+  Paul is in (state byte 8) is `0xFF` (outside), or is `0x20` or more
+  (the palace, a village, a fort) while his room (byte `0x0B`) is 3 or
+  more; otherwise when no ornithopter (kind 1 of the equipment, see
+  [orders.md](orders.md#modifying-the-equipment)) is free at his place.
+  Used, Paul goes to his place's first room, the map closes, and he takes
+  an ornithopter as from that room (see [cockpit.md](cockpit.md)).
 
 The second command, "contact Fremen troops" (action `0x86CC`), does
 nothing while no troop works for Paul (state byte `0x28` is 0). Otherwise
@@ -199,6 +205,12 @@ while Paul reaches no further than 1 (word `0x1176`, see
 troop last given orders when the map marks it, else the troop the map
 marks that "next troop" would come to from none. Troops numbered above
 `0x43` are not given orders.
+
+The fifth, "find prospectors" (action `0x5B1E`), makes the
+prospectors' troop (troop 3) the one last given orders and moves the
+view's middle to its point. Unless the small map of the regions is open,
+its orders then open as for "contact Fremen troops", when Paul reaches
+further than 1 or the troop is not on the move and at his place.
 
 "EXIT MAPS" has action `0x186B` again: it closes the map. The room is
 drawn as on entering it, with the panel's walking layout, and the screen
@@ -237,7 +249,20 @@ the place whose label is shown, or away from every place, takes the
 label away by copying its rectangle from the back buffer to the screen.
 Moving the view, its middle and leaving the map take it away too.
 
-What a click on a place does while Paul is in a sietch is not built yet.
+### Going there
+
+A click that shows the label of a place other than Paul's, while he is
+in a sietch or in the first two rooms of another place (byte `0x0B`
+from 1 to 2), replaces the map's commands with the list at `0x20DA`: "go
+there flying an orni" (action `0x50DB`), greyed when no ornithopter is
+free at his place, and "cancel". "Cancel", or the label going, brings
+the map's commands back. "Go there flying" takes Paul to his place's
+first room, closes the map, and the ornithopter takes off for the
+place as when it is chosen in the cockpit (see [flight.md](flight.md)).
+
+Outside (byte 8 is `0xFF`), once the state's byte `0x0A` has bit 6, the
+list is the one at `0x20E6` instead, "go there riding a worm"; Mentat
+has no way outside yet.
 
 ### Its size
 

@@ -405,7 +405,7 @@ std::size_t World::equipmentSource(std::size_t from, int kind) const {
             }
         }
         if (p == u16(kHomeWord) && u8(kStoryStep) < 0x50 && counts[1] > 0) {
-            --counts[1]; // a harvester stays at home
+            --counts[1]; // an ornithopter stays at home
         }
         if (counts[k] == 0) {
             continue;

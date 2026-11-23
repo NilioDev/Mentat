@@ -57,6 +57,8 @@ public:
     // A click on the map at (x, y): the label of the place nearest to it,
     // or the label shown goes.
     void click(int x, int y);
+    // The map's own commands, greyed as they can be used now.
+    std::vector<Command> commands() const;
     // The place whose label is shown, 0 for none.
     std::size_t labelled() const { return labelled_; }
     // Where the label is on the screen.
@@ -148,7 +150,6 @@ private:
     bool knownInside(std::size_t record) const;
     int battle(std::size_t record) const;
     void playerPoint(std::uint16_t& longitude, int& latitude) const;
-    std::vector<Command> commands() const;
     // Where map point (longitude, latitude) is on the screen.
     void toScreen(std::uint16_t longitude, int latitude, int& x, int& y) const;
     bool inView(int x, int y) const;

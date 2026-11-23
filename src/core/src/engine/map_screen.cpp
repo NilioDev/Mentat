@@ -35,6 +35,8 @@ constexpr std::size_t kMapArrows = 0x1CCA;
 constexpr std::size_t kMapCommands = 0x20F2;
 constexpr std::uint16_t kGiveOrders = 0x93; // while Paul leads no more than one troop
 constexpr std::uint16_t kTakeOrnithopter = 0xA7;
+constexpr std::size_t kRoomKind = 0x08; // the kind of rooms Paul is in; 0xFF outside
+constexpr std::size_t kRoomNumber = 0x0B; // the room Paul is in, from 1
 constexpr int kSpiceDensityProgress = 5;
 constexpr std::size_t kProgress = 0x2A;
 
@@ -411,9 +413,15 @@ std::vector<Command> MapScreen::commands() const {
         list[2].phrase = static_cast<std::uint16_t>(list[2].phrase | Command::kGrey);
         list.resize(4);
     }
-    // Taking an ornithopter from the map: not yet.
+    // Taking an ornithopter: in a sietch, or near the entrance of the
+    // palace or a village, when one is free at Paul's place.
     if (list.size() > 3) {
-        list[3].phrase = kTakeOrnithopter | Command::kGrey;
+        const int kind = world_.u8(kRoomKind);
+        bool usable = kind != 0xFF && (kind < 0x20 || world_.u8(kRoomNumber) < 3) && world_.inside();
+        if (usable) {
+            usable = world_.freeEquipment(World::placeRecord(world_.place() >> 8))[1] != 0;
+        }
+        list[3].phrase = usable ? kTakeOrnithopter : static_cast<std::uint16_t>(kTakeOrnithopter | Command::kGrey);
     }
     return list;
 }

@@ -1170,13 +1170,13 @@ MTT_TEST("world: a troop fetches equipment from the nearest place that has it fr
     for (int n = 1; World::troopRecord(n) < 0xFBB; ++n) {
         w.setU8(World::troopRecord(n) + 3, 0xA0); // nobody's
     }
-    auto place = [&](int n, int kind, int lon, int harvesters) {
+    auto place = [&](int n, int kind, int lon, int ornithopters) {
         const std::size_t p = World::placeRecord(n);
         w.setU8(p, static_cast<std::uint8_t>(n));
         w.setU8(p + 8, static_cast<std::uint8_t>(kind));
         w.setU16(p + 2, static_cast<std::uint16_t>(lon));
         w.setU16(p + 4, 0x40);
-        w.setU8(p + 0x15, static_cast<std::uint8_t>(harvesters));
+        w.setU8(p + 0x15, static_cast<std::uint8_t>(ornithopters));
         return p;
     };
     const std::size_t home = place(3, 0x01, 0x1000, 0);
@@ -1187,7 +1187,7 @@ MTT_TEST("world: a troop fetches equipment from the nearest place that has it fr
     w.setU16(World::placeRecord(8), 0xFFFF);
     MTT_CHECK(w.equipmentSource(home, 1) == village);
     MTT_CHECK(w.equipmentSource(home, 0) == 0);
-    // At Paul's home a harvester stays until step 0x50.
+    // At Paul's home an ornithopter stays until step 0x50.
     w.setU16(0x1150, static_cast<std::uint16_t>(village));
     w.setU8(0x2A, 0x10);
     MTT_CHECK(w.equipmentSource(home, 1) == sietch);
@@ -1200,7 +1200,7 @@ MTT_TEST("world: a troop fetches equipment from the nearest place that has it fr
     w.setU8(other + 0x0E, 1);
     MTT_CHECK(w.equipmentSource(home, 1) == sietch);
 
-    // Troop 1 goes to the sietch (at its own point) for a harvester.
+    // Troop 1 goes to the sietch (at its own point) for an ornithopter.
     w.setU16(sietch + 2, 0x1000);
     const std::size_t t = World::troopRecord(1);
     w.setU8(t, 1);

@@ -154,7 +154,7 @@ ecology. When it holds them all, the orders come back and the chief
 answers in situation `0x0F`. Otherwise word `0x1203` takes `0xE8` + k.
 
 When the troop's own place has a piece of that kind free (as for
-modifying the equipment; two for a harvester, kind 1, at Paul's home,
+modifying the equipment; two for an ornithopter, kind 1, at Paul's home,
 word `0x1150`), the troop takes it there and then, as if given it by
 modifying the equipment.
 
@@ -168,7 +168,7 @@ is `0x32` or more, and from kind `0x21` on it counts a quarter. Of the
 nearer ones, a place with a piece of the kind free, after taking off
 one for each troop on the move there for that kind (byte 3 with bits 0,
 1 and 6, word 4 the place, word `0x0C` not the place, byte `0x0E` the
-kind) and, at Paul's home before story step `0x50`, one harvester
+kind) and, at Paul's home before story step `0x50`, one ornithopter
 (never below 0).
 
 With none, the orders come back and the chief answers in situation
@@ -248,7 +248,7 @@ back in the same hour may not show; Mentat keeps the counts as clicked.
 "Done": both boxes are taken off the screen, the troop's byte `0x19`
 takes the pieces it holds (bit 0 clear), and its mark is found again. The
 state's byte `0x3D` becomes the bits it gained, `0x3E` those it gave
-back, and `0x3F` is `0x40` when it gained a harvester (bit 6) at Paul's
+back, and `0x3F` is `0x40` when it gained an ornithopter (bit 6) at Paul's
 home (`0x1150`), else 0. A troop in ecology (occupation 8) has its ability
 to work checked (below). Then the state learns the troop, the situation
 at `0x23` becomes `0x0C`, and the chief answers with the first line of his
