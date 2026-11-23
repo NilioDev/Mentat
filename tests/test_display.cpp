@@ -128,6 +128,16 @@ MTT_TEST("display: the sparkle brings the picture 150 steps a tick") {
     MTT_CHECK(p.screen.at(0, 0) == 2 && p.screen.at(319, 151) == 2);
 }
 
+MTT_TEST("display: the slide brings the new picture down from the top a row each 6 ticks") {
+    Platform p;
+    Display d(p, tables());
+    prepareChange(d);
+    const std::uint32_t ticks = runGame(p, [&] { d.transition(Display::kSlideDown); });
+    // 152 rows, one every 6 ticks, or two when it falls behind.
+    MTT_CHECK(ticks >= 456 && ticks <= 930);
+    MTT_CHECK(p.screen.at(0, 0) == 2 && p.screen.at(319, 151) == 2);
+}
+
 MTT_TEST("display: the transitions in a rectangle end on the back picture there only") {
     Platform p;
     Display d(p, tables());

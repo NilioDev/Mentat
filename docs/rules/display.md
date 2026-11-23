@@ -46,6 +46,7 @@ picture is copied to the screen and the changed colours are sent.
 | `0x26` | **Short mosaic.** As `0x06` with blocks of 2 and 4 out, then 4 and 2 in. |
 | `0x28` | **Fine mosaic.** As `0x06` with blocks of 2 three times out, then 2 in. |
 | `0x08` | **Sparkle.** The 152 rows at the origin, counted as one run of pixels, come from the back picture in an order that looks random: a 16-bit number starts at 1; each step copies the pixel it names and the one 0x7FFE further on (when that is still in the rows), then shifts the number right by one, mixing in `0x4400` with exclusive or when the bit shifted out was 1. When the number is 1 again (32 767 steps), pixel 0 is copied. 150 steps a tick, about 218 ticks. |
+| `0x22` | **Slide down.** The new picture comes down from the top over the 152 rows at the origin, pushing the old one down and out: a row more every 6 ticks, two when the ticks have run past the time for the row. |
 | `0x10` | **Dissolve.** The 152 rows at the origin are blacked out through a 4 × 4 pattern: 16 steps, each doing one place of the pattern in every 4 × 4 block. Then the changed colours are sent and 16 more steps show the back picture through the same pattern. About 96 ticks. |
 | `0x30` | **Cut.** The changed colours are sent and the 152 rows at the origin are copied from the back picture. |
 | `0x34` | **Dissolve of the whole screen.** As `0x10`, but over all 200 rows. |

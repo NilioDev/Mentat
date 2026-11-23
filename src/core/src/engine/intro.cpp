@@ -14,6 +14,7 @@
 #include "mentat/gfx/sprite_sheet.hpp"
 
 #include <algorithm>
+#include <functional>
 #include <optional>
 #include <cstdio>
 #include <string>
@@ -151,6 +152,51 @@ constexpr int kGlobeFrameX = 0x5B;
 constexpr int kGlobeFrameY = 0x14;
 constexpr ClipRect kGlobeArea{96, 15, 235, 135};
 
+// --- The cast, after the end of the story (see docs/rules/story_scenes.md)
+
+// Each page is drawn with the scene 18 rows down, its name written under
+// it in the large letters, and shown for 600 ticks.
+constexpr int kCastOrigin = 18;
+constexpr std::size_t kCastNames = 0x120; // the command text's entry for page 0
+constexpr int kCastNameX = 10;
+constexpr int kCastNameY = 157;
+constexpr int kCastPageTicks = 600;
+constexpr int kLargeLetters = 0x13; // sprite n is the letter 0x20 + n
+constexpr int kLetterGap = 2;
+constexpr int kLineGap = 10;
+constexpr int kEndPictures = 0x1E;
+constexpr int kWithSprite = 5;
+constexpr int kOpenSkyRoom = 0x1005;
+
+enum class CastPage { With, Paul, Room, Baron, Video, Couple };
+
+struct CastEntry {
+    CastPage page;
+    int room;
+    int place;
+    int face;
+    int shiftRight;
+};
+
+constexpr CastEntry kCast[] = {
+    {CastPage::With, 0, 0, 0, 0},
+    {CastPage::Paul, 0, 0, 0, 0},
+    {CastPage::Room, 0x200A, 0x0180, 0, 0},   // Leto
+    {CastPage::Room, 0x2003, 0x0180, 1, 0},   // Jessica
+    {CastPage::Room, 0x2006, 0x0180, 4, 0},   // Gurney
+    {CastPage::Room, 0x2004, 0x0180, 3, 0},   // Duncan
+    {CastPage::Room, 0x3002, 0x0280, 11, 0},  // the Emperor
+    {CastPage::Room, 0x0703, 0x1180, 8, 0},   // Harah
+    {CastPage::Room, 0x2008, 0x0180, 2, 0},   // Thufir
+    {CastPage::Room, 0x0802, 0x1080, 5, 0},   // Stilgar
+    {CastPage::Baron, 0, 0, 0, 0},
+    {CastPage::Room, 0x3002, 0x0280, 10, 0x3A}, // Feyd
+    {CastPage::Room, 0x0803, 0x1080, 7, 0},   // Chani
+    {CastPage::Room, 0x1005, 0x3F80, 6, 0},   // Kynes
+    {CastPage::Video, 0, 0, 0, 0},
+    {CastPage::Couple, 0, 0, 0, 0},
+};
+
 struct Step {
     std::uint16_t musicBefore; // music position to wait for before preparing
     std::uint16_t prepare;     // what is drawn in the back buffer
@@ -243,6 +289,47 @@ public:
         g_.closeVideo();
     }
 
+    // The cast after the end of the story: who played whom, each with a
+    // room and a face; the credits video; Paul and Chani. Then it waits
+    // for a key or a click. `sky` is the sky of the hour.
+    void castList(int sky) {
+        font_.emplace(Font::parse(g_.resources().load(resource::kFont)));
+        text_.emplace(StringTable::parse(g_.resources().load(resource::kFirstCommands + commandFile(language_))));
+        resetStep();
+        // Nobody stands in the rooms but their own people.
+        Places& places = g_.places();
+        places.absent = 0;
+        places.moreChiefs = 0;
+        places.standingList.clear();
+        places.personOf = {};
+        d_.targetBack();
+        d_.clear(d_.back());
+        d_.setOriginRows(kCastOrigin);
+        g_.playTrack(kCreditsTrack);
+        for (std::size_t page = 0; page < std::size(kCast); ++page) {
+            const CastEntry& e = kCast[page];
+            g_.talker().stop();
+            resetStep();
+            if (e.page == CastPage::Video) {
+                playCastVideo();
+            }
+            d_.beginPrepare();
+            d_.clear(d_.back());
+            drawCastPage(e, sky);
+            castName(text_->at(kCastNames + page));
+            d_.endPrepare();
+            d_.transition(Display::kFadeThroughBlack);
+            d_.targetBack();
+            g_.waitTicks(kCastPageTicks);
+        }
+        while (!g_.pollInput()) {
+            g_.platform().waitFrame();
+        }
+        g_.talker().halt();
+        resetStep();
+        d_.setOriginRows(0);
+    }
+
     StoryEnd story() {
         font_.emplace(Font::parse(g_.resources().load(resource::kFont)));
         text_.emplace(StringTable::parse(g_.resources().load(resource::kFirstCommands + commandFile(language_))));
@@ -278,6 +365,105 @@ public:
     }
 
 private:
+    void drawCastPage(const CastEntry& e, int sky) {
+        switch (e.page) {
+        case CastPage::With:
+            g_.selectSheet(kEndPictures);
+            g_.drawSprite(kWithSprite, 0x40, 0x34);
+            break;
+        case CastPage::Paul:
+            castSky(sky, true);
+            g_.places().drawSky();
+            g_.selectSheet(resource::kDesert);
+            g_.drawSprite(0, 0, 0x3C);
+            d_.saveBackground();
+            showCharacter(kPaulPortrait, 0, 1, 1);
+            break;
+        case CastPage::Room:
+            // Kynes' room under the open sky shows the sky seen from
+            // outside; the others the sky seen through their windows.
+            castSky(sky, e.room != kOpenSkyRoom);
+            showRoom(e.room, e.place, 0, e.room == kOpenSkyRoom ? [this] { g_.places().drawSky(); } : std::function<void()>{});
+            showCharacter(e.face, e.shiftRight, kLongMood);
+            break;
+        case CastPage::Baron:
+            g_.selectSheet(resource::kBackgrounds);
+            drawSpriteListAt(kBaronBackground);
+            d_.saveBackground();
+            showCharacter(9, 0x52, kLongMood);
+            break;
+        case CastPage::Video:
+            break;
+        case CastPage::Couple:
+            g_.selectSheet(kEndPictures);
+            for (std::uint16_t i = 0; i < 3; ++i) {
+                g_.drawSprite(i, 0, 0);
+            }
+            g_.talker().halt();
+            showPaulAndChani(g_);
+            break;
+        }
+    }
+
+    // The credits video, on the screen until its end.
+    void playCastVideo() {
+        d_.targetBack();
+        d_.clear(d_.back());
+        g_.openVideo(video::kCredits);
+        d_.showBack();
+        d_.flush();
+        while (!g_.videoDone()) {
+            if (g_.videoStep()) {
+                d_.showBack();
+            } else {
+                g_.platform().waitFrame();
+            }
+            g_.pollInput();
+        }
+        g_.closeVideo();
+    }
+
+    // The colours of the sky of the hour, as seen from a room (`inside`)
+    // or from outside.
+    void castSky(int sky, bool inside) {
+        const int first = inside ? 73 : 128;
+        const int count = inside ? 151 : 80;
+        g_.selectSheetKeepPalette(resource::kSky + (inside ? 1 : 0));
+        const SpriteView v = g_.sheet().sprite(static_cast<std::size_t>(sky));
+        Reader r(v.data);
+        r.skip(2);
+        const auto rgb = r.bytes(static_cast<std::size_t>(count) * 3);
+        for (int i = 0; i < count; ++i) {
+            const auto k = static_cast<std::size_t>(i) * 3;
+            d_.palette()[static_cast<std::size_t>(first + i)] = Colour{rgb[k], rgb[k + 1], rgb[k + 2]};
+            d_.markChanged(first + i);
+        }
+    }
+
+    // A page's name in the large letters; a line break goes 10 rows down.
+    void castName(const std::string& name) {
+        g_.selectSheet(kLargeLetters);
+        int x = kCastNameX;
+        int y = kCastNameY;
+        for (const char ch : name) {
+            auto c = static_cast<unsigned char>(ch);
+            if (c == 0x0D) {
+                x = kCastNameX;
+                y += kLineGap;
+                continue;
+            }
+            if (c >= 0x80) {
+                c = '@';
+            }
+            if (c < 0x20) {
+                continue;
+            }
+            const auto n = static_cast<std::uint16_t>(c - 0x20);
+            g_.drawSprite(n, x, y);
+            x += g_.sheet().sprite(n).header.width() + kLetterGap;
+        }
+    }
+
     void drawPage(int page) {
         switch (page) {
         case 1: space(0); break;
@@ -791,12 +977,12 @@ private:
 
     // Goes to a room and draws it, with `present` standing in it, as the
     // new background.
-    void showRoom(int room, int place, std::uint16_t present) {
+    void showRoom(int room, int place, std::uint16_t present, const std::function<void()>& background = {}) {
         g_.places().present = present;
         g_.places().enter(room, place);
         g_.indoors = true;
         g_.talker().stop();
-        g_.places().drawView();
+        g_.places().drawView(background);
         d_.saveBackground();
     }
 
@@ -1031,6 +1217,8 @@ int commandFile(int language) {
 IntroEnd runIntro(Game& game, int language) { return Intro(game, language).run(); }
 
 void runCredits(Game& game) { Intro(game, kEnglish).credits(); }
+
+void runCastList(Game& game, int language, int sky) { Intro(game, language).castList(sky); }
 
 StoryEnd runStory(Game& game, int language) { return Intro(game, language).story(); }
 

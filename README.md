@@ -70,7 +70,9 @@ and touch controls.
 > you click "Continue...". In the palace's message room you can view the
 news sent to you: the sender's hologram rises over the device and speaks.
 In the palace, the middle of the arrows shows a plan of its rooms and who
-is in them.
+is in them. Reach the Harkonnens' throne room and the story ends as the
+original's does: the last scene, "THE END" and the cast, after which the
+game starts again from its opening.
 The rest of the game is not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the

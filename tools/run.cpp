@@ -95,11 +95,12 @@ int main(int argc, char** argv) {
         game.fixedSeed = seed;
         IntroEnd end = IntroEnd::Finished;
         Fiber fiber([&] {
-            while ((end = runIntro(game, kEnglish)) == IntroEnd::Finished) {
-            }
-            runCredits(game);
-            runStory(game, kEnglish);
-            runGame(game, kEnglish);
+            do {
+                while ((end = runIntro(game, kEnglish)) == IntroEnd::Finished) {
+                }
+                runCredits(game);
+                runStory(game, kEnglish);
+            } while (runGame(game, kEnglish) == GameEnd::Won);
         });
         platform.fiber = &fiber;
         const std::filesystem::path out = argv[2];

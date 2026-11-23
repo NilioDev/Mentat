@@ -230,9 +230,6 @@ void Places::drawView(const std::function<void()>& background) {
         background();
     }
     const int code = roomByte();
-    if (code >= 0x80) {
-        throw FormatError("places: the outside views are not built yet");
-    }
     loadScenes();
     const RoomNumber number = RoomNumber::decode(code);
     if (number.pictureFile != 0) {

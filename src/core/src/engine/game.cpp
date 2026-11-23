@@ -16,7 +16,7 @@ Game::Game(Platform& platform, DatArchive& archive, const ProgramFile& program, 
            MusicSystem* music)
     : platform_(platform), resources_(archive, program), display_(platform, displayTables),
       sceneTables_(SceneTables::fromProgram(program)), music_(music), timersRan_(platform.ticks),
-      talker_(std::make_unique<Talker>(*this)), places_(std::make_unique<Places>(*this)) {}
+      talker_(std::make_unique<Talker>(*this)), companion_(std::make_unique<Talker>(*this)), places_(std::make_unique<Places>(*this)) {}
 
 Game::~Game() = default;
 
