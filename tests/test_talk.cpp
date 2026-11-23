@@ -673,3 +673,44 @@ MTT_TEST("talk: Duncan proposes a shipment for the Emperor and shows the amount"
     MTT_CHECK(panel.commands()[0].action == Talk::kTalkToMe);
     MTT_CHECK(w.u16(0xC0) == 700 && w.u16(0x1158) == 0xFFFF);
 }
+
+MTT_TEST("talk: the smuggler names his price, haggles and sells") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g, kEnglish);
+    FakeHost host;
+    Talk talk(g, w, panel, host, kEnglish);
+    talk.subtitles = Talk::Subtitles::Below;
+    const std::size_t s = 0x10D8;
+    w.setU8(0x2A, 0x20);
+    w.setU8(s + 1, 2);       // his patience
+    w.setU8(s + 4 + 1, 2);   // two of the second kind
+    w.setU8(s + 9 + 1, 60);  // at 1200 kilos
+    w.setU8(0x1141, 4);
+    w.setU16(0x11F1, 0xE8);
+    w.setU16(0x10B4, static_cast<std::uint16_t>(s));
+    w.setU16(0x114E, 0x200);
+    w.setU8(0x1E, 1);
+    w.random = [](int mask) { return 1 & mask; };
+    talk.start(13, -1, -1);
+    // His offer, then its price beside the face, as a question.
+    MTT_CHECK(talk.command(Talk::kTalkToMe) && w.u16(0x11F1) == 0xE9 && w.u8(0x9D) == 120);
+    MTT_CHECK(w.u8(0x2A) == 0x3C);
+    MTT_CHECK(talk.command(Talk::kTalkToMe) && talk.label() == "1200 kgs");
+    MTT_CHECK(panel.commands().size() == 4 && panel.commands()[1].action == Talk::kAccept);
+    // Argued with, he comes down an eighth and asks again.
+    MTT_CHECK(talk.command(Talk::kArgue) && w.u8(0x1A) == 1 && w.u8(0x9D) == 105);
+    for (int i = 0; i < 4 && panel.commands()[1].action != Talk::kAccept; ++i) {
+        talk.command(Talk::kTalkToMe);
+    }
+    MTT_CHECK(talk.label() == "1050 kgs");
+    // Accepted: on his bill, and in Paul's place.
+    MTT_CHECK(talk.command(Talk::kAccept) && w.u8(0x9F) == 1);
+    MTT_CHECK(w.u16(s + 0x0E) == 105 && w.u8(s + 5) == 1 && w.u8(0x200 + 0x15) == 1 && w.u8(0x22) == 1);
+}
