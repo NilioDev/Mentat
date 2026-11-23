@@ -192,6 +192,27 @@ void Orders::close() {
     map_.choose(0);
 }
 
+Talk::Box drawChiefBox(Game& game, const ClipRect& where, int face) {
+    const ProgramFile& program = game.resources().program();
+    const ClipRect frame{where.left + 4, where.top + 3, where.left + 4 + kFaceFrame, where.top + 3 + kFaceFrame};
+    Display& d = game.display();
+    for (Surface* to : {&d.screen(), &d.back(), &d.saved()}) {
+        drawFramed(*to, where, program.dataU8(kBoxColours), program.dataU8(kBoxColours + 1));
+        drawFramed(*to, frame, program.dataU8(kFaceColours), program.dataU8(kFaceColours + 1));
+    }
+    Talk::Box box;
+    box.face = ClipRect{frame.left + 1, frame.top + 1, frame.right - 1, frame.bottom - 1};
+    const std::size_t focus = kFocusTable + 4 * static_cast<std::size_t>(face - kFirstFremenFace);
+    box.focusX = static_cast<std::int16_t>(program.dataU16(focus));
+    box.focusY = static_cast<std::int16_t>(program.dataU16(focus + 2));
+    box.text = ClipRect{where.left + kTextLeft, where.top + 4, where.right - 6, where.bottom - 3};
+    box.fill = program.dataU8(kBoxColours + 1);
+    box.colour = kTextColour;
+    return box;
+}
+
+ClipRect chiefBoxHigh() { return ClipRect{kBoxLeft, kBoxHigh, kBoxRight, kBoxHigh + kBoxHeight}; }
+
 // The box goes where it leaves the troop's mark on the map in sight.
 void Orders::drawBox() {
     const std::size_t t = World::troopRecord(troop_);
@@ -212,24 +233,9 @@ void Orders::drawBox() {
         }
     }
     box_ = ClipRect{kBoxLeft, top, kBoxRight, top + kBoxHeight};
-    const ProgramFile& program = g_.resources().program();
-    const ClipRect frame{box_.left + 4, box_.top + 3, box_.left + 4 + kFaceFrame, box_.top + 3 + kFaceFrame};
-    Display& d = g_.display();
-    for (Surface* to : {&d.screen(), &d.back(), &d.saved()}) {
-        drawFramed(*to, box_, program.dataU8(kBoxColours), program.dataU8(kBoxColours + 1));
-        drawFramed(*to, frame, program.dataU8(kFaceColours), program.dataU8(kFaceColours + 1));
-    }
-
-    Talk::Box box;
-    box.face = ClipRect{frame.left + 1, frame.top + 1, frame.right - 1, frame.bottom - 1};
     int variant = 0;
     const int face = world_.troopFace(troop_, variant);
-    const std::size_t focus = kFocusTable + 4 * static_cast<std::size_t>(face - kFirstFremenFace);
-    box.focusX = static_cast<std::int16_t>(program.dataU16(focus));
-    box.focusY = static_cast<std::int16_t>(program.dataU16(focus + 2));
-    box.text = ClipRect{box_.left + kTextLeft, box_.top + 4, box_.right - 6, box_.bottom - 3};
-    box.fill = program.dataU8(kBoxColours + 1);
-    box.colour = kTextColour;
+    const Talk::Box box = drawChiefBox(g_, box_, face);
     talk_.startBox(kChief, face, variant, box);
 }
 

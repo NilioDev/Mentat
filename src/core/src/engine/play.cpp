@@ -194,6 +194,9 @@ constexpr std::uint16_t kEndingScene = 0x128F;
 constexpr int kEndPictures = 0x1E;
 constexpr int kFadeStepTicks = 0x10;
 constexpr int kSceneCloser = 0x0C;
+constexpr int kSceneSpiceMap = 0x0E;
+constexpr int kSceneChiefBox = 0x10;
+constexpr int kFirstFremenFace = 0x0E;
 // The pictures of those two steps: sprites of resource 0x27 over the room,
 // and the part of the room the second one enlarges.
 constexpr int kScenePictures = 0x27;
@@ -816,6 +819,29 @@ private:
                 talk_.endRemark();
                 scenePicture(true);
                 return;
+            case kSceneSpiceMap:
+                // The small map of the regions over the room, while the
+                // chief of the troops here speaks. Waits.
+                sceneMenu(kSceneTalkMenu);
+                talk_.endRemark();
+                g_.talker().halt();
+                talk_.sceneVoice(kChiefs);
+                // At the top left of the screen, over what the scene shows.
+                spice_.openFor(0, 0, 0);
+                return;
+            case kSceneChiefBox: {
+                // The map goes; the chief goes on in a box at the top, as
+                // when given orders. Waits.
+                if (spice_.shown()) {
+                    spice_.close();
+                }
+                sceneMenu(kSceneTalkMenu);
+                int variant = 0;
+                const int troop = world_.u8(World::placeRecord(world_.place() >> 8) + 9);
+                const int face = troop != 0 ? world_.troopFace(troop, variant) : kFirstFremenFace;
+                talk_.sceneBox(kChiefs, face, variant, drawChiefBox(g_, chiefBoxHigh(), face));
+                return;
+            }
             case kSceneEnd:
                 endScene();
                 return;
@@ -830,6 +856,12 @@ private:
     void endScene() {
         g_.removeTimer(kSceneBlinkTimer);
         talk_.endRemark();
+        if (talk_.inBox()) {
+            talk_.endBox();
+        }
+        if (spice_.shown()) {
+            spice_.close();
+        }
         scene_ = false;
         sceneStanding_.clear();
         world_.setU8(kRoomByte, static_cast<std::uint8_t>(sceneRoom_ & 0xFF));

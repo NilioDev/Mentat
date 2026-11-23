@@ -40,6 +40,8 @@ The steps (one byte, then what it takes):
 | 8 | | Waits. |
 | `0x0A` | | The commands become list `0x1FBA`. While the part of the day (the clock's low four bits) is below `0x0D`, an hour passes as it would (see [days.md](days.md)); the sky's colours then reach those of the hour at once. The room is drawn, kept as the background, and sprite 0 of resource `0x27` is drawn over it at (78, 33) (the list at data offset `0x2290`). Waits. |
 | `0x0C` | | The commands become list `0x1FBA`. The room is drawn, and the part from (0, 50) is enlarged at zoom level 3 (see [display.md](display.md#zoom)), without the panel's ornament, which is drawn over it again; then sprite 1 of resource `0x27` at (26, 4) (the list at `0x2298`). Waits. |
+| `0x0E` | | The commands become list `0x1FAE`. The small map of the regions (see [spice_map.md](spice_map.md)) opens at the top left of the screen, (0, 0), over what the scene shows, and the chief of the troops here (character 15) says the first line of his list 7 that may be said, with no face: only its recording is heard. Waits. |
+| `0x10` | | The small map closes. The commands become list `0x1FAE`. The chief goes on in the box a troop's chief talks in when given orders (see [orders.md](orders.md)), at the top of the screen, with the face of the troop at this place: the next line of his list 7 that may be said. Waits. |
 | `0x12` | room r, count n, n bytes | As step 0, but byte `0xE8` of the state becomes 0 and the panel's slots (word `0x1152`) `0xFFFF`. The room is drawn in the back picture with Paul and Chani's faces over it (below), and shown with a dissolve (transition `0x10`, see [display.md](display.md)). Goes on. |
 | `0x14` | | The end picture (below). Waits. |
 | `0x16` | | The cast (below); then the whole program starts again from its opening. |
@@ -95,8 +97,10 @@ name is entry `0x120` + n of the command text.
 After the last page the program waits for a key or a click, and starts
 again from its opening.
 
+In the original, after step `0x0E` the colours stay those of the small
+map, so the room and the panel look odd behind the box of step `0x10`;
+Mentat keeps the room's colours.
+
 ## Not built yet
 
-The other steps: `0x0E` and `0x10` (Paul's vision of the desert). They are
-passed over, so the scene at `0x12F8` shows little.
-Nor the scene's music.
+The scene's music.

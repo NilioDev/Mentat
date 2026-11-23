@@ -630,6 +630,58 @@ bool Talk::sceneLine(int c, int x, int y, int face, int variant) {
     return true;
 }
 
+bool Talk::sceneVoice(int c) {
+    endRemark();
+    character_ = c;
+    remark_ = true;
+    sceneLine_ = true;
+    game_.talker().halt();
+    subtitle_.shown = false;
+    pages_.clear();
+    resume_.reset();
+    finished_ = false;
+    const auto list = dialogue_.list(static_cast<std::size_t>(c * Dialogue::kListsPerCharacter + kSceneList));
+    if (!list) {
+        return false;
+    }
+    prepareCondition();
+    const auto found = dialogue_.find(*list, DialogueLine::kSaid, [this](int n) { return condition(n); });
+    if (!found) {
+        return false;
+    }
+    const DialogueLine line = dialogue_.line(*found);
+    lineFlags_ = line.flags;
+    take_ = 0;
+    phrase_ = line.phrase | kPhraseBit;
+    secondFile_ = dialogue_.inSecondFile(*found);
+    pageLine_ = *found;
+    if (subtitles == Subtitles::None) {
+        int who = 0;
+        int number = 0;
+        int variant = 0;
+        recording(who, number, variant);
+        game_.talker().playVoice(who, number, variant);
+    }
+    afterLine(*found);
+    return true;
+}
+
+bool Talk::sceneBox(int c, int face, int variant, const Box& box) {
+    endRemark();
+    startBox(c, face, variant, box);
+    const auto list = dialogue_.list(static_cast<std::size_t>(c * Dialogue::kListsPerCharacter + kSceneList));
+    if (!list) {
+        return false;
+    }
+    prepareCondition();
+    const auto found = dialogue_.find(*list, DialogueLine::kSaid, [this](int n) { return condition(n); });
+    if (!found) {
+        return false;
+    }
+    sayLine(*found, false);
+    return true;
+}
+
 bool Talk::news(int c, int x, int y) {
     endRemark();
     character_ = c;
@@ -950,17 +1002,26 @@ void Talk::speak() {
     if (mode_ == Subtitles::Below || character_ < 0 || character_ >= kNoFaceFrom) {
         return;
     }
+    int who = 0;
+    int number = 0;
+    int variant = 0;
+    recording(who, number, variant);
+    game_.talker().speak(number, variant, remark_ && !sceneLine_ ? -1 : who);
+}
+
+// Whose recording says the line said last, and which.
+void Talk::recording(int& who, int& number, int& variant) {
     // The recordings count each character's phrases from its first; the
     // remarks are counted from the first of the story's lines, after 999.
-    int who = std::min(character_, kLastRecordedCharacter);
-    const int number = remark_ && !sceneLine_ ? (phrase_ & ~0x0C00) - (dialogue_.firstPhrase(kEventCharacter) - 1) + kFirstRemarkRecording
-                               : (phrase_ & ~0x0C00) - (dialogue_.firstPhrase(who) - 1);
+    who = std::min(character_, kLastRecordedCharacter);
+    number = remark_ && !sceneLine_ ? (phrase_ & ~0x0C00) - (dialogue_.firstPhrase(kEventCharacter) - 1) + kFirstRemarkRecording
+                                    : (phrase_ & ~0x0C00) - (dialogue_.firstPhrase(who) - 1);
     if (who == kLastRecordedCharacter && (number & 0xFE) == 0x2C) {
         who = 0x0C;
     }
     game_.indoors = world_.inside() && (world_.room() & 0xFF) != kEntranceHall;
-    const int variant = ((number >> 12) & 0x0F) | take_;
-    game_.talker().speak(number & 0xFFF, variant, remark_ && !sceneLine_ ? -1 : who);
+    variant = ((number >> 12) & 0x0F) | take_;
+    number &= 0xFFF;
 }
 
 // --- Text

@@ -4,6 +4,7 @@
 // a box answering, and the orders as commands. See docs/rules/orders.md.
 #pragma once
 
+#include "mentat/engine/talk.hpp"
 #include "mentat/gfx/scene.hpp"
 #include "mentat/gfx/surface.hpp"
 
@@ -111,5 +112,13 @@ private:
     ClipRect heldBox_{};
     ClipRect freeBox_{};
 };
+
+// The box a troop's chief talks in (border and fill from data offset
+// 0x18E9, a framed place for the face at its left), drawn on the screen,
+// the back buffer and the saved background at `where`, for portrait
+// `face`; what Talk::startBox() needs to talk in it.
+Talk::Box drawChiefBox(Game& game, const ClipRect& where, int face);
+// The box at the top of the screen.
+ClipRect chiefBoxHigh();
 
 } // namespace mentat

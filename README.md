@@ -67,7 +67,8 @@ and touch controls.
 > story moves on, doors in the palace open, people move to other rooms,
 > new places become known and news arrives. At moments of the story a
 > scene plays: the family gathers in a room and each speaks in turn while
-> you click "Continue...". In the palace's message room you can view the
+> you click "Continue...". The first Fremen chief to work for you shows you the
+spice map and how it will be kept up to date. In the palace's message room you can view the
 news sent to you: the sender's hologram rises over the device and speaks.
 In the palace, the middle of the arrows shows a plan of its rooms and who
 is in them. Reach the Harkonnens' throne room and the story ends as the
