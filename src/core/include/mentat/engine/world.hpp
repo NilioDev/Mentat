@@ -75,6 +75,21 @@ public:
     // A hidden place is found: shown on the maps from now on, and counted
     // when it is a sietch.
     void findPlace(std::size_t record);
+
+    // --- The story (see docs/rules/story_steps.md)
+    // The story moves on to `step` when that is past the step reached: the
+    // story's lines run (storyEvents), then what the step itself changes.
+    // Returns whether it moved on.
+    bool raiseStory(int step);
+    std::function<void()> storyEvents;
+    // A way between rooms opened or closed: the arrows are to be set again.
+    bool roomsChanged = false;
+    // A scene the story starts (its script's place in the program's code),
+    // waiting to be played; 0 when none. Scenes are not built yet.
+    std::uint16_t scene = 0;
+    // At step 0x14, while flying with nobody along, after a long quiet:
+    // the story moves to 0x15 and the first message is left.
+    void quietAtStep14();
     // The word for a kind of place (byte 8), counted from "a sietch": 0 a
     // sietch, 1 a palace, 2 a village, 3 a fortress.
     static int kindWord(int kind);
@@ -178,6 +193,11 @@ public:
     int gameOverReason = 0;
     // The chiefs' messages waiting: a count, then (message, place) words.
     static constexpr std::size_t kMessageQueue = 0x1190;
+    // Who goes with Paul (bit n for character n), the byte that says what
+    // kind of rooms he is in, and its value outside (or flying).
+    static constexpr std::size_t kAwayWord = 0x10;
+    static constexpr std::size_t kPlaceKindByte = 0x08;
+    static constexpr std::uint8_t kOutside = 0xFF;
     bool firstMessage(std::uint16_t& message, std::uint16_t& place) const;
     void dropMessage();
     // Turns the state's word 0 one bit left; true for the bit that came
@@ -267,6 +287,9 @@ private:
     void harkonnensGrow();
     void sendNews(std::uint16_t news);
     void emperorsDemand();
+    void newDemand();
+    void storyStep(int step);
+    void strongestFort();
     void harkonnensAttack(FlatMap& map);
     void paulsPlace();
     void lowerSpirits(std::size_t troop, int by);

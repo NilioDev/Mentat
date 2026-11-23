@@ -166,7 +166,9 @@ int Talk::characterOf(std::uint16_t action) {
 Talk::Talk(Game& game, World& world, Panel& panel, TalkHost& host, int language)
     : game_(game), world_(world), panel_(panel), host_(host), language_(language),
       dialogue_(Dialogue::parse(game.resources().load(kDialogueFile))),
-      conditions_(Conditions::parse(game.resources().load(kConditionsFile))) {}
+      conditions_(Conditions::parse(game.resources().load(kConditionsFile))) {
+    world_.storyEvents = [this] { runEvents(); };
+}
 
 const PhraseFile& Talk::phrases(bool second) {
     auto& slot = phrases_[second ? 1 : 0];
@@ -442,7 +444,10 @@ void Talk::runAction(const DialogueLine& line) {
     case 7: answer_ = 0x80; break;
     case 11:
         if (!line.said()) {
-            raiseProgress(world_.u8(kProgress) + 1);
+            // One step on: the story's lines run, but no step's own changes.
+            world_.setU8(kProgress, static_cast<std::uint8_t>(world_.u8(kProgress) + 1));
+            world_.setU8(kProgressDone, 0);
+            runEvents();
             if (world_.u8(kProgress) == 1) {
                 world_.setU8(kFirstStoryMark, 1);
             }
@@ -470,15 +475,10 @@ void Talk::runAction(const DialogueLine& line) {
     }
 }
 
-// The story moves on: the new step, and its lines run.
+// The story moves on: the new step, its lines run, and what the step
+// changes (see World::raiseStory).
 void Talk::raiseProgress(int to) {
-    if (to <= world_.u8(kProgress)) {
-        return;
-    }
-    world_.setU8(kProgress, static_cast<std::uint8_t>(to));
-    world_.setU8(kProgressDone, 0);
-    runEvents();
-    // Each step of the story also has its own handler; not built yet.
+    world_.raiseStory(to);
 }
 
 void Talk::runEvents() {

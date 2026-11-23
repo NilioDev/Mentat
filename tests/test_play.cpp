@@ -10,6 +10,8 @@
 #include "mentat/engine/platform.hpp"
 #include "mentat/engine/world.hpp"
 
+#include <optional>
+
 using namespace mentat;
 
 MTT_TEST("world: a new game starts in the throne room with Leto") {
@@ -67,4 +69,35 @@ MTT_TEST("panel: the zones, the arrows of a room and the command lines") {
     MTT_CHECK(s.at(0x5D, z[Panel::kCommandLines + 2].top + 1) == 0xFA); // lit: the background in the text colour
     MTT_CHECK(s.at(0xE2, z[Panel::kCommandLines].top + 1) == 0xF3);
     MTT_CHECK(s.at(0xE3, z[Panel::kCommandLines].top + 1) == 0);
+}
+
+MTT_TEST("story: a step opens the way to the message room and moves people") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
+    World w(*program);
+    g.places().stateByte = [&w](std::size_t at) -> std::optional<std::uint8_t> {
+        if (at < World::kSize) {
+            return w.u8(at);
+        }
+        return std::nullopt;
+    };
+    int events = 0;
+    w.storyEvents = [&events] { ++events; };
+    g.places().enter(0x2007, 0x0180);
+    MTT_CHECK(static_cast<std::int8_t>(g.places().exits()[3]) < -5); // shut
+    MTT_CHECK(!w.raiseStory(0));
+    MTT_CHECK(w.raiseStory(0x0C) && events == 1 && w.u8(0x2A) == 0x0C);
+    MTT_CHECK(w.roomsChanged && w.scene != 0);
+    MTT_CHECK(g.places().exits()[3] == 8);
+    g.places().enter(0x2008, 0x0180);
+    MTT_CHECK(g.places().exits()[1] == 7);
+    // Step 0x10 sends Leto to room 5 and news from the Emperor.
+    MTT_CHECK(w.raiseStory(0x10) && (w.u16(0xFD8) & 0xFF) == 5);
+    MTT_CHECK(w.u8(0xC8) == 1 && w.u16(0x1179) == 0x010B);
+    g.places().stateByte = {};
 }
