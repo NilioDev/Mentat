@@ -85,7 +85,7 @@ ClipRect Talker::clipped(ClipRect r) const {
     return r;
 }
 
-void Talker::show(int character, int shiftRight, int variant, int mood) {
+void Talker::show(int character, int shiftRight, int variant, int mood, int shiftDown) {
     if (character != character_ || box_) {
         shownPieces_.clear();
     }
@@ -101,6 +101,8 @@ void Talker::show(int character, int shiftRight, int variant, int mood) {
         area_.left += shiftRight;
         area_.right = std::min(area_.right + shiftRight, 320);
     }
+    shiftDown_ = shiftDown;
+    area_.top += shiftDown;
     mood_ = mood;
 
     startSequence();
@@ -129,7 +131,7 @@ void Talker::startSequence() {
         anim_->skipFrames(next_, kVariantSkip);
     }
     sequenceStart_ = next_;
-    if (!timerRunning_) {
+    if (!timerRunning_ && !follower_) {
         timerRunning_ = true;
         game_.addTimer(kAnimationTimer, kFrameTicks, [this] { tick(); });
     }
@@ -218,6 +220,9 @@ void Talker::playFrame() {
 }
 
 void Talker::tick() {
+    if (companion_ != nullptr) {
+        companion_->tick();
+    }
     select();
     if (!active_) {
         return;
@@ -282,7 +287,7 @@ void Talker::restart(int mood) {
         drawFrame(anim_->readFrame(at), true);
         return;
     }
-    show(character_, shiftRight_, variant_, mood);
+    show(character_, shiftRight_, variant_, mood, shiftDown_);
 }
 
 void Talker::redraw() {
@@ -311,6 +316,19 @@ void Talker::halt() {
     character_ = -1;
     shownPieces_.clear();
     box_.reset();
+    if (companion_ != nullptr) {
+        Talker* companion = companion_;
+        companion_ = nullptr;
+        companion->halt();
+        companion->follower_ = false;
+    }
+}
+
+void Talker::setCompanion(Talker* companion) {
+    companion_ = companion;
+    if (companion != nullptr) {
+        companion->follower_ = true;
+    }
 }
 
 bool Talker::speak(int phrase, int variant, int speaker) {
@@ -462,6 +480,29 @@ void Talker::stop() {
         timerRunning_ = false;
         game_.removeTimer(kAnimationTimer);
     }
+    if (companion_ != nullptr) {
+        Talker* companion = companion_;
+        companion_ = nullptr;
+        companion->stop();
+        companion->follower_ = false;
+    }
+}
+
+void showPaulAndChani(Game& game) {
+    constexpr int kChani = 7;
+    constexpr int kChaniDown = 15;
+    constexpr int kPaul = 0x2D;
+    constexpr int kPaulRight = 0x2D;
+    Display& d = game.display();
+    Talker& paul = game.talker();
+    Talker& chani = game.companion();
+    paul.halt();
+    chani.halt();
+    d.saveBackground();
+    paul.setCompanion(&chani);
+    chani.show(kChani, 0, 0, 0, kChaniDown);
+    d.saveBackground();
+    paul.show(kPaul, kPaulRight, 1, 1);
 }
 
 } // namespace mentat

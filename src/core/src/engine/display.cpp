@@ -8,6 +8,7 @@
 #include <string>
 #include <span>
 #include <utility>
+#include <vector>
 
 namespace mentat {
 
@@ -476,6 +477,37 @@ void Display::transitionIn(int type, const ClipRect& rect) {
     copyRect(*back_, *screen_, rect);
 }
 
+// The back picture comes down from the top, pushing the old one down: a
+// row every 6 ticks, two when behind.
+void Display::slideDown() {
+    constexpr int kRowTicks = 6;
+    const int w = Surface::kScreenWidth;
+    const std::size_t origin = static_cast<std::size_t>(originRows_) * static_cast<std::size_t>(w);
+    const std::size_t area = std::min<std::size_t>(static_cast<std::size_t>(kSceneRows * w), screen_->size() - origin);
+    const std::vector<std::uint8_t> old(screen_->data() + origin, screen_->data() + origin + area);
+    const std::uint32_t start = platform_.ticks;
+    int counter = 0;
+    std::size_t shown = 0; // bytes of the back picture at the top
+    for (;;) {
+        std::copy_n(back_->data() + origin + area - shown, shown, screen_->data() + origin);
+        std::copy_n(old.data(), area - shown, screen_->data() + origin + shown);
+        ++counter;
+        const auto due = static_cast<std::uint32_t>(counter * kRowTicks);
+        while (platform_.ticks - start < due) {
+            platform_.waitFrame();
+        }
+        std::size_t step = static_cast<std::size_t>(w);
+        if (platform_.ticks - start != due) {
+            step *= 2;
+            ++counter;
+        }
+        if (shown == area) {
+            break;
+        }
+        shown = std::min(shown + step, area);
+    }
+}
+
 void Display::spiral() {
     const int w = Surface::kScreenWidth;
     const int size = static_cast<int>(screen_->size());
@@ -527,6 +559,9 @@ void Display::transition(int type, int direction) {
         break;
     case kSparkle:
         sparkle();
+        break;
+    case kSlideDown:
+        slideDown();
         break;
     case kMosaic: {
         static constexpr std::array<int, 3> kOut{2, 4, 8};

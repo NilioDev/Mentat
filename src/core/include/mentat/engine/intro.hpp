@@ -29,6 +29,10 @@ IntroEnd runIntro(Game& game, int language);
 // After the opening is skipped: the credits video, which a key ends too.
 void runCredits(Game& game);
 
+// After the end of the story: the cast, page by page, the credits video
+// and Paul and Chani, until a key or a click. `sky` is the sky of the hour.
+void runCastList(Game& game, int language, int sky);
+
 enum class StoryEnd {
     Finished, // every page shown, and the palace at dawn
     Skipped,  // the player pressed a key or a button

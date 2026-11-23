@@ -42,6 +42,8 @@ public:
     Canvas canvas() { return Canvas(display_.target(), display_.originRows()); }
 
     Talker& talker() { return *talker_; }
+    // The second face of a pair shown together (see Talker::setCompanion).
+    Talker& companion() { return *companion_; }
     Places& places() { return *places_; }
 
     // A random number from the original's generator, masked with `mask`.
@@ -176,6 +178,7 @@ private:
     std::size_t soundPart_ = 0;
     int playsLeft_ = 0;
     std::unique_ptr<Talker> talker_;
+    std::unique_ptr<Talker> companion_;
     std::unique_ptr<Places> places_;
 };
 

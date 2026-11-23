@@ -8,6 +8,7 @@
 #include "mentat/engine/flight.hpp"
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/globe_screen.hpp"
+#include "mentat/engine/intro.hpp"
 #include "mentat/engine/map_screen.hpp"
 #include "mentat/engine/message_room.hpp"
 #include "mentat/engine/orders.hpp"
@@ -183,6 +184,15 @@ constexpr int kSceneRedraw = 0x04;
 constexpr int kSceneTalker = 0x06;
 constexpr int kSceneWait = 0x08;
 constexpr int kSceneNight = 0x0A;
+constexpr int kSceneNewRoom = 0x12;
+constexpr int kSceneTheEnd = 0x14;
+constexpr int kSceneCredits = 0x16;
+// The end of the story: Paul walks into the Harkonnens' throne room.
+constexpr int kThroneOfTheHarkonnens = 0x3002;
+constexpr std::uint8_t kStoryOver = 0xC8;
+constexpr std::uint16_t kEndingScene = 0x128F;
+constexpr int kEndPictures = 0x1E;
+constexpr int kFadeStepTicks = 0x10;
 constexpr int kSceneCloser = 0x0C;
 // The pictures of those two steps: sprites of resource 0x27 over the room,
 // and the part of the room the second one enlarges.
@@ -275,7 +285,7 @@ std::uint16_t clockTicksToday() {
 class Play : public TalkHost {
 public:
     Play(Game& game, int language)
-        : g_(game), d_(game.display()), world_(game.resources().program()), panel_(game, language),
+        : language_(language), g_(game), d_(game.display()), world_(game.resources().program()), panel_(game, language),
           talk_(game, world_, panel_, *this, language), map_(game, world_, panel_),
           saves_(game.platform().saveFolder, game.resources().program(), world_, talk_.dialogue(),
                  [this]() -> std::vector<std::uint8_t>& { return map_.mapBytes(); }),
@@ -336,11 +346,11 @@ public:
         g_.places().stateByte = {};
     }
 
-    void run() {
+    GameEnd run() {
         start();
         for (;;) {
             if (quit_) {
-                return;
+                return won_ ? GameEnd::Won : GameEnd::Left;
             }
             if (scene_ && !g_.platform().keys.empty()) {
                 g_.platform().keys.clear();
@@ -591,6 +601,62 @@ private:
         return list;
     }
 
+    // --- The end of the story
+
+    // Colours `first` to `first + count - 1` fade toward the spare palette
+    // in `steps` steps, 16 ticks apart; a key or a click skips the waits.
+    void fadeColours(int first, int count, int steps) {
+        bool waiting = true;
+        for (int n = steps; n > 0; --n) {
+            d_.fadeStep(first, count, n);
+            if (waiting) {
+                waiting = g_.waitTicks(kFadeStepTicks);
+            }
+        }
+    }
+
+    void blackColours(Palette& palette, int first, int count) {
+        for (int i = first; i < first + count; ++i) {
+            palette[static_cast<std::size_t>(i)] = Colour{};
+            d_.markChanged(i);
+        }
+    }
+
+    // Scene step 0x14: the room fades out, Paul and Chani fade in, the
+    // Fremen's bird comes down over them and "THE END" fades in. Then the
+    // scene waits.
+    void theEnd() {
+        g_.removeTimer(kSceneBlinkTimer);
+        talk_.endRemark();
+        blackColours(d_.spare(), 128, 112);
+        fadeColours(128, 112, 0x28);
+        d_.beginPrepare();
+        g_.selectSheet(kEndPictures);
+        for (std::uint16_t i = 0; i < 3; ++i) {
+            g_.drawSprite(i, 0, 0);
+        }
+        showPaulAndChani(g_);
+        d_.endPrepare();
+        d_.keepPalette();
+        blackColours(d_.palette(), 99, 76);
+        d_.flush();
+        d_.copyRect(d_.back(), d_.screen(), ClipRect{0, 0, 320, kSceneBottom});
+        fadeColours(99, 76, 0x30);
+        g_.talker().halt();
+        d_.back().fillRect(0, d_.originRows(), 320, kSceneBottom, 0x8F);
+        g_.selectSheet(kEndPictures);
+        g_.drawSprite(3, 52, 0);
+        d_.transition(Display::kSlideDown);
+        d_.waitTicks(g_.platform().ticks, 300);
+        blackColours(d_.palette(), 160, 15);
+        g_.drawSprite(4, 90, 64);
+        d_.flush();
+        d_.copyRect(d_.back(), d_.screen(), ClipRect{0, 0, 320, kSceneBottom});
+        fadeColours(160, 15, 0x20);
+        sceneBlink_ = false;
+        g_.addTimer(kSceneBlinkTimer, kSceneBlinkTicks, [this] { sceneBlink_ = !sceneBlink_; });
+    }
+
     // The room on the back buffer, kept as the background; enlarged when
     // `closer`; sprite 0 of the scene's pictures at (78, 33) over it, or
     // sprite 1 at (26, 4) when closer. Then shown.
@@ -705,6 +771,44 @@ private:
                     return;
                 }
                 scenePicture(false);
+                return;
+            case kSceneNewRoom: {
+                // Another room, as step 0, coming in with a dissolve; the
+                // panel's slots are emptied.
+                const int room = program.codeU8(sceneAt_++);
+                const int count = program.codeU8(sceneAt_++);
+                sceneStanding_.clear();
+                for (int i = 0; i < count; ++i) {
+                    const int c = program.codeU8(sceneAt_++);
+                    sceneStanding_.push_back(c == 0xFF ? -1 : c);
+                }
+                world_.setU8(kRoomByte, static_cast<std::uint8_t>(room));
+                world_.setU8(kMessageAfter, 0);
+                world_.setU16(0x1152, 0xFFFF);
+                sceneMenu_ = kSceneMenu;
+                talk_.endRemark();
+                // Paul and Chani's faces come over the room.
+                d_.beginPrepare();
+                drawView();
+                showPaulAndChani(g_);
+                d_.endPrepare();
+                d_.transition(Display::kDissolve);
+                lit_ = -1;
+                break;
+            }
+            case kSceneTheEnd:
+                theEnd();
+                return;
+            case kSceneCredits:
+                // The cast; then the game is over and starts again.
+                g_.removeTimer(kSceneBlinkTimer);
+                g_.removeTimer(kSkyTimer);
+                skyFadeLeft_ = 0;
+                talk_.endRemark();
+                g_.talker().halt();
+                runCastList(g_, language_, skyOfTheHour());
+                won_ = true;
+                quit_ = true;
                 return;
             case kSceneCloser:
                 // A part of the room enlarged, with a picture over it. Waits.
@@ -1843,6 +1947,9 @@ private:
         const bool walking = exit > 0 && talk_.answer() == 0xFF;
         if (walking) {
             world_.goTo((world_.room() & 0xFF00) | exit, world_.place());
+            if (endingBegins()) {
+                return;
+            }
         }
         d_.targetBack();
         drawView();
@@ -1872,11 +1979,25 @@ private:
             return;
         }
         world_.goTo((world_.room() & 0xFF00) | exit, world_.place());
+        if (endingBegins()) {
+            return;
+        }
         d_.targetBack();
         drawView();
         d_.showBack();
         d_.flush();
         cameIn();
+    }
+
+    // Paul comes into the Harkonnens' throne room: the story is over and
+    // its last scene begins (at the next click).
+    bool endingBegins() {
+        if (world_.room() != kThroneOfTheHarkonnens || scene_) {
+            return false;
+        }
+        world_.setU8(kProgress, kStoryOver);
+        startScene(kEndingScene);
+        return true;
     }
 
     // --- The clock
@@ -2192,6 +2313,7 @@ private:
         return language == 0 || language == 3 ? Talk::Subtitles::None : Talk::Subtitles::Below;
     }
 
+    int language_;
     Game& g_;
     Display& d_;
     World world_;
@@ -2232,6 +2354,7 @@ private:
     EndList endList_ = EndList::Main;
     bool endTake_ = false;
     bool quit_ = false;
+    bool won_ = false; // the story has come to its end
     // The game as it starts, for starting again.
     std::vector<std::uint8_t> newGame_;
     std::optional<Font> endFont_;
@@ -2252,6 +2375,6 @@ private:
 
 } // namespace
 
-void runGame(Game& game, int language) { Play(game, language).run(); }
+GameEnd runGame(Game& game, int language) { return Play(game, language).run(); }
 
 } // namespace mentat

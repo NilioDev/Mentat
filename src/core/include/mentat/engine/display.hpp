@@ -115,6 +115,7 @@ public:
     static constexpr int kSpiral = 0x02;
     static constexpr int kMosaic = 0x06;
     static constexpr int kSparkle = 0x08;
+    static constexpr int kSlideDown = 0x22;
     static constexpr int kMosaicShort = 0x26;
     static constexpr int kMosaicFine = 0x28;
     static constexpr int kDissolve = 0x10;
@@ -152,6 +153,7 @@ private:
     void mosaic(std::span<const int> out, std::span<const int> in);
     void spiral();
     void sparkle();
+    void slideDown();
 
     Platform& platform_;
     DisplayTables tables_;

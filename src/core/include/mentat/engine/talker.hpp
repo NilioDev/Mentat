@@ -27,7 +27,8 @@ public:
     // (0 for the usual one). `mood` sets how long the first idle animation
     // runs, in units of four frames. Draws on the target over the saved
     // background and starts the idle animation.
-    void show(int character, int shiftRight, int variant, int mood);
+    // `shiftDown` moves the top of the area down by that many rows.
+    void show(int character, int shiftRight, int variant, int mood, int shiftDown = 0);
     // Shows the face in a small frame instead: clipped to `clip`, with the
     // point (`focusX`, `focusY`) of the portrait at the frame's top left.
     // Drawn straight on the screen over the saved background.
@@ -56,8 +57,13 @@ public:
     // the face, such as subtitles.
     std::function<void(const ClipRect&)> overlay;
 
-    // Stops the voice, the animation and the timers.
+    // Stops the voice, the animation and the timers, and the companion's.
     void stop();
+
+    // A second face shown beside this one, the original's pair of faces
+    // at the end: it has no timer of its own, its frame plays on this
+    // one's tick just before this one's. Set it before showing either.
+    void setCompanion(Talker* companion);
 
     bool speaking() const { return speaking_; }
     bool shown() const { return character_ >= 0; }
@@ -101,6 +107,9 @@ private:
     std::size_t next_ = 0;
     std::size_t sequenceStart_ = 0;
     int shiftRight_ = 0;
+    int shiftDown_ = 0;
+    Talker* companion_ = nullptr;
+    bool follower_ = false; // a companion: moved by another face's timer
     bool timerRunning_ = false;
     std::vector<PortraitPiece> shownPieces_;
 
@@ -112,5 +121,11 @@ private:
     double nextMouthTick_ = 0;
     double mouthTicks_ = 0;
 };
+
+// Paul and Chani side by side at the end, both moving: Chani's face 15
+// rows down, then Paul's moved right by 0x2D columns, each over the saved
+// background (Paul's over Chani's). Chani is the companion of the game's
+// talker.
+void showPaulAndChani(Game& game);
 
 } // namespace mentat

@@ -135,11 +135,14 @@ void runGame(App& app) {
     }
     Game game(app.platform, *app.archive, *app.program, DisplayTables::fromDriver(app.archive->load("DNVGA.HSQ")),
               &music);
-    while (runIntro(game, kEnglish) == IntroEnd::Finished) {
-    }
-    runCredits(game);
-    runStory(game, kEnglish);
-    mentat::runGame(game, kEnglish);
+    // After the end of the story the whole program starts over, from the
+    // opening.
+    do {
+        while (runIntro(game, kEnglish) == IntroEnd::Finished) {
+        }
+        runCredits(game);
+        runStory(game, kEnglish);
+    } while (mentat::runGame(game, kEnglish) == GameEnd::Won);
     app.platform.music = nullptr;
 }
 
