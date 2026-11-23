@@ -26,6 +26,12 @@ constexpr int kRouteTroop = 3;
 // Where the window stands: the state keeps its top-left corner.
 constexpr std::size_t kWindowX = 0x11C1;
 constexpr std::size_t kWindowY = 0x11C3;
+// Dragging: the mouse reaching this row lets go; the corner is kept
+// within these spans from the margin.
+constexpr int kLetGoRow = 0x98;
+constexpr int kDragMargin = 5;
+constexpr int kDragAcross = 0x8C;
+constexpr int kDragDown = 0x18;
 // The map inside the frame.
 constexpr int kViewX = 5;
 constexpr int kViewY = 7;
@@ -426,6 +432,79 @@ void SpiceMap::markDensity(int index) {
         flip(x0, y0 + y);
         flip(x0 + 4, y0 + y);
     }
+}
+
+// --- Dragging
+
+void SpiceMap::flipOutline() {
+    // As the scale's mark: colours flipped by 0x0F, kept within (4, 4) to
+    // (0x13C, 0x94) of the screen.
+    Surface& to = g_.display().screen();
+    const int x0 = std::clamp<int>(s16(world_.u16(kWindowX)), 4, 0x13C);
+    const int x1 = std::clamp(s16(world_.u16(kWindowX)) + kWidth - 1, 4, 0x13C);
+    const int y0 = std::clamp<int>(s16(world_.u16(kWindowY)), 4, 0x94);
+    const int y1 = std::clamp(s16(world_.u16(kWindowY)) + kHeight, 4, 0x94);
+    auto flip = [&](int x, int y) { to.set(x, y, static_cast<std::uint8_t>(to.at(x, y) ^ kDensityFlip)); };
+    for (int x = x0; x <= x1; ++x) {
+        flip(x, y0);
+    }
+    for (int y = y0 + 1; y < y1 - 1; ++y) {
+        flip(x1, y);
+    }
+    if (y1 - 1 > y0) {
+        for (int x = x1; x >= x0; --x) {
+            flip(x, y1 - 1);
+        }
+    }
+    for (int y = y1 - 2; y > y0; --y) {
+        flip(x0, y);
+    }
+}
+
+void SpiceMap::startDrag() {
+    if (!shown_ || dragging_) {
+        return;
+    }
+    dragging_ = true;
+    flipOutline();
+}
+
+void SpiceMap::drag(int dx, int dy, int y) {
+    if (!dragging_) {
+        return;
+    }
+    if (y >= kLetGoRow) {
+        endDrag();
+        return;
+    }
+    flipOutline();
+    // The corner stays from 5 to 0x91 across and 5 to 0x1D down.
+    auto keep = [](int at, int by, int span) {
+        const int past = at + by - kDragMargin;
+        if (static_cast<unsigned>(past) >= static_cast<unsigned>(span)) {
+            by -= past < 0 ? past : past - span;
+        }
+        return at + by;
+    };
+    world_.setU16(kWindowX, static_cast<std::uint16_t>(keep(s16(world_.u16(kWindowX)), dx, kDragAcross)));
+    world_.setU16(kWindowY, static_cast<std::uint16_t>(keep(s16(world_.u16(kWindowY)), dy, kDragDown)));
+    flipOutline();
+}
+
+bool SpiceMap::endDrag() {
+    if (!dragging_) {
+        return false;
+    }
+    dragging_ = false;
+    flipOutline();
+    return s16(world_.u16(kWindowX)) != left_ || s16(world_.u16(kWindowY)) != top_;
+}
+
+void SpiceMap::moveToKept() {
+    left_ = s16(world_.u16(kWindowX));
+    top_ = s16(world_.u16(kWindowY));
+    shown_ = true;
+    draw();
 }
 
 // --- What else the window shows

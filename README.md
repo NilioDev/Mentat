@@ -70,7 +70,7 @@ and touch controls.
 > the next. Taking a
 > Harkonnen fort raises your charisma and your troops' spirits, and once
 > every fort of a region is yours, the Harkonnens' land there becomes
-> yours on the map of the regions. Hour by
+> yours. Hour by
 > hour your troops work: they mine spice into your stock (and a harvester
 > may meet a worm), prospect places, train for the army, build wind-traps
 > and make the desert green. Send them to attack a Harkonnen place and
@@ -163,7 +163,7 @@ button acts as a key.
 | See what a place is | On the map, click the place; click it again or elsewhere to close the label | | |
 | Send a troop somewhere | In its orders, "MOVE TROOP", then click a place on the small map; "Cancel" or a click outside it goes back | | |
 | Equip a troop | In its orders, "MODIFY EQUIPMENT", then click a piece in the chief's box to give it back or in the box below to take it; "Done" or a click elsewhere ends | | |
-| See the spice and your troops' work | On the map, "SEE SPICE DENSITY"; click its bar to switch, a place to go there, the box at its top left (or the command again) to close it | | |
+| See the spice and your troops' work | On the map, "SEE SPICE DENSITY"; click its bar to switch, a place to go there, the box at its top left (or the command again) to close it, its top strip to drag it elsewhere | | |
 | Look at the globe | On the map, click the small planet at the left of the panel; "EXIT GLOBE" or the button beside the list goes back | | |
 | Turn the globe | Click or hold an arrow; the middle turns it to you; click on the planet to see the map there | | |
 | See how you are doing | On the globe, "SEE RESULTS"; "STANDARD VISION" goes back | | |

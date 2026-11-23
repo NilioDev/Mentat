@@ -324,6 +324,8 @@ constexpr int kMessageCharacters = 0x10;
 constexpr int kTroopShownSietches = 3;
 constexpr std::size_t kMessageAbout = 0xEA; // and 0xEB
 constexpr std::size_t kLearnedPlace = 0x11CE;
+constexpr std::size_t kSpiceWindowX = 0x11C1;
+constexpr std::size_t kSpiceWindowY = 0x11C3;
 constexpr std::size_t kFoundUnconscious = 0xE7;
 constexpr std::size_t kMessageAfter = 0xE8;
 constexpr std::uint8_t kMessageAfterValue = 0x0A;
@@ -1201,6 +1203,16 @@ private:
                 mixer_.drag(x, y, movedX, movedY);
             }
         }
+        if (spice_.dragging()) {
+            if (!down) {
+                letGoSpiceMap();
+            } else if (!clicked && (movedX != 0 || movedY != 0)) {
+                spice_.drag(movedX, movedY, y);
+                if (!spice_.dragging()) {
+                    moveSpiceMap();
+                }
+            }
+        }
         if (changed && map_.active()) {
             map_.clicked();
         }
@@ -1952,6 +1964,9 @@ private:
         case SpiceMap::Click::Close:
             spice_.close();
             return true;
+        case SpiceMap::Click::Title:
+            spice_.startDrag();
+            return true;
         case SpiceMap::Click::Map:
             // A place: the map moves to it, the small map gone.
             if (place != 0) {
@@ -1962,6 +1977,25 @@ private:
         default:
             return true;
         }
+    }
+
+    // The small map of the regions let go after a drag: when it moved,
+    // the map comes back under where it was and it is drawn at its new
+    // place.
+    void letGoSpiceMap() {
+        if (spice_.endDrag()) {
+            moveSpiceMap();
+        }
+    }
+
+    void moveSpiceMap() {
+        const ClipRect old = spice_.frame();
+        if (old.left == static_cast<std::int16_t>(world_.u16(kSpiceWindowX)) &&
+            old.top == static_cast<std::int16_t>(world_.u16(kSpiceWindowY))) {
+            return;
+        }
+        d_.copyRect(d_.back(), d_.screen(), old);
+        spice_.moveToKept();
     }
 
     // "TAKE AN ORNITHOPTER": the cockpit, shown at once, its sky in the

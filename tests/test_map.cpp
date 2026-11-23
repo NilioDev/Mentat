@@ -1478,3 +1478,42 @@ MTT_TEST("places taken: once every fort of a name is Paul's, the Harkonnens' lan
     w.takeRegions(regions, map.flatMap());
     MTT_CHECK((points[inside] & 0x30) == 0x20);
 }
+
+MTT_TEST("spice map: dragged by its top strip, an outline follows and the window moves when let go") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    w.enterPlace(World::placeRecord(12));
+    g.display().targetBack();
+    map.enter();
+    SpiceMap spice(g, w, panel, map);
+    spice.open();
+    const ClipRect f = spice.frame();
+    std::size_t place = 0;
+    MTT_CHECK(spice.click(f.left + 20, f.top + 2, place) == SpiceMap::Click::Title);
+    const Surface& screen = g.display().screen();
+    const std::uint8_t corner = screen.at(f.left, f.top);
+    spice.startDrag();
+    MTT_CHECK(spice.dragging() && screen.at(f.left, f.top) == (corner ^ 0x0F));
+    spice.drag(10, 4, 50);
+    MTT_CHECK(screen.at(f.left, f.top) == corner);
+    MTT_CHECK(w.u16(0x11C1) == f.left + 10 && w.u16(0x11C3) == f.top + 4);
+    // Kept within the map: from 5 to 0x91 across, 5 to 0x1D down.
+    spice.drag(-500, 500, 50);
+    MTT_CHECK(w.u16(0x11C1) == 5 && w.u16(0x11C3) == 0x1D);
+    MTT_CHECK(spice.endDrag() && !spice.dragging());
+    spice.moveToKept();
+    MTT_CHECK(spice.frame().left == 5 && spice.frame().top == 0x1D && spice.shown());
+    // Back where it was: nothing to move. Reaching row 0x98 lets go.
+    spice.startDrag();
+    spice.drag(0, 0, 0x98);
+    MTT_CHECK(!spice.dragging());
+}
