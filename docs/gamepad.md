@@ -9,8 +9,14 @@ same pointer, so everything works the same way.
 - The direction pad makes the pointer jump to the next thing that can be
   clicked in that direction. That can be a zone of the panel in use (the
   lines of the list that hold a command, the arrows, the buttons), a
-  person standing in the room, or on the map a place or a troop's mark. Each frame the game publishes these targets
-  in `Platform::pointerTargets`.
+  person standing in the room, on the map a place or a troop's mark, a
+  place on the small maps (the cockpit's, and the small map of the regions
+  for the spice and for a troop's orders, which then hides what lies under
+  it), or the knobs, the voice test and the rows of the lists on the mixer
+  panel. Each frame the game publishes these targets in
+  `Platform::pointerTargets`.
+- Holding the bottom button while moving the stick drags, as the mouse
+  does: the mixer panel's sliders and knobs turn that way.
 - A target counts as nearer the closer its nearest point is in the pushed
   direction. Each pixel that its middle lies to the side counts three
   times as much. A target the pointer is already on is passed over, and
@@ -24,5 +30,4 @@ same pointer, so everything works the same way.
   from where the mouse pointer was. The mouse takes it back as soon as it
   moves.
 
-Not yet: jumping between the places on the small maps (orders, flights,
-spice) and on the globe, and changing the buttons.
+Not yet: jumping between places on the globe, and changing the buttons.

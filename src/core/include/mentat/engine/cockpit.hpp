@@ -65,6 +65,8 @@ public:
     // A click at (x, y); nothing chosen off the map or on the place Paul is
     // in.
     Destination destinationAt(int x, int y);
+    // The places shown on its map.
+    const SmallMap& smallMap() const { return small_; }
     // The name blinks while the cockpit's voice says it.
     void confirm();
 

@@ -1104,14 +1104,39 @@ private:
             }
             targets.push_back(ClipRect{z.left, z.top, z.right, z.bottom});
         }
+        const auto placeTarget = [&](int x, int y) { targets.push_back(ClipRect{x - 2, y - 2, x + 3, y + 3}); };
         if (map_.active() && !globe_.active()) {
-            // The places on the map and the troops' marks.
-            for (const MapScreen::Shown& sh : map_.shownPlaces()) {
-                targets.push_back(ClipRect{sh.x - 2, sh.y - 2, sh.x + 3, sh.y + 3});
+            if (spice_.shown()) {
+                // The small map of the regions over the map: its places.
+                const ClipRect frame = spice_.frame();
+                targets.erase(std::remove_if(targets.begin(), targets.end(),
+                                             [&](const ClipRect& r) {
+                                                 return r.left < frame.right && r.right > frame.left &&
+                                                        r.top < frame.bottom && r.bottom > frame.top;
+                                             }),
+                              targets.end());
+                for (const SmallMap::Shown& sh : spice_.smallMap().shown()) {
+                    placeTarget(sh.x, sh.y);
+                }
+            } else {
+                // The places on the map and the troops' marks.
+                for (const MapScreen::Shown& sh : map_.shownPlaces()) {
+                    placeTarget(sh.x, sh.y);
+                }
+                for (const MapScreen::Mark& m : map_.marks()) {
+                    targets.push_back(m.rect);
+                }
             }
-            for (const MapScreen::Mark& m : map_.marks()) {
-                targets.push_back(m.rect);
+        }
+        if (cockpit_.active()) {
+            for (const SmallMap::Shown& sh : cockpit_.smallMap().shown()) {
+                placeTarget(sh.x, sh.y);
             }
+        }
+        if (mixer_.active()) {
+            const std::vector<ClipRect> knobs = mixer_.targets();
+            targets.insert(targets.end(), knobs.begin(), knobs.end());
+            return;
         }
         if (!map_.active() && !globe_.active() && !cockpit_.active() && !flight_.active()) {
             for (const Places::Shown& sh : g_.places().shown()) {

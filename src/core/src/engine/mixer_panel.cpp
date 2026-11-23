@@ -141,6 +141,32 @@ int MixerPanel::dialAt(int x, int y) const {
     return -1;
 }
 
+std::vector<ClipRect> MixerPanel::targets() const {
+    std::vector<ClipRect> list;
+    const auto add = [&](int left, int top, int right, int bottom) {
+        list.push_back(ClipRect{window_.left + left, window_.top + top, window_.left + right, window_.top + bottom});
+    };
+    for (const Control& c : sliders_) {
+        const int row = knobRow(c.value);
+        add(c.x, row, c.x + kKnobWidth, row + kKnobHeight);
+    }
+    for (const Control& c : dials_) {
+        add(c.x, c.y, c.x + kDialWidth, c.y + kDialHeight);
+    }
+    const ProgramFile& p = g_.resources().program();
+    const ClipRect test = readRect(p, kVoiceTest);
+    add(test.left + 1, test.top + 1, test.right, test.bottom);
+    const ClipRect rows = readRect(p, kList);
+    for (int row = 0; rows.top + row * kRowHeight < rows.bottom; ++row) {
+        if (p.dataU8(kRowValues + static_cast<std::size_t>(row)) == kNoRow) {
+            continue;
+        }
+        const int top = rows.top + row * kRowHeight + 1;
+        add(rows.left + 1, top, rows.right, std::min<int>(top + kRowHeight - 1, rows.bottom));
+    }
+    return list;
+}
+
 MixerPanel::Click MixerPanel::press(int x, int y) {
     if (!inside(window_, x, y)) {
         return Click::Outside;

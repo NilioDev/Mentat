@@ -64,6 +64,8 @@ public:
         Map,     // on the map, `place` the place pointed at or 0
     };
     Click click(int x, int y, std::size_t& place);
+    // The places shown on it.
+    const SmallMap& smallMap() const { return small_; }
     // The place the mouse points at, 0 for none.
     std::size_t pointed() const { return pointed_; }
 

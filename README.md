@@ -115,8 +115,8 @@ original game's files: you need your own copy.
 - 🎯 A one-to-one copy of the CD version 3.7: same story, dialogue, rules,
   timing, music and spoken voices.
 - 🖥️ Windows, macOS, Linux and Android from one codebase.
-- 🎮 Gamepad: the pointer also jumps between places on the small maps and
-  the globe, and every button can be changed.
+- 🎮 Gamepad: the pointer also jumps between places on the globe, and
+  every button can be changed.
 - 💾 Save whenever you like.
 
 ## Add your game
@@ -140,8 +140,8 @@ and the original can load the games you save in Mentat.
 ## Controls
 
 With a gamepad, the left stick moves the pointer, and the direction pad
-jumps it to the next line of the list, arrow, button, person or place on
-the map that way.
+jumps it to the next line of the list, arrow, button, person, place on
+the map or the small maps, or knob of the mixer panel that way.
 A clicks, B is the right mouse button, Back closes Mentat, and any other
 button acts as a key.
 
