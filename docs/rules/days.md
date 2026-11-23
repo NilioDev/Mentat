@@ -204,5 +204,4 @@ from 1 to 199 men gets one more.
 
 ## Not built yet
 
-Sending the Emperor his spice, showing the news and messages, and the
-music of the battle.
+The music of the battle.
