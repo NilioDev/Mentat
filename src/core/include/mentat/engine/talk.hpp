@@ -109,6 +109,10 @@ public:
     // said, looked for from its start. The next boxLine() starts its list
     // over.
     bool boxAnswer(int list);
+    // Phrase `phrase` of the command file in the box, in its top rows (or
+    // bottom ones when the box is low): the rest is left for a window
+    // over it.
+    void boxCommand(int phrase);
     void endBox();
     bool inBox() const { return box_.has_value(); }
 
@@ -182,6 +186,7 @@ private:
     void stop();
     void end();
     void showBoxText(const std::string& page);
+    void loadFonts();
     void chooseTake(std::uint8_t code, int named);
     void chooseTakeForNumber(std::uint8_t at, unsigned value);
     void expand(const std::string& in, std::string& out, std::vector<std::string>& pages, int depth, bool secondFile);

@@ -158,6 +158,8 @@ void MapScreen::show() {
 
 void MapScreen::leave() {
     active_ = false;
+    chosen_ = 0;
+    marks_.clear();
     boxShown_ = false;
     labelled_ = 0;
 }
@@ -207,9 +209,15 @@ void MapScreen::drawView() {
     g_.selectSheet(resource::kMapSprites);
     drawPlaces();
     drawPlayer();
+    drawHead(r);
+    base_ = d.back();
+    drawMarks();
+}
+
+void MapScreen::drawHead(const ClipRect& clip) {
     const int previous = g_.sheetResource();
     g_.selectSheet(kPanelSheet);
-    drawSpriteClipped(g_.canvas(), g_.sheet().sprite(kOrnamentHead), kOrnamentX, kOrnamentY, r);
+    drawSpriteClipped(g_.canvas(), g_.sheet().sprite(kOrnamentHead), kOrnamentX, kOrnamentY, clip);
     g_.selectSheet(previous);
 }
 
@@ -323,6 +331,7 @@ void MapScreen::tick() {
     if (boxShown_ && g_.platform().ticks - lastClick_ >= kBoxTicks) {
         hideBox();
     }
+    stepMarks();
 }
 
 void MapScreen::clicked() { lastClick_ = g_.platform().ticks; }
@@ -435,6 +444,12 @@ void MapScreen::showBox() {
     d.targetBack();
     boxShown_ = true;
     lastClick_ = g_.platform().ticks;
+}
+
+ClipRect MapScreen::boxRect() const {
+    const ProgramFile& program = g_.resources().program();
+    return ClipRect{s16(program.dataU16(kBox)), s16(program.dataU16(kBox + 2)), s16(program.dataU16(kBox + 4)),
+                    s16(program.dataU16(kBox + 6))};
 }
 
 void MapScreen::hideBox() {

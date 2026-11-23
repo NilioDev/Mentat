@@ -66,6 +66,12 @@ troop's occupation, modify its equipment, move it, and no more orders.
 does any click while the orders are shown that is not on a command that
 can be used: on a greyed one, the map, the arrows or the panel.
 
+When the orders end, by any way, the troop is left: when its word `0x12`
+has bit 11 and the story is at `0x60` to `0x63`, the story moves on to
+`0x64`. Its word `0x10` keeps only bits 4 to 9, its word `0x12` loses
+bits 9, 11 and 12, and its byte `0x14` takes the clock's day (the
+clock, word 2, shifted right by 4).
+
 ## The occupations
 
 Choosing the occupation lists what the troop can take up, by its
@@ -123,10 +129,47 @@ Any other occupation can always be done, and nothing more happens. For
 these three, bit 4 of byte 3 keeps whether the troop cannot; when that
 changes from cannot to can, the work starts again from now as above.
 
+## Moving the troop
+
+"Move troop" asks the chief where to: he says phrase `0x54` of the
+command file in the box (see below), the commands become the list at
+`0x212E`, "cancel" alone, and the small map of the regions opens over the
+map as for "see spice density" (see [spice_map.md](spice_map.md)),
+showing the spice, at column `0x5C`: at row `0x1E` when the box is at
+row 5, at row `0x0E` when it is low. It marks the troop and its way
+instead of Paul. The troop of record `0x8E0` is shown three sietches in
+turn instead; that is not built yet.
+
+The phrase goes in the box's text area, which is cleared whole: laid out
+from one row higher than a line of news, `0x19` rows deep, and `0x26`
+rows further down when the text area starts at row `0x32` or lower. Its
+recording, were it spoken, is the chief's `0x10A` on from the phrase.
+
+While the small map is open:
+
+- the mouse points at places in it, and a click on its bar switches its
+  colouring, as for "see spice density";
+- "cancel", a click outside it or on its close box closes it; the chief
+  says his next line of news, which starts list 2 over, and the orders
+  come back;
+- a click on a place pointed at closes it, the chief says his next line
+  of news, and then answers. When the place is where the troop is (or
+  goes), the situation at `0x23` is `0x10`. Otherwise, while word 4 of the
+  troop names the place, the state learns the troop and names the place
+  as a line does (its name to word `0x11ED`, its kind's word, `0x0C` on
+  from byte 1, to word `0x11EF`); word 4 comes back, and the situation is
+  `0x0B`. The answer is made a yes, and the chief answers with list 4 as
+  for an occupation.
+
+On a no the orders come back, the answer left in the box. On a yes the
+troop sets off (see [moves.md](moves.md)) and the orders end: the box
+goes, and the map stays where it was, drawn again with the map's own
+commands, as "see Dune map" shows it but without its box. (The original
+first draws squares closing in on the troop; that is not built yet.)
+
 ## The troops' marks
 
-While the orders are shown, the map shows the troops at the places in
-sight, place by place in the order of the map's places, each place's
+The map shows the troops at the places in sight, place by place in the order of the map's places, each place's
 troops in the order of its chain (byte 9, then each troop's byte 1). A
 troop's mark is a list of frames in the program, three bytes each: a
 sprite of the map's sheet and how far the mark moves (signed column and
@@ -136,7 +179,7 @@ row), ending at a sprite 0 after the first frame. Which list:
 - Fremen not yet Paul's (byte 3 from `0x80`, byte `0x10` without bit
   7): the list at `0x181F` when their place's byte `0x0A` has bit 4,
   else none;
-- a troop on the move (byte 3 bit 6): not built yet;
+- a troop on the move (byte 3 bit 6): see [moves.md](moves.md);
 - when byte 3 has bit 4 or 5: for spice mining (occupation 0) with
   equipment in bits 7 and 6 of byte `0x19`, `0x1813` for bit 7 alone,
   `0x1817` for bit 6 alone, `0x181B` for both; otherwise the word at
@@ -150,9 +193,11 @@ row), ending at a sprite 0 after the first frame. Which list:
 
 The mark is centred (half its width and height, rounded down, to the
 left and up) on the place's point moved by the turn's pair at `0x1672`
-(see the box above), and clipped to the map's view. After the marks,
-the troop given orders gets a ring around it: the list at `0x18FD`,
-centred on the same point.
+(see the box above), and clipped to the map's view. Then come the troops
+on the move, in the order of their records (from `0x8AA`, `0x1B` bytes
+each, up to `0xFBB`), but those whose byte `0x10` has bit 4. While the
+orders are shown, the troop given orders then gets a ring around it: the
+list at `0x18FD`, centred on the same point.
 
 A mark with more than one frame shows its first and goes on from a
 frame picked at random: the second generator's numbers, masked to the
@@ -161,10 +206,16 @@ one is not above it. Every `0x0F` ticks the ring shows its next frame,
 and at every fourth of these steps the other moving marks do too; after
 the last frame the list starts over. Each step moves the mark by the
 frame's offsets and draws the map again over where it was and is, with
-the marks, except under the chief's box.
+the marks, except under the chief's box; on the screen it stays under the
+map's box, a place's label and the small map of the regions too.
+
+When a troop's occupation is set, its ability to work changes, or it
+sets off or is given another destination, its mark (not the ring), if it
+has one, goes; a new one, as above, takes its place at the end of the
+marks when the troop is on the move and near, or its place is in sight.
 
 ## Not built yet
 
-Modifying equipment, moving a troop,
-searching for equipment, espionage, attacking, the wind-trap, the orders
+Modifying equipment, the chief's voice in the box, the troop shown three
+sietches, searching for equipment, espionage, attacking, the wind-trap, the orders
 from the map for troops on the move, and what troops do day by day.

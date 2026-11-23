@@ -10,6 +10,7 @@
 #include "mentat/engine/intro.hpp"
 #include "mentat/engine/map_screen.hpp"
 #include "mentat/engine/orders.hpp"
+#include "mentat/engine/spice_map.hpp"
 #include "mentat/engine/panel.hpp"
 #include "mentat/engine/places.hpp"
 #include "mentat/engine/platform.hpp"
@@ -384,7 +385,8 @@ MTT_TEST("orders: a troop's chief answers in a box over the map and takes up an 
 
     FakeHost host;
     Talk talk(g, w, panel, host, kEnglish);
-    Orders orders(g, w, panel, map, talk);
+    SpiceMap spice(g, w, panel, map);
+    Orders orders(g, w, panel, map, talk, spice);
     int finished = 0;
     orders.finished = [&] { ++finished; };
     auto run = [&](const std::function<void()>& f) {
@@ -419,4 +421,118 @@ MTT_TEST("orders: a troop's chief answers in a box over the map and takes up an 
     MTT_CHECK((w.u16(t + 0x12) & 0x2000) != 0 && panel.commands()[1].phrase == 0x4F);
     run([&] { orders.command(Orders::kNoMoreOrders); });
     MTT_CHECK(!orders.active() && !talk.active() && finished == 1);
+}
+
+MTT_TEST("orders: a troop shown a place on the small map sets off and walks there hour by hour") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g, kEnglish);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    w.setU8(0x2A, 4);
+    // The troop of sietch 14 (troop 3, at sietch 12, is shown three
+    // sietches instead).
+    const std::size_t sietch = World::placeRecord(14);
+    w.enterPlace(sietch);
+    w.goTo((w.room() & 0xFF00) | 2, w.place());
+    const int troop = w.u8(sietch + 9);
+    MTT_CHECK(troop != 0);
+    w.enlist(troop);
+    const std::size_t t = World::troopRecord(troop);
+    w.markChanged = [&](int n) { map.markChanged(n); };
+    w.markMoved = [&](int n) { map.markMoved(n); };
+    // Paul knows the places around.
+    for (std::size_t r = World::kPlaces; r + World::kPlaceSize <= World::kTroops; r += World::kPlaceSize) {
+        w.setU8(r + 0x0A, static_cast<std::uint8_t>(w.u8(r + 0x0A) & 0x7F));
+    }
+
+    FakeHost host;
+    Talk talk(g, w, panel, host, kEnglish);
+    SpiceMap spice(g, w, panel, map);
+    Orders orders(g, w, panel, map, talk, spice);
+    int sent = 0;
+    orders.sent = [&] { ++sent; };
+    auto run = [&](const std::function<void()>& f) {
+        Fiber fiber([&] {
+            g.display().targetBack();
+            f();
+        });
+        p.fiber = &fiber;
+        while (!fiber.finished()) {
+            fiber.resume();
+            ++p.ticks;
+        }
+        p.fiber = nullptr;
+    };
+    run([&] { orders.open(troop); });
+    run([&] { orders.command(Orders::kOccupation); });
+    run([&] { orders.command(Orders::kSpice); });
+    // Moving the troop comes with the story's fifth step.
+    MTT_CHECK((panel.commands()[3].phrase & Command::kGrey) != 0);
+    w.setU8(0x2A, 5);
+    run([&] { orders.command(Orders::kCancel); });
+    MTT_CHECK(panel.commands()[3].action == Orders::kMove && !(panel.commands()[3].phrase & Command::kGrey));
+    // The troop's mark is on the map, ringed.
+    std::size_t ringed = 0;
+    for (const MapScreen::Mark& m : map.marks()) {
+        ringed += m.troop == troop ? 1 : 0;
+    }
+    MTT_CHECK(ringed == 2);
+
+    // The chief asks where to; the small map opens under his box, and
+    // "Cancel" alone is offered. A click outside it goes back.
+    run([&] { orders.command(Orders::kMove); });
+    MTT_CHECK(orders.choosing() && spice.shown() && !spice.occupations);
+    MTT_CHECK(spice.frame().left == 0x5C && (spice.frame().top == 0x1E || spice.frame().top == 0x0E));
+    MTT_CHECK(panel.commands().size() == 1 && panel.commands()[0].action == Orders::kCancel);
+    run([&] { orders.click(2, 2); });
+    MTT_CHECK(!orders.choosing() && !spice.shown() && orders.active() && panel.commands().size() == 5);
+
+    // Pointing at another place and clicking it: the chief agrees, the
+    // troop leaves its place's chain and sets off.
+    run([&] { orders.command(Orders::kMove); });
+    std::size_t to = 0;
+    int cx = 0;
+    int cy = 0;
+    const ClipRect v = spice.view();
+    run([&] {
+        for (int y = v.top; y < v.bottom && to == 0; ++y) {
+            for (int x = v.left; x < v.right && to == 0; ++x) {
+                spice.pointAt(x, y);
+                const std::size_t at = spice.pointed();
+                if (at != 0 && at != sietch && w.u8(at + 8) < 0x20) {
+                    to = at;
+                    cx = x;
+                    cy = y;
+                }
+            }
+        }
+    });
+    MTT_CHECK(to != 0);
+    run([&] { orders.click(cx, cy); });
+    MTT_CHECK(w.u8(0x23) == 0x0B && talk.answer() == 0xFF);
+    MTT_CHECK(sent == 1 && !orders.active() && !spice.shown());
+    MTT_CHECK((w.u8(t + 3) & 0x40) != 0 && w.u16(t + 4) == to && w.u8(t + 1) == 0 && w.u8(t + 2) == 0);
+    for (int other = w.u8(sietch + 9); other != 0; other = w.u8(World::troopRecord(other) + 1)) {
+        MTT_CHECK(other != troop);
+    }
+
+    // Hour by hour it walks on until it is there, and joins the place.
+    for (int hour = 0; hour < 200 && (w.u8(t + 3) & 0x40); ++hour) {
+        w.setU16(0, static_cast<std::uint16_t>(g.random2()));
+        w.moveTroops(0, map.flatMap());
+    }
+    MTT_CHECK(!(w.u8(t + 3) & 0x40));
+    MTT_CHECK(w.u16(t + 6) == w.u16(to + 2) && w.u16(t + 8) == w.u16(to + 4) && w.u8(t + 2) >= 1);
+    bool there = false;
+    for (int other = w.u8(to + 9); other != 0; other = w.u8(World::troopRecord(other) + 1)) {
+        there = there || other == troop;
+    }
+    MTT_CHECK(there);
 }

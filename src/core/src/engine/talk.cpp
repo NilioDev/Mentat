@@ -115,6 +115,12 @@ constexpr int kFirstRemarkRecording = 0x3E7;
 constexpr int kRetriesWithOnceMore = 0x0D;
 constexpr int kNoFaceFrom = 0x10;
 constexpr int kLastRecordedCharacter = 0x0E;
+// A phrase of the command file said in a box: its recording's number, how
+// many rows it takes, and how far down it goes in a box low on the screen.
+constexpr int kCommandRecordings = 0x10A;
+constexpr int kCommandRows = 0x19;
+constexpr int kLowBoxText = 0x32;
+constexpr int kLowBoxShift = 0x26;
 constexpr int kCaptain = 12;
 constexpr int kChiefs = 15;
 constexpr std::size_t kTalking = 0x11CA; // set once Paul has talked to someone
@@ -731,6 +737,34 @@ bool Talk::boxAnswer(int list) {
     return said;
 }
 
+void Talk::boxCommand(int phrase) {
+    if (!box_) {
+        return;
+    }
+    pages_.clear();
+    resume_.reset();
+    // Numbered as the character's recording of it: 0x10A on from the
+    // phrase, counted from the character's first.
+    const int who = std::min(character_, kLastRecordedCharacter);
+    phrase_ = phrase + kCommandRecordings + dialogue_.firstPhrase(who) - 1;
+    loadFonts();
+    // The whole text area is cleared; the phrase takes its top rows, or
+    // its bottom ones when the box is low on the screen.
+    Display& d = game_.display();
+    const ClipRect& t = box_->text;
+    ClipRect area = t;
+    area.top -= 1; // a row higher than a line of the box
+    if (t.top >= kLowBoxText) {
+        area.top += kLowBoxShift;
+    }
+    area.bottom = area.top + kCommandRows;
+    const std::string& text = panel_.phrases().at(static_cast<std::size_t>(phrase) - 1u);
+    for (Surface* to : {&d.screen(), &d.back()}) {
+        to->fillRect(t.left, t.top, t.right - t.left, t.bottom - t.top, box_->fill);
+        drawTextBox(*to, *large_, text, area, box_->colour);
+    }
+}
+
 void Talk::endBox() {
     if (!box_) {
         return;
@@ -745,12 +779,16 @@ void Talk::endBox() {
 
 // A page of a line in the box: the text area is cleared and the text laid
 // out in it, on the screen and the back buffer.
-void Talk::showBoxText(const std::string& page) {
+void Talk::loadFonts() {
     if (!large_) {
         const auto bytes = game_.resources().load(resource::kFont);
         large_ = Font::parse(bytes, Font::Size::Large);
         small_ = Font::parse(bytes, Font::Size::Small);
     }
+}
+
+void Talk::showBoxText(const std::string& page) {
+    loadFonts();
     Display& d = game_.display();
     for (Surface* to : {&d.screen(), &d.back()}) {
         to->fillRect(box_->text.left, box_->text.top, box_->text.right - box_->text.left,
