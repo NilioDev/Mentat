@@ -145,9 +145,9 @@ MTT_TEST("talk: Leto's first lines in a new game, then the talk ends") {
     Platform p;
     Game g(p, *archive, *program, DisplayTables{}, nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     FakeHost host;
-    Talk talk(g, w, panel, host, kEnglish);
+    Talk talk(g, w, panel, host);
     talk.subtitles = Talk::Subtitles::Below;
     talk.runEvents();
     talk.runEvents();
@@ -194,9 +194,9 @@ MTT_TEST("talk: Leto stops Paul going for a door before they have talked") {
     Platform p;
     Game g(p, *archive, *program, DisplayTables{}, nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     FakeHost host;
-    Talk talk(g, w, panel, host, kEnglish);
+    Talk talk(g, w, panel, host);
     talk.subtitles = Talk::Subtitles::Below;
     talk.runEvents();
     talk.runEvents();
@@ -255,9 +255,9 @@ MTT_TEST("talk: a companion's remark on the way, and what it answers to") {
     Platform p;
     Game g(p, *archive, *program, DisplayTables{}, nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     FakeHost host;
-    Talk talk(g, w, panel, host, kEnglish);
+    Talk talk(g, w, panel, host);
     talk.subtitles = Talk::Subtitles::Below;
     auto remark = [&](int c) {
         bool said = false;
@@ -307,7 +307,7 @@ MTT_TEST("people: the Fremen of a sietch stand in its second room and agree to w
     Platform p;
     Game g(p, *archive, *program, DisplayTables{}, nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     MapScreen map(g, w, panel);
     map.setUp();
     // As far as the story has come when Gurney first flies with Paul.
@@ -326,7 +326,7 @@ MTT_TEST("people: the Fremen of a sietch stand in its second room and agree to w
     MTT_CHECK((w.present() & (1u << 14)) != 0);
 
     FakeHost host;
-    Talk talk(g, w, panel, host, kEnglish);
+    Talk talk(g, w, panel, host);
     talk.subtitles = Talk::Subtitles::Below;
     int enlisted = 0;
     talk.enlisted = [&] {
@@ -370,7 +370,7 @@ MTT_TEST("orders: a troop's chief answers in a box over the map and takes up an 
     Platform p;
     Game g(p, *archive, *program, DisplayTables{}, nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     MapScreen map(g, w, panel);
     map.setUp();
     w.setU8(0x2A, 4);
@@ -384,7 +384,7 @@ MTT_TEST("orders: a troop's chief answers in a box over the map and takes up an 
     MTT_CHECK((w.u8(t + 3) & 0x0F) == 2);
 
     FakeHost host;
-    Talk talk(g, w, panel, host, kEnglish);
+    Talk talk(g, w, panel, host);
     SpiceMap spice(g, w, panel, map);
     Orders orders(g, w, panel, map, talk, spice);
     int finished = 0;
@@ -432,7 +432,7 @@ MTT_TEST("orders: a troop shown a place on the small map sets off and walks ther
     Platform p;
     Game g(p, *archive, *program, DisplayTables{}, nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     MapScreen map(g, w, panel);
     map.setUp();
     w.setU8(0x2A, 4);
@@ -453,7 +453,7 @@ MTT_TEST("orders: a troop shown a place on the small map sets off and walks ther
     }
 
     FakeHost host;
-    Talk talk(g, w, panel, host, kEnglish);
+    Talk talk(g, w, panel, host);
     SpiceMap spice(g, w, panel, map);
     Orders orders(g, w, panel, map, talk, spice);
     int sent = 0;
@@ -546,7 +546,7 @@ MTT_TEST("orders: an army troop takes up espionage, sets off for the nearest for
     Platform p;
     Game g(p, *archive, *program, DisplayTables{}, nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     MapScreen map(g, w, panel);
     map.setUp();
     w.setU8(0x2A, 0x10);
@@ -560,7 +560,7 @@ MTT_TEST("orders: an army troop takes up espionage, sets off for the nearest for
     w.setOccupation(troop, 4);
 
     FakeHost host;
-    Talk talk(g, w, panel, host, kEnglish);
+    Talk talk(g, w, panel, host);
     SpiceMap spice(g, w, panel, map);
     Orders orders(g, w, panel, map, talk, spice);
     int sent = 0;
@@ -620,7 +620,7 @@ MTT_TEST("orders: a troop takes equipment the sietch keeps and gives it back") {
     Platform p;
     Game g(p, *archive, *program, DisplayTables{}, nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     MapScreen map(g, w, panel);
     map.setUp();
     w.setU8(0x2A, 4);
@@ -637,7 +637,7 @@ MTT_TEST("orders: a troop takes equipment the sietch keeps and gives it back") {
     }
 
     FakeHost host;
-    Talk talk(g, w, panel, host, kEnglish);
+    Talk talk(g, w, panel, host);
     SpiceMap spice(g, w, panel, map);
     Orders orders(g, w, panel, map, talk, spice);
     auto run = [&](const std::function<void()>& f) {
@@ -685,9 +685,9 @@ MTT_TEST("talk: a scene's line comes from the character's list 7, said once") {
     Platform p;
     Game g(p, *archive, *program, DisplayTables{}, nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     FakeHost host;
-    Talk talk(g, w, panel, host, kEnglish);
+    Talk talk(g, w, panel, host);
     talk.subtitles = Talk::Subtitles::Below;
     w.setU8(0x2A, 0x0C);
     g.display().targetBack();
@@ -710,9 +710,9 @@ MTT_TEST("talk: Duncan proposes a shipment for the Emperor and shows the amount"
     Platform p;
     Game g(p, *archive, *program, DisplayTables{}, nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     FakeHost host;
-    Talk talk(g, w, panel, host, kEnglish);
+    Talk talk(g, w, panel, host);
     talk.subtitles = Talk::Subtitles::Below;
     w.setU8(0x2A, 0x10);
     w.setU8(0xBF, 0xB0); // a demand waits, its news seen
@@ -757,9 +757,9 @@ MTT_TEST("talk: the smuggler names his price, haggles and sells") {
     Platform p;
     Game g(p, *archive, *program, DisplayTables{}, nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     FakeHost host;
-    Talk talk(g, w, panel, host, kEnglish);
+    Talk talk(g, w, panel, host);
     talk.subtitles = Talk::Subtitles::Below;
     const std::size_t s = 0x10D8;
     w.setU8(0x2A, 0x20);

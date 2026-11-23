@@ -76,7 +76,7 @@ Zone zoneAt(const ProgramFile& program, std::size_t at) {
 
 } // namespace
 
-Panel::Panel(Game& game, int language) : game_(game), language_(language) {
+Panel::Panel(Game& game) : game_(game) {
     const ProgramFile& program = game.resources().program();
     const int count = program.dataU16(kZoneTable);
     if (count < 24 || count > 64) {
@@ -85,7 +85,7 @@ Panel::Panel(Game& game, int language) : game_(game), language_(language) {
     for (int i = 0; i < count; ++i) {
         zones_.push_back(zoneAt(program, kZoneTable + 2 + kZoneSize * static_cast<std::size_t>(i)));
     }
-    font_ = Font::parse(game.resources().load(resource::kFont), Font::Size::Small);
+    font_ = Font::parse(game.resources().load(game.fontFile()), Font::Size::Small);
 }
 
 std::string& Panel::editPhrase(std::uint16_t phrase) {
@@ -93,9 +93,14 @@ std::string& Panel::editPhrase(std::uint16_t phrase) {
     return phrases_->edit(phrase - 1u);
 }
 
+void Panel::languageChanged() {
+    phrases_.reset();
+    font_ = Font::parse(game_.resources().load(game_.fontFile()), Font::Size::Small);
+}
+
 const StringTable& Panel::phrases() {
     if (!phrases_) {
-        phrases_ = StringTable::parse(game_.resources().load(resource::kFirstCommands + commandFile(language_)));
+        phrases_ = StringTable::parse(game_.resources().load(resource::kFirstCommands + commandFile(game_.language)));
     }
     return *phrases_;
 }

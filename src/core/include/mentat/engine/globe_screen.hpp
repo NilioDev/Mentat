@@ -41,7 +41,7 @@ public:
     static constexpr std::uint16_t kCancel = 0xD2E2;
 
     // Without saved games, loading and saving stay greyed.
-    GlobeScreen(Game& game, World& world, Panel& panel, MapScreen& map, int language, SavedGames* saves = nullptr);
+    GlobeScreen(Game& game, World& world, Panel& panel, MapScreen& map, SavedGames* saves = nullptr);
 
     bool active() const { return active_; }
 
@@ -118,7 +118,6 @@ private:
     World& world_;
     Panel& panel_;
     MapScreen& map_;
-    int language_;
     std::optional<Globe> globe_;
     bool active_ = false;
     bool overPlanet_ = false;

@@ -34,7 +34,7 @@ In this order:
 3. In the palace: in room 8, when messages have come, "VIEW NEW MESSAGES"
    (greyed when none is new) and "Messages already seen" (greyed when every
    message is new); in room 9, Paul's room, "LOOK AT MIRROR".
-4. "Mixer Panel".
+4. "Mixer Panel" (see [mixer.md](mixer.md)).
 5. The people in the room, in the order of the table of characters, those
    with flag bit 6 last.
 

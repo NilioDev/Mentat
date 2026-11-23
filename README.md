@@ -97,7 +97,11 @@ In a village the smuggler offers equipment and names his price: accept it
 and it goes on his bill, or argue and he may come down; Duncan later asks
 whether to pay the bill from the spice stock.
 In the palace, the middle of the arrows shows a plan of its rooms and who
-is in them. Reach the Harkonnens' throne room and the story ends as the
+is in them. The "Mixer Panel" sets the volume and balance of the voices and
+the music (and of the music while someone speaks), tests a voice, switches
+the language (American, English, French, German, Italian, Spanish or
+Fremen) and the subtitles, turns the music off, or plays it as a CD would,
+in order or shuffled. Reach the Harkonnens' throne room and the story ends as the
 original's does: the last scene, "THE END" and the cast, after which the
 game starts again from its opening.
 The rest of the game is not there yet.
@@ -164,6 +168,7 @@ button acts as a key.
 | While flying | "SKIP TO DESTINATION" lands at once; "CHANGE DESTINATION" opens the map again | | |
 | After the game ends | "RESTART GAME", "LOAD GAME" or "EXIT GAME"; " WHAT ? " says it again | | |
 | Save or load a game | On the globe, or in the mirror of Paul's room ("LOOK AT MIRROR"), "SAVE GAME" or "LOAD GAME", then a log; "Cancel" goes back | | |
+| Change volumes, language, subtitles or music | Click "Mixer Panel"; drag a slider or turn a knob, click a language or a way to show lines, "Done" closes | | |
 | Close Mentat | Window's close button | | Back |
 
 ## Build from source

@@ -397,6 +397,7 @@ bool Talker::playVoice(int character, int phrase, int variant) {
     for (const VocPart& part : voice.parts) {
         p.queueSound(SoundChannel::Digital, part.rate, part.samples);
     }
+    game_.quietenForVoice();
     return true;
 }
 

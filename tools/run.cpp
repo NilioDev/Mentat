@@ -96,11 +96,11 @@ int main(int argc, char** argv) {
         IntroEnd end = IntroEnd::Finished;
         Fiber fiber([&] {
             do {
-                while ((end = runIntro(game, kEnglish)) == IntroEnd::Finished) {
+                while ((end = runIntro(game, game.language)) == IntroEnd::Finished) {
                 }
                 runCredits(game);
-                runStory(game, kEnglish);
-            } while (runGame(game, kEnglish) == GameEnd::Won);
+                runStory(game, game.language);
+            } while (runGame(game, game.language) == GameEnd::Won);
         });
         platform.fiber = &fiber;
         const std::filesystem::path out = argv[2];

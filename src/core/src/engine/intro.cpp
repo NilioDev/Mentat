@@ -293,7 +293,7 @@ public:
     // room and a face; the credits video; Paul and Chani. Then it waits
     // for a key or a click. `sky` is the sky of the hour.
     void castList(int sky) {
-        font_.emplace(Font::parse(g_.resources().load(resource::kFont)));
+        font_.emplace(Font::parse(g_.resources().load(g_.fontFile())));
         text_.emplace(StringTable::parse(g_.resources().load(resource::kFirstCommands + commandFile(language_))));
         resetStep();
         // Nobody stands in the rooms but their own people.
@@ -331,7 +331,7 @@ public:
     }
 
     StoryEnd story() {
-        font_.emplace(Font::parse(g_.resources().load(resource::kFont)));
+        font_.emplace(Font::parse(g_.resources().load(g_.fontFile())));
         text_.emplace(StringTable::parse(g_.resources().load(resource::kFirstCommands + commandFile(language_))));
         d_.setOriginRows(0);
         g_.playTrack(kCreditsTrack);
@@ -1204,15 +1204,7 @@ private:
 
 } // namespace
 
-int commandFile(int language) {
-    switch (language) {
-    case kFrench: return 1;
-    case kGerman: return 2;
-    case kItalian: return 4;
-    case kSpanish: return 5;
-    default: return 0;
-    }
-}
+int commandFile(int language) { return language >= 0 && language < kLanguages ? language : 0; }
 
 IntroEnd runIntro(Game& game, int language) { return Intro(game, language).run(); }
 

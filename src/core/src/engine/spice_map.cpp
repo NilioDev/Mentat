@@ -332,7 +332,7 @@ void SpiceMap::drawBar() {
 void SpiceMap::drawLegend(bool lit) {
     legendLit_ = lit;
     Surface& to = g_.display().target();
-    const Font font = Font::parse(g_.resources().load(resource::kFont), Font::Size::Small);
+    const Font font = Font::parse(g_.resources().load(g_.fontFile()), Font::Size::Small);
     const std::uint8_t ink = lit ? kBarFill : kBarText;
     const std::uint8_t paper = lit ? kBarText : kBarFill;
     const StringTable& phrases = panel_.phrases();
@@ -347,7 +347,7 @@ void SpiceMap::drawScale() {
         return;
     }
     Surface& to = g_.display().target();
-    const Font font = Font::parse(g_.resources().load(resource::kFont), Font::Size::Small);
+    const Font font = Font::parse(g_.resources().load(g_.fontFile()), Font::Size::Small);
     const int x = left_ + kBarX;
     const int y = top_ + kBarY;
     const int after = font.draw(to, x + kMinusX, y, "-", kBarText, kBarFill);
@@ -361,7 +361,7 @@ void SpiceMap::drawScale() {
 
 void SpiceMap::drawPlaceInfo(std::size_t record) {
     Surface& to = g_.display().target();
-    const Font font = Font::parse(g_.resources().load(resource::kFont), Font::Size::Small);
+    const Font font = Font::parse(g_.resources().load(g_.fontFile()), Font::Size::Small);
     const StringTable& phrases = panel_.phrases();
     auto phrase = [&](int n) -> const std::string& { return phrases.at(static_cast<std::size_t>(n) - 1u); };
     const int kind = world_.u8(record + 8);

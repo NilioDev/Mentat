@@ -77,7 +77,7 @@ public:
     // The character a person action talks to, or -1.
     static int characterOf(std::uint16_t action);
 
-    Talk(Game& game, World& world, Panel& panel, TalkHost& host, int language);
+    Talk(Game& game, World& world, Panel& panel, TalkHost& host);
 
     bool active() const { return character_ >= 0; }
     // The phrase of the line said last.
@@ -247,7 +247,7 @@ private:
     World& world_;
     Panel& panel_;
     TalkHost& host_;
-    int language_;
+    int phrasesLanguage_ = -1; // the language of the phrases loaded
     Dialogue dialogue_;
     Conditions conditions_;
     bool remark_ = false;

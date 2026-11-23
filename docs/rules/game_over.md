@@ -58,6 +58,6 @@ Only the sky's colours change; the panel keeps its own.
   as on the globe (see [globe_screen.md](globe_screen.md)). Loading one
   goes on in the room it was saved in; "Cancel" goes back to this list.
 - "EXIT GAME" (action `0x0E3E`): first asks, with the commands at data
-  offset `0x20B4`. "YES" (`0x003A`) ends the program; "NO" (`0xD2E2`)
+  offset `0x20B6`. "YES" (`0x003A`) ends the program; "NO" (`0xD2E2`)
   goes back to the list above.
 - " WHAT ? ": the words are said again.

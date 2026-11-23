@@ -67,6 +67,7 @@ inline constexpr int kFirstScene = 0xA1;     // SIET.SAL
 inline constexpr int kFirstMusic = 0xA4;     // track n is kFirstMusic + n
 inline constexpr int kLatitudes = 0xBA;      // TABLAT.BIN
 inline constexpr int kFont = 0xBB;           // DNCHAR.BIN
+inline constexpr int kFremenFont = 0xC7;     // DNCHAR2.BIN, for the Fremen language
 inline constexpr int kMap = 0xBF;            // MAP.HSQ
 inline constexpr int kFirstCommands = 0xC0;  // COMMAND1.HSQ, one per language
 } // namespace resource

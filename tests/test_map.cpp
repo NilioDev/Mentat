@@ -337,7 +337,7 @@ MTT_TEST("map screen: opens on the palace and the arrows move it") {
     Platform p;
     Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     MapScreen map(g, w, panel);
     map.setUp();
     const std::uint16_t palace = w.u16(World::placeRecord(1) + 2);
@@ -375,7 +375,7 @@ MTT_TEST("map screen: a click on a place shows its label, another click takes it
     Platform p;
     Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     MapScreen map(g, w, panel);
     map.setUp();
     map.enter();
@@ -461,7 +461,7 @@ MTT_TEST("cockpit: the map around Paul, the names of what the mouse points at, a
     Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
     World w(*program);
     w.goTo(0x2001, 0x0180);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     MapScreen map(g, w, panel);
     map.setUp();
     Cockpit cockpit(g, w, panel, map);
@@ -508,12 +508,12 @@ MTT_TEST("globe screen: opens on the map's middle, turns with the arrows and goe
     Platform p;
     Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     MapScreen map(g, w, panel);
     map.setUp();
     map.enter();
     map.leave();
-    GlobeScreen globe(g, w, panel, map, kEnglish);
+    GlobeScreen globe(g, w, panel, map);
     globe.enter(map.longitude(), map.latitude());
     MTT_CHECK(globe.active());
     // The planet's frame and the frescoes, with the planet's colours inside.
@@ -565,7 +565,7 @@ MTT_TEST("globe screen: opens on the map's middle, turns with the arrows and goe
         std::filesystem::remove_all(folder);
         Dialogue said = Dialogue::parse(archive->load("DIALOGUE.HSQ"));
         SavedGames saves(folder, *program, w, said, [&]() -> std::vector<std::uint8_t>& { return map.mapBytes(); });
-        GlobeScreen withSaves(g, w, panel, map, kEnglish, &saves);
+        GlobeScreen withSaves(g, w, panel, map, &saves);
         withSaves.enter(map.longitude(), map.latitude());
         MTT_CHECK((panel.commands()[2].phrase & Command::kGrey) == 0 && panel.commands()[3].action == GlobeScreen::kSave);
         MTT_CHECK(withSaves.command(GlobeScreen::kSave) && panel.commands().size() == 3);
@@ -643,7 +643,7 @@ MTT_TEST("flight: to a place a step at a time, the corner's map over the video, 
     Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
     World w(*program);
     w.goTo(0x2001, 0x0180);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     MapScreen map(g, w, panel);
     map.setUp();
     // The nearest place shown on the map, other than the palace.
@@ -750,7 +750,7 @@ MTT_TEST("flight: a click on the desert flies that way, the arrows turn, and bac
     Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
     World w(*program);
     w.goTo(0x2001, 0x0180);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     MapScreen map(g, w, panel);
     map.setUp();
     Cockpit cockpit(g, w, panel, map);
@@ -803,7 +803,7 @@ MTT_TEST("flight: a companion sees a hidden place ahead, and the Harkonnens' zon
         const std::size_t sietch = World::placeRecord(12);
         w.setU8(sietch + 0x0A, 0x80);
         w.setU8(sietch + 0x0B, 0);
-        Panel panel(g, kEnglish);
+        Panel panel(g);
         MapScreen map(g, w, panel);
         map.setUp();
         Cockpit cockpit(g, w, panel, map);
@@ -837,7 +837,7 @@ MTT_TEST("flight: a companion sees a hidden place ahead, and the Harkonnens' zon
         // edge, and again after a point outside it.
         World w(*program);
         w.goTo(0x2001, 0x0180);
-        Panel panel(g, kEnglish);
+        Panel panel(g);
         MapScreen map(g, w, panel);
         map.setUp();
         Cockpit cockpit(g, w, panel, map);
@@ -892,7 +892,7 @@ MTT_TEST("spice map: the regions around the map's middle, its bar and its clicks
     Platform p;
     Game g(p, *archive, *program, DisplayTables{}, nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     MapScreen map(g, w, panel);
     map.setUp();
     const std::size_t sietch = World::placeRecord(12);
@@ -944,7 +944,7 @@ MTT_TEST("messages: the queue gives its first message, and the vision shows the 
     Platform p;
     Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
     World w(*program);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     MapScreen map(g, w, panel);
     map.setUp();
     // Two messages wait; the first is given, then dropped.

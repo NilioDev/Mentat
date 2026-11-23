@@ -510,7 +510,7 @@ void Orders::drawEquipmentList(const std::array<int, 7>& counts, int x, int y, i
     spans = Spans{};
     Surface& to = g_.display().target();
     if (std::all_of(counts.begin(), counts.end(), [](int n) { return n == 0; })) {
-        const Font large = Font::parse(g_.resources().load(resource::kFont), Font::Size::Large);
+        const Font large = Font::parse(g_.resources().load(g_.fontFile()), Font::Size::Large);
         const std::string& text = panel_.phrases().at(kNonePhrase - 1u);
         large.draw(to, x + 0x0C, y + 5, text, static_cast<std::uint8_t>(colour), static_cast<std::uint8_t>(colour >> 8));
         return;
@@ -565,7 +565,7 @@ void Orders::drawEquipment() {
     const std::uint16_t colours = program.dataU16(kFreeColours);
     drawEquipmentList(free_, freeBox_.left + 0x50, freeBox_.top + 4, freeBox_.bottom, colours, freeAt_);
     // The place's words, a line each.
-    const Font large = Font::parse(g_.resources().load(resource::kFont), Font::Size::Large);
+    const Font large = Font::parse(g_.resources().load(g_.fontFile()), Font::Size::Large);
     const std::string& text = panel_.phrases().at(kUnusedPhrase - 1u);
     int x = freeBox_.left + 8;
     int y = freeBox_.top + 4 + (std::any_of(free_.begin(), free_.end(), [](int n) { return n != 0; }) ? 0 : 5);
