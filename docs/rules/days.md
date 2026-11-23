@@ -17,7 +17,8 @@ bits and days above them.
       Emperor's demand; hour 4, a Harkonnen attack; hour 8, a reminder;
       hour 15, the Harkonnens grow (below);
    6. the place word `0x11CE` named is learned again (see
-      [people.md](people.md)), and word `0x11F7` comes back as it was.
+      [people.md](people.md)), and word `0x11F7` comes back as it was;
+   7. Paul's place at war (below).
 
 ## A new day
 
@@ -116,7 +117,7 @@ Only while byte `0xBF` has bit 7. With D the days since word `0x118D`:
   after four days or more the game ends (reason 7, see
   [game_over.md](game_over.md)). Before that, by the Emperor's mood (byte
   `0xBE`): the level is how many of 1, `0x40`, `0x80`, `0x90` and `0xFF` it
-  is below, at most 2; the byte at data offset `0x2161` plus 4 D plus the
+  is below, at most 2; the program's code byte at `0x2161` plus 4 D plus the
   level is a warning, sent as news (below) with `0x0B` in the low byte;
   with none, the game ends.
 - When byte `0x11BB` is not 0 the game ends.
@@ -165,7 +166,27 @@ prospect get bit 4 of byte 3, the others not fighting are set to fight
 in the high byte of word 0 and 1 in the low one. Message `0x0F0C`
 (`0x0F0D` when troop 3 is there) is left for the place. When word 6
 names it, word 4 is set the same way and bytes `0x0B` and `0x2B` become
-1; otherwise the map is drawn again.
+1, and byte `0xFD` takes how the fight there leans (see above) with bit
+0 set; otherwise the map is drawn again.
+
+## Paul's place at war
+
+While byte `0x2B` is set, each hour the place Paul is at (word `0x114E`)
+is looked at: bytes `0xFD` and `0x2B` become 0 first. The fight there
+goes on when the place's byte `0x0A` has bit 1 (the Harkonnens are known
+to be inside); otherwise not at a fort of Paul's (kind from `0x28` with
+bit 3 of byte `0x0A`), and elsewhere only while any troop of Paul's fights
+there (byte 3 is 6, without bit 5); when none does but Harkonnen troops
+(not fled) are there, Paul is caught (game over reason 4).
+
+While it goes on, byte `0x2B` is 1, byte `0xFD` is how the fight leans
+(below) with bit 0 set, and byte `0x11DD` names the music: `0x2F` for a
+sietch (kind below `0x20`), `0x33` for a fort of kind from `0x28` but
+`0x30`, `0x30` for the others. When the game is to end, for any reason,
+the reason becomes 6.
+
+How a fight leans is the value of the map's battle gauge before it is
+cut to a gauge (see [map.md](map.md#the-battles-gauge)).
 
 ## A reminder (hour 8)
 
@@ -181,6 +202,5 @@ from 1 to 199 men gets one more.
 
 ## Not built yet
 
-Sending the Emperor his spice, showing the news and messages, and what
-the original does for Paul's place each hour (its music and whether it
-is under attack).
+Sending the Emperor his spice, showing the news and messages, and the
+room drawn again at war (or at peace again) with its music.

@@ -6,7 +6,8 @@ byte at `0x46D9` holds the reason. Built so far:
 - 2, Paul caught by the Harkonnens in their zone (see
   [flight.md](flight.md));
 - 6, the place Paul is at lost to the Harkonnens (see
-  [fights.md](fights.md));
+  [fights.md](fights.md)), or Paul caught there when the fight is over
+  (see [days.md](days.md#pauls-place-at-war));
 - 7, the Emperor's spice not sent in time (see [days.md](days.md)).
 
 The screen below is the same for every reason, with the face and words

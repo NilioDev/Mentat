@@ -26,6 +26,12 @@ constexpr int kNamedCount = 12;
 // The table of how long each kind of place keeps a record's count.
 constexpr std::size_t kKeepTable = 0x1D35;
 constexpr std::size_t kKeepKinds = 0x31;
+// Paul's place at war, and how its fight leans.
+constexpr std::size_t kAtWar = 0x2B;
+constexpr std::size_t kBalance = 0xFD;
+// Why the game ends: Paul caught by the Harkonnens, his place lost.
+constexpr int kCaught = 4;
+constexpr int kPlaceLost = 6;
 
 std::uint16_t rol16(std::uint16_t v) { return static_cast<std::uint16_t>((v << 1) | (v >> 15)); }
 
@@ -39,7 +45,7 @@ void World::loadDayTables(const ProgramFile& program) {
     constexpr std::size_t kWarnings = 0x2161;
     warnings_.assign(16, 0);
     for (std::size_t i = 0; i < warnings_.size(); ++i) {
-        warnings_[i] = program.dataU8(kWarnings + i);
+        warnings_[i] = program.codeU8(kWarnings + i);
     }
 }
 
@@ -66,6 +72,46 @@ void World::hourPassed(int except, FlatMap& map) {
         }
         learnPlace(learned);
         setU16(0x11F7, talked);
+        paulsPlace();
+    }
+}
+
+// The place Paul is at, while it is at war: the fight there goes on while
+// the Harkonnens are known to be inside, or while Paul's troops fight
+// them there; when they are left alone with Paul, he is caught.
+void World::paulsPlace() {
+    if (u8(kAtWar) == 0) {
+        return;
+    }
+    const std::size_t at = u16(0x114E);
+    setU8(kBalance, 0);
+    setU8(kAtWar, 0);
+    bool goesOn = (u8(at + 0x0A) & 0x02) != 0;
+    if (!goesOn && !(u8(at + 8) >= 0x28 && (u8(at + 0x0A) & 0x08))) {
+        int harkonnens = 0;
+        int pauls = 0;
+        countFighters(at, harkonnens, pauls);
+        if (pauls != 0) {
+            goesOn = true;
+        } else if (harkonnens != 0) {
+            gameOverReason = kCaught;
+        }
+    }
+    if (goesOn) {
+        setU8(kAtWar, 1);
+        setU8(kBalance, static_cast<std::uint8_t>(battleBalance(at) | 1));
+        const int kind = u8(at + 8);
+        int music = 0x2F;
+        if (kind >= 0x20) {
+            music = kind != 0x30 && kind >= 0x28 ? 0x33 : 0x30;
+        }
+        setU8(0x11DD, static_cast<std::uint8_t>(music));
+    }
+    if (gameOverReason != 0) {
+        gameOverReason = kPlaceLost;
+    }
+    if (u8(kAtWar) == 0) {
+        attackOver = true;
     }
 }
 
@@ -535,7 +581,8 @@ void World::harkonnensAttack(FlatMap& map) {
     if (u16(6) == name) {
         setU16(4, word);
         setU8(0x0B, 1);
-        setU8(0x2B, 1);
+        setU8(kAtWar, 1);
+        setU8(kBalance, static_cast<std::uint8_t>(battleBalance(target) | 1));
         attackedHere = true;
     } else if (placeChanged && !(u8(target + 0x0A) & 0x80)) {
         placeChanged(target);

@@ -167,8 +167,13 @@ public:
     // Harkonnens won the place he is at.
     bool sietchHere = false;
     bool lostWithPaul = false;
-    // Set when the Harkonnens attack the place Paul is at.
+    // Set when the Harkonnens attack the place Paul is at, and when the
+    // fight there is over.
     bool attackedHere = false;
+    bool attackOver = false;
+    // How a fight at a place leans, from 0 (the Harkonnens' way) to 255
+    // (Paul's), 0x80 even.
+    int battleBalance(std::size_t place) const;
     // Why the game ends (the original's codes, 0 while it goes on).
     int gameOverReason = 0;
     // Turns the state's word 0 one bit left; true for the bit that came
@@ -259,6 +264,7 @@ private:
     void sendNews(std::uint16_t news);
     void emperorsDemand();
     void harkonnensAttack(FlatMap& map);
+    void paulsPlace();
     void lowerSpirits(std::size_t troop, int by);
     void heldEquipment(std::size_t troop, std::size_t place, int change);
 
