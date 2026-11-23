@@ -7,6 +7,7 @@
 #include "mentat/engine/fiber.hpp"
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/intro.hpp"
+#include "mentat/engine/talker.hpp"
 
 #include <functional>
 
@@ -89,6 +90,25 @@ MTT_TEST("display: fading through black takes about two seconds and ends on the 
     MTT_CHECK(p.palette[1] == grey(40) && p.palette[254] == grey(40));
 }
 
+MTT_TEST("display: a squash takes 17 steps of 6 ticks and ends on the new picture") {
+    Platform p;
+    Display d(p, tables());
+    prepareChange(d);
+    d.flush();
+    const std::uint32_t ticks = runGame(p, [&] { d.transition(Display::kSquash); });
+    MTT_CHECK(ticks >= 17 * 6 && ticks < 17 * 6 + 6);
+    MTT_CHECK(p.screen.at(0, 0) == 2 && p.screen.at(319, 151) == 2);
+    MTT_CHECK(p.palette[5] == grey(40));
+}
+
+MTT_TEST("characters: Paul's face changes every 4 days, and when he is tired") {
+    MTT_CHECK(paulsFace(4, 0) == 1);
+    MTT_CHECK(paulsFace(4, 0x10) == 2);
+    MTT_CHECK(paulsFace(0x40, 0) == 3);
+    MTT_CHECK(paulsFace(0x40 * 20, 0x0F) == 17);
+    MTT_CHECK(paulsFace(0x40 * 20, 0x20) == 18);
+}
+
 MTT_TEST("display: fading to black leaves the screen dark") {
     Platform p;
     Display d(p, tables());
@@ -115,7 +135,7 @@ MTT_TEST("display: the dissolve ends on the new picture") {
     const std::uint32_t ticks = runGame(p, [&] { d.transition(Display::kDissolve); });
     MTT_CHECK(ticks >= 96 && ticks < 105); // 32 steps of 3 ticks
     MTT_CHECK(p.screen.at(0, 0) == 2 && p.screen.at(319, 199) == 2);
-    MTT_CHECK_THROWS(d.transition(0x04));
+    MTT_CHECK_THROWS(d.transition(0x0C));
 }
 
 MTT_TEST("display: the sparkle brings the picture 150 steps a tick") {

@@ -368,6 +368,74 @@ void Display::rise() {
     }
 }
 
+// The old picture is squashed to the middle line, then the new one grows
+// out of it: each step draws every half from the middle out, copying runs
+// of rows and leaving some out (see docs/rules/display.md).
+void Display::squash() {
+    // Per step from 0x11 down to 1: the rows left out after each run, and
+    // the run.
+    static constexpr std::array<std::array<int, 2>, 0x12> kSteps{{{0, 0},
+                                                                  {1, 0x11},
+                                                                  {1, 7},
+                                                                  {1, 4},
+                                                                  {1, 2},
+                                                                  {2, 3},
+                                                                  {5, 4},
+                                                                  {2, 1},
+                                                                  {5, 1},
+                                                                  {0, 0},
+                                                                  {5, 1},
+                                                                  {2, 1},
+                                                                  {5, 4},
+                                                                  {2, 3},
+                                                                  {1, 2},
+                                                                  {1, 4},
+                                                                  {1, 7},
+                                                                  {1, 0x11}}};
+    constexpr int kMiddleStep = 9;
+    constexpr std::uint32_t kSquashTicks = 6;
+    const int w = Surface::kScreenWidth;
+    const int half = kSceneRows / 2;
+    const std::size_t origin = static_cast<std::size_t>(originRows_ * w);
+    const std::vector<std::uint8_t> old(screen_->data() + origin,
+                                        screen_->data() + origin + static_cast<std::size_t>(kSceneRows * w));
+    std::uint8_t* to = screen_->data() + origin;
+    const std::uint8_t* from = old.data();
+    std::uint32_t due = platform_.ticks;
+    for (int step = 0x11; step > 0; --step) {
+        std::fill_n(to, kSceneRows * w, std::uint8_t{0});
+        if (step == kMiddleStep) {
+            flush();
+            from = back_->data() + origin;
+        } else {
+            const int skip = kSteps.at(static_cast<std::size_t>(step))[0];
+            const int run = kSteps.at(static_cast<std::size_t>(step))[1];
+            int left = half;
+            int source = 0;
+            int drawn = 0;
+            for (;;) {
+                bool done = false;
+                for (int r = 0; r < run; ++r) {
+                    if (--left < 0) {
+                        done = true;
+                        break;
+                    }
+                    std::copy_n(from + (half - 1 - source) * w, w, to + (half - 1 - drawn) * w);
+                    std::copy_n(from + (half + source) * w, w, to + (half + drawn) * w);
+                    ++source;
+                    ++drawn;
+                }
+                if (done || left <= skip) {
+                    break;
+                }
+                left -= skip;
+                source += skip;
+            }
+        }
+        due = waitUntil(due + kSquashTicks);
+    }
+}
+
 // Blocks of 8 × 4 pixels of the new picture, in a square spiral out from
 // (156, 74): one side of the spiral a tick.
 // The back picture comes pixel by pixel in an order that looks random:
@@ -556,6 +624,9 @@ void Display::transition(int type, int direction) {
         break;
     case kSpiral:
         spiral();
+        break;
+    case kSquash:
+        squash();
         break;
     case kSparkle:
         sparkle();
