@@ -39,6 +39,9 @@ public:
     static constexpr std::uint16_t kWindTrap = 0x6A2B;
     static constexpr std::uint16_t kAttack = 0x6A2F;
     static constexpr std::uint16_t kEspionage = 0x6A45;
+    static constexpr std::uint16_t kSearchSpice = 0x776D;
+    static constexpr std::uint16_t kSearchArmy = 0x7734;
+    static constexpr std::uint16_t kSearchEcology = 0x775C;
     static constexpr std::uint16_t kCancel = 0xD2E2;
 
     Orders(Game& game, World& world, Panel& panel, MapScreen& map, Talk& talk, SpiceMap& spice);
@@ -90,7 +93,9 @@ private:
     void chooseDestination();
     void stopChoosing();
     void confirmDestination(std::size_t place);
-    std::array<int, 7> freeEquipment(std::size_t place) const;
+    void equipped();
+    void searchEquipment(int first, int last);
+    void answer(std::uint8_t situation);
     void openEquipment();
     void drawEquipment();
     void drawHeld();

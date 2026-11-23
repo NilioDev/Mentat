@@ -120,6 +120,39 @@ when a place is pointed at for "move troop": on a yes the troop sets off
 and the orders end. On a no its occupation loses bits 0 and 1 and the
 orders come back.
 
+### Searching for equipment
+
+"Go & search for equipment" looks for the first kind of the speciality's
+equipment the troop does not hold (bits of byte `0x19`, kind k for bit
+`0x80` >> k): kinds 0 and 1 for spice, 2 to 5 for the army, 6 for
+ecology. When it holds them all, the orders come back and the chief
+answers in situation `0x0F`. Otherwise word `0x1203` takes `0xE8` + k.
+
+When the troop's own place has a piece of that kind free (as for
+modifying the equipment; two for a harvester, kind 1, at Paul's home,
+word `0x1150`), the troop takes it there and then, as if given it by
+modifying the equipment.
+
+Otherwise the nearest place to fetch it from is looked for, among the
+places from the third on (to the first whose word 0 is `0xFFFF`), but
+those hidden (byte `0x0A` bit 7), forts (kind from `0x28`) and the
+troop's own place. The distance is the larger of the high byte of the
+longitudes' and the low byte of the latitudes' (the whole latitude
+distance when that is larger); a place is passed over when its low byte
+is `0x32` or more, and from kind `0x21` on it counts a quarter. Of the
+nearer ones, a place with a piece of the kind free, after taking off
+one for each troop on the move there for that kind (byte 3 with bits 0,
+1 and 6, word 4 the place, word `0x0C` not the place, byte `0x0E` the
+kind) and, at Paul's home before story step `0x50`, one harvester
+(never below 0).
+
+With none, the orders come back and the chief answers in situation
+`0x0E`. Otherwise the troop is asked to take up its speciality with 3
+in the low two bits, as for "wind-trap". On a yes, its word `0x0E`
+keeps the kind (low byte) and its bit (high byte), its word `0x0C` its
+place, and it sets off for the place found (see [moves.md](moves.md));
+the orders end.
+
 ### Setting an occupation
 
 Setting an occupation, when the low four bits of byte 3 differ from it:
@@ -285,5 +318,5 @@ marks when the troop is on the move and near, or its place is in sight.
 ## Not built yet
 
 The chief's voice in the box, the troop shown three
-sietches, searching for equipment, the orders
+sietches, the orders
 from the map for troops on the move, and what troops do day by day.
