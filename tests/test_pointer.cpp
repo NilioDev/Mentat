@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "test.hpp"
 
+#include "mentat/engine/pad_buttons.hpp"
 #include "mentat/engine/pointer_jump.hpp"
 
 using namespace mentat;
@@ -37,4 +38,23 @@ MTT_TEST("pointer: from the scene, down reaches the nearest line") {
     const auto p = jumpTarget(panel(), 300, 40, 0, 1);
     MTT_CHECK(p && p->x == 269);
     MTT_CHECK(!jumpTarget(panel(), 300, 40, 0, 0));
+}
+
+MTT_TEST("gamepad: the buttons as Mentat comes, and as the player's file sets them") {
+    PadButtons b;
+    MTT_CHECK(b.action(0) == PadAction::Click && b.action(1) == PadAction::RightClick);
+    MTT_CHECK(b.action(4) == PadAction::Quit && b.action(11) == PadAction::Up && b.action(14) == PadAction::Right);
+    MTT_CHECK(b.action(2) == PadAction::Key && b.action(99) == PadAction::Key);
+    const int bad = b.read("# my pad\n"
+                           "B = click\n"
+                           "a = Right click   # swapped\n"
+                           "Back = nothing\r\n"
+                           "left shoulder = jump left\n"
+                           "start = fly\n"
+                           "nonsense\n"
+                           "\n");
+    MTT_CHECK(bad == 2);
+    MTT_CHECK(b.action(1) == PadAction::Click && b.action(0) == PadAction::RightClick);
+    MTT_CHECK(b.action(4) == PadAction::None && b.action(9) == PadAction::Left && b.action(6) == PadAction::Key);
+    MTT_CHECK(PadButtons::buttonNamed("DP-Up") == 11 && PadButtons::buttonNamed("z") == -1);
 }
