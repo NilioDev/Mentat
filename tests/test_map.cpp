@@ -17,6 +17,7 @@
 #include "mentat/engine/platform.hpp"
 #include "mentat/engine/saved_games.hpp"
 #include "mentat/engine/spice_map.hpp"
+#include "mentat/engine/vision.hpp"
 #include "mentat/engine/world.hpp"
 #include "mentat/gfx/surface.hpp"
 
@@ -920,4 +921,51 @@ MTT_TEST("spice map: the regions around the map's middle, its bar and its clicks
     MTT_CHECK(spice.click(f.left + 4, f.top + 3, place) == SpiceMap::Click::Close);
     spice.close();
     MTT_CHECK(!spice.shown() && screen.at(v.left + 1, v.top + 1) == g.display().back().at(v.left + 1, v.top + 1));
+}
+
+MTT_TEST("messages: the queue gives its first message, and the vision shows the place and shimmers") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
+    World w(*program);
+    Panel panel(g, kEnglish);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    // Two messages wait; the first is given, then dropped.
+    const std::size_t q = World::kMessageQueue;
+    const auto place = static_cast<std::uint16_t>(World::placeRecord(5));
+    w.setU8(q, 2);
+    w.setU16(q + 1, 0x0F0C);
+    w.setU16(q + 3, place);
+    w.setU16(q + 5, 0x0F07);
+    w.setU16(q + 7, static_cast<std::uint16_t>(World::placeRecord(6)));
+    std::uint16_t message = 0;
+    std::uint16_t at = 0;
+    MTT_CHECK(w.firstMessage(message, at) && message == 0x0F0C && at == place);
+    w.dropMessage();
+    MTT_CHECK(w.u8(q) == 1 && w.firstMessage(message, at) && message == 0x0F07);
+    w.dropMessage();
+    MTT_CHECK(w.u8(q) == 0 && !w.firstMessage(message, at));
+
+    // The vision of a place away from Paul has the small map in its frame.
+    Vision v(g, w, map);
+    v.draw(place);
+    const Surface& back = g.display().back();
+    std::set<int> inWindow;
+    for (int y = 0x24; y < 0x54; y += 4) {
+        for (int x = 0xB4; x < 0x11C; x += 4) {
+            inWindow.insert(back.at(x, y));
+        }
+    }
+    MTT_CHECK(inWindow.size() > 4);
+    // The shimmer turns the colours 0x80 to 0xBF down by one.
+    const Colour second = g.display().palette()[0x81];
+    const Colour first = g.display().palette()[0x80];
+    v.shimmer();
+    MTT_CHECK(g.display().palette()[0x80].r == second.r && g.display().palette()[0x80].b == second.b);
+    MTT_CHECK(g.display().palette()[0xBF].r == first.r && g.display().palette()[0xBF].g == first.g);
 }

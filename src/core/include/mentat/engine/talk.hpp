@@ -137,6 +137,11 @@ public:
     // buffer: the face, then the first line of the story's list of
     // remarks that may be said. False when there is none.
     bool remark(int c);
+    // A chief's message in a vision, over the picture already on the back
+    // buffer: character `c` with portrait `face` (set `variant`) comes in
+    // a mosaic and says the first line of the story's remarks that may be
+    // said. False when there is none. endRemark() ends it.
+    bool vision(int c, int face, int variant);
     // The flight goes on: the remark is over.
     void endRemark();
     bool remarking() const { return remark_; }

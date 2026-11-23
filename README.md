@@ -61,8 +61,10 @@ and touch controls.
 > story gets that far, "See spice density" on the map opens that small
 > map of the regions you know, coloured by their spice or, with a click on
 > its bar, by the work of your troops there; point at a place to see who
-> is there, or click it to move the map to it. The
-> chiefs' messages and the rest of the game are not there yet.
+> is there, or click it to move the map to it. While you wait in a room,
+> news from your troops reaches you: the room blurs and a chief's face
+> appears in a shimmering vision, showing the place on a small map. The
+> rest of the game is not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the

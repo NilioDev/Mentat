@@ -176,6 +176,10 @@ public:
     int battleBalance(std::size_t place) const;
     // Why the game ends (the original's codes, 0 while it goes on).
     int gameOverReason = 0;
+    // The chiefs' messages waiting: a count, then (message, place) words.
+    static constexpr std::size_t kMessageQueue = 0x1190;
+    bool firstMessage(std::uint16_t& message, std::uint16_t& place) const;
+    void dropMessage();
     // Turns the state's word 0 one bit left; true for the bit that came
     // round.
     bool turnSeed();

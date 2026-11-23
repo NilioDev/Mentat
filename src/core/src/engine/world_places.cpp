@@ -63,8 +63,31 @@ void World::troopsAt(std::size_t place, const std::function<void(int troop)>& ea
 
 // The chief's messages wait at 0x1190: a count, then up to ten of a
 // message word and a place each.
+bool World::firstMessage(std::uint16_t& message, std::uint16_t& place) const {
+    if (u8(kMessageQueue) == 0) {
+        return false;
+    }
+    message = u16(kMessageQueue + 1);
+    place = u16(kMessageQueue + 3);
+    return true;
+}
+
+// The first message goes and the others move up.
+void World::dropMessage() {
+    setU8(kMessageQueue, static_cast<std::uint8_t>(u8(kMessageQueue) - 1));
+    if (u8(kMessageQueue) == 0) {
+        setU8(kMessageQueue - 1, 0);
+    }
+    for (std::size_t i = 0; i < 0x24; ++i) {
+        setU8(kMessageQueue + 1 + i, u8(kMessageQueue + 5 + i));
+    }
+    for (std::size_t i = 0; i < 4; ++i) {
+        setU8(kMessageQueue + 0x25 + i, 0);
+    }
+}
+
 void World::tell(std::uint16_t message, std::size_t place) {
-    constexpr std::size_t kQueue = 0x1190;
+    constexpr std::size_t kQueue = kMessageQueue;
     constexpr int kMost = 10;
     if (!(u8(0x0A) & 1)) {
         return;
@@ -78,16 +101,7 @@ void World::tell(std::uint16_t message, std::size_t place) {
     }
     if (count >= kMost) {
         // The oldest goes.
-        setU8(kQueue, static_cast<std::uint8_t>(u8(kQueue) - 1));
-        if (u8(kQueue) == 0) {
-            setU8(kQueue - 1, 0);
-        }
-        for (std::size_t i = 0; i < 0x24; ++i) {
-            setU8(kQueue + 1 + i, u8(kQueue + 5 + i));
-        }
-        for (std::size_t i = 0; i < 4; ++i) {
-            setU8(kQueue + 0x25 + i, 0);
-        }
+        dropMessage();
         count = kMost - 1;
     }
     setU8(kQueue, static_cast<std::uint8_t>(u8(kQueue) + 1));

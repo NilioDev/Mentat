@@ -17,6 +17,7 @@
 #include "mentat/engine/talk.hpp"
 #include "mentat/engine/talker.hpp"
 #include "mentat/engine/text_box.hpp"
+#include "mentat/engine/vision.hpp"
 #include "mentat/engine/world.hpp"
 #include "mentat/gfx/font.hpp"
 
@@ -169,6 +170,24 @@ constexpr int kOutsideSkyCount = 80;
 constexpr int kPanelColoursFirst = 240;
 constexpr int kPanelColoursCount = 16;
 constexpr int kSkyTimer = 0x3916;
+// The chiefs' messages: from the story's step after 0x14, a while after
+// the room was shown (in ticks), as a vision.
+constexpr int kMessagesFrom = 0x14;
+constexpr std::uint32_t kMessageWait = 0x32;
+constexpr std::uint32_t kFirstBlur = 0x96;
+constexpr std::uint32_t kSecondBlurFrom = 0xFA;
+constexpr std::uint32_t kSecondBlur = 0x15E;
+constexpr std::uint32_t kVisionFrom = 0x1C2;
+constexpr int kVisionTimer = 0x2CC7;
+constexpr int kVisionTicks = 6;
+constexpr int kVisionShown = 0xBB8;
+constexpr int kMessageCharacters = 0x10;
+constexpr int kTroopShownSietches = 3;
+constexpr std::size_t kMessageAbout = 0xEA; // and 0xEB
+constexpr std::size_t kMessageAfter = 0xE8;
+constexpr std::uint8_t kMessageAfterValue = 0x0A;
+constexpr std::uint16_t kFirstPlace = 0x100;
+constexpr std::uint16_t kPlacesSize = 0x7AA;
 constexpr int kSkyFadeTicks = 0x10;
 constexpr int kSkyFadeSteps = 0x40;
 constexpr int kSkyRefadeSteps = 0x30;
@@ -219,7 +238,7 @@ public:
                  [this]() -> std::vector<std::uint8_t>& { return map_.mapBytes(); }),
           globe_(game, world_, panel_, map_, language, &saves_), cockpit_(game, world_, panel_, map_),
           flight_(game, world_, panel_, map_), spice_(game, world_, panel_, map_),
-          orders_(game, world_, panel_, map_, talk_, spice_) {
+          orders_(game, world_, panel_, map_, talk_, spice_), vision_(game, world_, map_) {
         talk_.subtitles = subtitlesFor(language);
         talk_.enlisted = [this] { enlistFremen(); };
         talk_.ordersAsked = [this] { openOrders(); };
@@ -271,6 +290,7 @@ public:
                 hoursPassed_ = 0;
                 newHour();
             }
+            checkMessages();
             followMouse();
         }
     }
@@ -314,6 +334,101 @@ private:
         clockRunning_ = true;
         lastTick_ = g_.platform().ticks;
         showPointer(kArrowPointer);
+    }
+
+    // --- The chiefs' messages
+
+    // While Paul stays in a room, the first message waiting comes to him:
+    // twice the room blurs as it nears, then the vision shows (at once
+    // while his place is at war).
+    void checkMessages() {
+        if (over_ || talk_.active() || map_.active() || globe_.active() || cockpit_.active() || flight_.active() ||
+            orders_.active() || noticeShown_ || !world_.inside()) {
+            return;
+        }
+        if (world_.u8(kProgress) <= kMessagesFrom || world_.u8(World::kMessageQueue) == 0) {
+            return;
+        }
+        const std::uint32_t quiet = g_.platform().ticks - quietSince_;
+        if (quiet < kMessageWait) {
+            return;
+        }
+        if (world_.u8(kAtWar) == 0) {
+            if (quiet < kFirstBlur) {
+                blurRoom(Display::kMosaicFine);
+                return;
+            }
+            if (quiet < kSecondBlurFrom) {
+                return;
+            }
+            if (quiet < kSecondBlur) {
+                blurRoom(Display::kMosaicShort);
+                return;
+            }
+            if (quiet < kVisionFrom) {
+                return;
+            }
+        }
+        showMessage();
+    }
+
+    void blurRoom(int transition) {
+        d_.targetBack();
+        drawView();
+        d_.transition(transition);
+    }
+
+    void showMessage() {
+        std::uint16_t message = 0;
+        std::uint16_t place = 0;
+        world_.firstMessage(message, place);
+        if (place != 0 && static_cast<std::uint16_t>(place - kFirstPlace) >= kPlacesSize) {
+            world_.setU8(World::kMessageQueue + 3, 0);
+            place = 0;
+        }
+        const auto about = static_cast<std::uint8_t>(message & 0xFF);
+        const int c = message >> 8;
+        world_.setU8(kMessageAbout, about);
+        if (about == 1) {
+            world_.setU8(kMessageAbout + 1, 1);
+        }
+        if (c >= kMessageCharacters || (c == kFremen && place == 0)) {
+            world_.dropMessage();
+            return;
+        }
+        int talker = c;
+        int face = c;
+        int variant = 0;
+        if (place != 0) {
+            world_.learnPlace(place);
+            world_.namePlace(place);
+            if (c >= kFremen) {
+                const int troop = about == kFremen ? kTroopShownSietches : world_.u8(place + 9);
+                if (troop != 0) {
+                    talker = kFremen;
+                    face = world_.troopFace(troop, variant);
+                }
+            }
+        }
+        closeOrnament();
+        panel_.setCommands({});
+        d_.targetBack();
+        panel_.drawCommands();
+        vision_.draw(talker >= kFremen ? place : 0);
+        g_.addTimer(kVisionTimer, kVisionTicks, [this] { vision_.shimmer(); });
+        talk_.vision(talker, face, variant);
+        world_.dropMessage();
+        g_.waitTicks(kVisionShown);
+        g_.removeTimer(kVisionTimer);
+        vision_.stop();
+        talk_.endRemark();
+        world_.setU8(kMessageAbout, 0xFF);
+        world_.setU8(kMessageAfter, kMessageAfterValue);
+        d_.targetBack();
+        drawView();
+        d_.transition(Display::kMosaic);
+        openOrnament();
+        quietSince_ = g_.platform().ticks;
     }
 
     // --- The mouse
@@ -632,6 +747,7 @@ private:
     // Paul is in a new room: those there may speak up. What is happening
     // stays "come in" until something else happens.
     void cameIn() {
+        quietSince_ = g_.platform().ticks;
         world_.setU8(kSituation, kComingIn);
         world_.setU8(kEntries, 1);
         speakUp();
@@ -1679,6 +1795,9 @@ private:
     Flight flight_;
     SpiceMap spice_;
     Orders orders_;
+    Vision vision_;
+    // When the room was last shown: a message waits a while after it.
+    std::uint32_t quietSince_ = 0;
     World::People people_;
     std::size_t chief_ = 0; // which of the chiefs here Paul talks to
     int walkingTo_ = 0;     // the room Paul went for when someone spoke up
