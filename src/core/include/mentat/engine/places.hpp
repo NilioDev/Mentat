@@ -85,6 +85,9 @@ public:
     // The room's four ways out (up, right, down, left): another room of the
     // same kind from 1, 0 for none; see docs/rules/places.md.
     std::array<std::uint8_t, 4> exits() const;
+    // Reads a byte of the state when it lies there (the rooms of some
+    // kinds do); nothing otherwise.
+    std::function<std::optional<std::uint8_t>(std::size_t)> stateByte;
 
     int room() const { return room_; }
     int place() const { return place_; }
@@ -93,6 +96,7 @@ public:
 
 private:
     void loadScenes();
+    std::uint8_t roomData(std::size_t at) const;
     std::size_t roomRecord() const;
     void drawPerson(int character, const PersonSlot& slot);
     void drawOrnithopter(int x, int y, int state);

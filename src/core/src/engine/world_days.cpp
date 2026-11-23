@@ -464,7 +464,12 @@ void World::emperorsDemand() {
         setU8(0xCF, static_cast<std::uint8_t>(-since));
         return;
     }
-    // The day of a new demand: more each time, by the Emperor's mood.
+    newDemand();
+}
+
+// The day of a new demand: more each time, by the Emperor's mood.
+void World::newDemand() {
+    const int mood = u8(0xBE);
     const int times = u8(0xC3);
     setU8(0xC3, static_cast<std::uint8_t>(times + 1));
     unsigned demand = 0xFFFF;

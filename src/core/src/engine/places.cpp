@@ -70,15 +70,25 @@ std::size_t Places::roomRecord() const {
     return list + (static_cast<std::size_t>(number) - 1) * kRoomSize;
 }
 
+// The palace's rooms lie in the state, where the story opens their ways.
+std::uint8_t Places::roomData(std::size_t at) const {
+    if (stateByte) {
+        if (const auto b = stateByte(at)) {
+            return *b;
+        }
+    }
+    return game_.resources().program().dataU8(at);
+}
+
 int Places::roomByte() const {
-    return game_.resources().program().dataU8(roomRecord());
+    return roomData(roomRecord());
 }
 
 std::array<std::uint8_t, 4> Places::exits() const {
     const std::size_t at = roomRecord();
     std::array<std::uint8_t, 4> e{};
     for (std::size_t i = 0; i < 4; ++i) {
-        e[i] = game_.resources().program().dataU8(at + 1 + i);
+        e[i] = roomData(at + 1 + i);
     }
     return e;
 }

@@ -173,6 +173,9 @@ constexpr int kSkyTimer = 0x3916;
 // The chiefs' messages: from the story's step after 0x14, a while after
 // the room was shown (in ticks), as a vision.
 constexpr int kMessagesFrom = 0x14;
+constexpr int kQuietStep = 0x14;
+constexpr std::uint32_t kQuietStepWait = 0x3E8;
+constexpr std::uint32_t kQuietStepAgain = 0x3B6;
 constexpr std::uint32_t kMessageWait = 0x32;
 constexpr std::uint32_t kFirstBlur = 0x96;
 constexpr std::uint32_t kSecondBlurFrom = 0xFA;
@@ -265,6 +268,17 @@ public:
             return covers;
         };
         g_.places().personOf = [this](int c, int& down) { return personOf(c, down); };
+        g_.places().stateByte = [this](std::size_t at) -> std::optional<std::uint8_t> {
+            if (at < World::kSize) {
+                return world_.u8(at);
+            }
+            return std::nullopt;
+        };
+    }
+
+    ~Play() override {
+        g_.places().personOf = {};
+        g_.places().stateByte = {};
     }
 
     void run() {
@@ -291,6 +305,7 @@ public:
                 newHour();
             }
             checkMessages();
+            checkStory();
             followMouse();
         }
     }
@@ -370,6 +385,27 @@ private:
             }
         }
         showMessage();
+    }
+
+    // What the story changed that shows: ways between rooms opened. And at
+    // step 0x14, a long quiet outside with nobody along moves it on.
+    void checkStory() {
+        if (over_ || talk_.active() || map_.active() || globe_.active() || cockpit_.active() || flight_.active() ||
+            orders_.active() || noticeShown_) {
+            return;
+        }
+        if (world_.roomsChanged) {
+            world_.roomsChanged = false;
+            if (world_.inside()) {
+                panel_.setArrows(world_, g_.places().exits());
+            }
+        }
+        if (world_.u8(kProgress) == kQuietStep && world_.u16(World::kAwayWord) == 0 &&
+            world_.u8(World::kPlaceKindByte) == World::kOutside &&
+            g_.platform().ticks - quietSince_ >= kQuietStepWait) {
+            quietSince_ += kQuietStepAgain;
+            world_.quietAtStep14();
+        }
     }
 
     void blurRoom(int transition) {

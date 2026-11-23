@@ -104,7 +104,7 @@ it starts.
 | 6 | The talk ends after this line: TALK TO ME has nothing more |
 | 7 | The answer is "maybe" (`0x80`) |
 | 11 | When said the first time: the story moves on a step (state `0x2A`); at step 1 byte `0x100B` is set |
-| 12 | When said the first time: the story moves on to the next multiple of 4 |
+| 12 | When said the first time: the story moves on to the next multiple of 4, and that step's changes follow (see [story_steps.md](story_steps.md)) |
 | 14 | When said the first time: one more at `0xC2` |
 | 15 | For Jessica: one more at `0xF5` |
 

@@ -63,8 +63,10 @@ and touch controls.
 > its bar, by the work of your troops there; point at a place to see who
 > is there, or click it to move the map to it. While you wait in a room,
 > news from your troops reaches you: the room blurs and a chief's face
-> appears in a shimmering vision, showing the place on a small map. The
-> rest of the game is not there yet.
+> appears in a shimmering vision, showing the place on a small map. As the
+> story moves on, doors in the palace open, people move to other rooms,
+> new places become known and news arrives. The story's scenes and the
+> rest of the game are not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the

@@ -110,8 +110,12 @@ void World::findPlace(std::size_t record) {
     setU8(record + 0x0B, 0);
     if (u8(record + 8) < kFirstNotSietch) {
         setU8(kSietchesFound, static_cast<std::uint8_t>(u8(kSietchesFound) + 1));
-        // Finding one particular sietch also starts a moment of the story,
-        // which Mentat does not have yet.
+        // Finding one particular sietch moves the story on.
+        constexpr std::uint16_t kStorySietch = 0x0603;
+        constexpr int kStepFound = 0x10;
+        if (u16(record) == kStorySietch) {
+            raiseStory(kStepFound);
+        }
     }
 }
 
