@@ -537,6 +537,65 @@ MTT_TEST("orders: a troop shown a place on the small map sets off and walks ther
     MTT_CHECK(there);
 }
 
+MTT_TEST("orders: an army troop takes up espionage, sets off for the nearest fort, then attacks") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g, kEnglish);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    w.setU8(0x2A, 0x10);
+    const std::size_t sietch = World::placeRecord(14);
+    w.enterPlace(sietch);
+    w.goTo((w.room() & 0xFF00) | 2, w.place());
+    const int troop = w.u8(sietch + 9);
+    MTT_CHECK(troop != 0);
+    w.enlist(troop);
+    const std::size_t t = World::troopRecord(troop);
+    w.setOccupation(troop, 4);
+
+    FakeHost host;
+    Talk talk(g, w, panel, host, kEnglish);
+    SpiceMap spice(g, w, panel, map);
+    Orders orders(g, w, panel, map, talk, spice);
+    int sent = 0;
+    orders.sent = [&] { ++sent; };
+    auto run = [&](const std::function<void()>& f) {
+        Fiber fiber([&] {
+            g.display().targetBack();
+            f();
+        });
+        p.fiber = &fiber;
+        while (!fiber.finished()) {
+            fiber.resume();
+            ++p.ticks;
+        }
+        p.fiber = nullptr;
+    };
+    run([&] { orders.open(troop); });
+    run([&] { orders.command(Orders::kOccupation); });
+    MTT_CHECK(panel.commands().size() == 5 && panel.commands()[1].action == Orders::kEspionage);
+    // The fort nearest the troop's place that Paul has not found.
+    w.learnPlace(sietch);
+    const std::size_t fort = w.u16(0xE4);
+    MTT_CHECK(fort != 0 && fort != sietch && w.u8(fort + 8) >= 0x28);
+    run([&] { orders.command(Orders::kEspionage); });
+    MTT_CHECK(sent == 1 && !orders.active());
+    MTT_CHECK((w.u8(t + 3) & 0x0F) == 5 && (w.u8(t + 3) & 0x40) && w.u16(t + 4) == fort);
+
+    // Spying, the only order left is to attack.
+    run([&] { orders.open(troop); });
+    run([&] { orders.command(Orders::kOccupation); });
+    MTT_CHECK(panel.commands().size() == 2 && panel.commands()[0].action == Orders::kAttack);
+    run([&] { orders.command(Orders::kAttack); });
+    MTT_CHECK(talk.answer() == 0xFF && (w.u8(t + 3) & 0x0F) == 6);
+}
+
 MTT_TEST("orders: a troop takes equipment the sietch keeps and gives it back") {
     auto archive = test::openGameData();
     auto program = test::openProgram();

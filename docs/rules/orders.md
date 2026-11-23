@@ -106,6 +106,22 @@ not spice, bit 7 of the troop's byte `0x19` is cleared. On a no the
 troop's word `0x12` comes back as it was and its old byte 3 is set again
 the same way. Either way the orders come back.
 
+"Wind-trap" asks for the troop's speciality (bits 2 and 3 of byte 3) with
+1 in the low two bits, and "attack" with 2, the same way.
+
+### Espionage
+
+"Espionage" first asks for the speciality with 1, as above, and whatever
+the answer goes on: the troop's byte `0x10` loses bit 6 (it is not ready),
+the state learns the troop's place (see
+[people.md](people.md#what-the-state-learns-about-the-place)), and the
+chief is asked to go to the nearest fort not found yet (word `0xE4`) as
+when a place is pointed at for "move troop": on a yes the troop sets off
+and the orders end. On a no its occupation loses bits 0 and 1 and the
+orders come back.
+
+### Setting an occupation
+
 Setting an occupation, when the low four bits of byte 3 differ from it:
 ecology at place `0x7C8` while that place's byte `0x1A` is 0 becomes
 `0x0A`. Byte 3 takes the value; the troop's word `0x12` loses bits 4 and
@@ -269,5 +285,5 @@ marks when the troop is on the move and near, or its place is in sight.
 ## Not built yet
 
 The chief's voice in the box, the troop shown three
-sietches, searching for equipment, espionage, attacking, the wind-trap, the orders
+sietches, searching for equipment, the orders
 from the map for troops on the move, and what troops do day by day.

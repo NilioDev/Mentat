@@ -25,7 +25,7 @@ stronger side's sum L and the weaker's S, L × 256 / S halved, at most
 Harkonnens are the stronger, 256 less that. It is Paul's chance, out of
 256, to strike.
 
-## Attacking (5)
+## Espionage (5)
 
 With the hours since the troop's word `0x0A` and r = (`0x50` less its
 army skill, as a signed byte) halved:
@@ -42,7 +42,7 @@ army skill, as a signed byte) halved:
   from the second generator, kept to its low six bits, is at least its
   army skill.
 
-## Fighting (6)
+## Attacking (6)
 
 The state's byte `0x11BC` gets bit 0.
 
