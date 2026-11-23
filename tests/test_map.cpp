@@ -1321,3 +1321,43 @@ MTT_TEST("world: found unconscious, Paul is carried home") {
     w.hourPassed(0, m);
     MTT_CHECK(w.u8(0xF4) == 0 && w.u8(0xF5) == 0);
 }
+
+MTT_TEST("world: a massive attack fights the rounds at once") {
+    std::vector<std::uint8_t> map(2 * kMiddle + 512, 0x05);
+    FlatMap m(smallLatitudes(), map, FlatMap::Edges{});
+    World w;
+    const std::size_t sietch = World::placeRecord(1);
+    w.setU8(sietch + 8, 0x03);
+    w.setU8(sietch + 9, 1);
+    w.setU8(sietch + 0x0A, 0x02); // the Harkonnens are inside
+    w.setU8(World::placeRecord(2), 0xFF);
+    w.setU16(World::placeRecord(2), 0xFFFF);
+    for (int n = 1; World::troopRecord(n) < 0xFBB; ++n) {
+        w.setU8(World::troopRecord(n), static_cast<std::uint8_t>(n));
+        w.setU8(World::troopRecord(n) + 3, 0xA0);
+    }
+    const std::size_t ours = World::troopRecord(1);
+    w.setU8(ours + 1, 2);
+    w.setU8(ours + 3, 6);
+    w.setU16(ours + 4, static_cast<std::uint16_t>(sietch));
+    w.setU8(ours + 0x15, 50);
+    w.setU8(ours + 0x17, 0x20);
+    w.setU8(ours + 0x1A, 100);
+    const std::size_t theirs = World::troopRecord(2);
+    w.setU8(theirs + 3, 0x80);
+    w.setU16(theirs + 4, static_cast<std::uint16_t>(sietch));
+    w.setU8(theirs + 0x10, 0x80);
+    w.setU8(theirs + 0x15, 50);
+    w.setU8(theirs + 0x17, 0x20);
+    w.setU8(theirs + 0x1A, 200);
+    w.enterPlace(sietch);
+    w.setU8(0x2B, 1);
+    w.random2 = [] { return 0xFF; }; // above the lean: Paul's troop is struck
+    w.random = [](int) { return 1; };
+    const int before = w.u8(ours + 0x1A);
+    w.massiveAttack(m);
+    // Struck round after round until it fled with a few.
+    MTT_CHECK(w.u8(ours + 0x1A) != before);
+    MTT_CHECK(w.u16(0x9A) != 0); // what Paul's side lost
+    MTT_CHECK(w.u16(0x98) == 0); // the Harkonnens lost nothing
+}

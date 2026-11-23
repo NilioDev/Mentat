@@ -181,7 +181,8 @@ there (byte 3 is 6, without bit 5); when none does but Harkonnen troops
 (not fled) are there, Paul is caught (game over reason 4).
 
 While it goes on, byte `0x2B` is 1, byte `0xFD` is how the fight leans
-(below) with bit 0 set, and byte `0x11DD` names the music: `0x2F` for a
+(below) with bit 0 set, and byte `0x11DD` (the first sprite of the battle's horizon, see
+[attack.md](attack.md)) names the skyline: `0x2F` for a
 sietch (kind below `0x20`), `0x33` for a fort of kind from `0x28` but
 `0x30`, `0x30` for the others. When the game is to end, for any reason,
 the reason becomes 6.
@@ -204,4 +205,4 @@ from 1 to 199 men gets one more.
 ## Not built yet
 
 Sending the Emperor his spice, showing the news and messages, and the
-room drawn again at war (or at peace again) with its music.
+music of the battle.

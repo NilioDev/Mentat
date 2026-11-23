@@ -151,6 +151,45 @@ void World::fight(int troop, std::size_t place, FlatMap& map) {
     strike(troop, place, map);
 }
 
+// "Massive attack": the fight at Paul's place, up to 16 rounds at once.
+// How it leans is drawn once: every round, all of Paul's fighting troops
+// strike, or all are struck. Words 0x98 and 0x9A then hold what each
+// side's worth fell by.
+void World::massiveAttack(FlatMap& map) {
+    constexpr std::size_t kOurs = 0x96;
+    constexpr std::size_t kTheirLoss = 0x98;
+    constexpr std::size_t kOurLoss = 0x9A;
+    constexpr int kRounds = 16;
+    const std::size_t place = u16(kPlaceRecord);
+    weighForces(place);
+    setU16(kTheirLoss, u16(kTheirs));
+    setU16(kOurLoss, u16(kOurs));
+    const bool striking = ((random2 ? random2() : 0) & 0xFF) < u8(kLean);
+    for (int round = 0; round < kRounds; ++round) {
+        weighForces(place);
+        troopsAt(place, [&](int n) {
+            if (u8(troopRecord(n) + 3) != kFighting) {
+                return;
+            }
+            if (!striking) {
+                struck(n, place, map);
+            } else if (u16(kTheirs) == 0) {
+                capture(place, map);
+            } else {
+                strike(n, place, map);
+            }
+        });
+        if (u16(kTheirs) == 0 || u16(kOurs) == 0) {
+            break;
+        }
+    }
+    weighForces(place);
+    setU16(kTheirLoss, static_cast<std::uint16_t>(u16(kTheirLoss) - u16(kTheirs)));
+    setU16(kOurLoss, static_cast<std::uint16_t>(u16(kOurLoss) - u16(kOurs)));
+    // Then, as at the end of an hour, whether the fight goes on.
+    paulsPlace();
+}
+
 // How many Harkonnen troops (not fled) and how many of Paul's fighting
 // troops are at the place.
 void World::countFighters(std::size_t place, int& harkonnens, int& pauls) {

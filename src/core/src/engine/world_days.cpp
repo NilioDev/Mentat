@@ -113,11 +113,13 @@ void World::paulsPlace() {
         setU8(kAtWar, 1);
         setU8(kBalance, static_cast<std::uint8_t>(battleBalance(at) | 1));
         const int kind = u8(at + 8);
-        int music = 0x2F;
+        // The skyline the battle is seen against (the first sprite of
+        // the horizon's list).
+        int skyline = 0x2F;
         if (kind >= 0x20) {
-            music = kind != 0x30 && kind >= 0x28 ? 0x33 : 0x30;
+            skyline = kind != 0x30 && kind >= 0x28 ? 0x33 : 0x30;
         }
-        setU8(0x11DD, static_cast<std::uint8_t>(music));
+        setU8(0x11DD, static_cast<std::uint8_t>(skyline));
     }
     if (gameOverReason != 0) {
         gameOverReason = kPlaceLost;

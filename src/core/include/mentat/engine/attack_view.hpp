@@ -7,6 +7,7 @@
 #include "mentat/engine/actors.hpp"
 
 #include <cstdint>
+#include <vector>
 
 namespace mentat {
 
@@ -19,6 +20,15 @@ public:
     // Draws the empty landscape as the new background and starts the
     // battle and its sound.
     void start();
+    // The same at war, with the horizon of Paul's place: a sprite list
+    // (sprite, x, y words, ending with 0xFFFF).
+    void start(const std::vector<std::uint16_t>& horizon);
+    bool running() const { return running_; }
+    // A blast lights the horizon: the flash counter starts again from
+    // `count` (0x0B, or 0x11 for a brighter one).
+    void blast(int count) { flash_ = count; }
+    // While set, only the flashes go on (something else is in front).
+    bool paused = false;
     // Stops the battle, its sound and its timer, when it runs.
     void stop();
 
