@@ -83,6 +83,14 @@ public:
     // A command of the talk menu. False when it is not one.
     bool command(std::uint16_t action);
 
+    // A companion speaks up on the way, over the scene already on the back
+    // buffer: the face, then the first line of the story's list of
+    // remarks that may be said. False when there is none.
+    bool remark(int c);
+    // The flight goes on: the remark is over.
+    void endRemark();
+    bool remarking() const { return remark_; }
+
     // The story's own list of lines: run when the story moves on, they say
     // nothing but change the game.
     void runEvents();
@@ -134,6 +142,7 @@ private:
     int language_;
     Dialogue dialogue_;
     Conditions conditions_;
+    bool remark_ = false;
     std::array<std::optional<PhraseFile>, 2> phrases_;
     std::optional<Font> large_;
     std::optional<Font> small_;

@@ -68,6 +68,16 @@ constexpr std::size_t kOrnithopters = 0x15;
 // moves on to its next part at step 13, and taking off again at step 26.
 constexpr int kTakeOffSound = 6;
 constexpr int kLandingSound = 7;
+// On the way: the commands when a companion has seen a place (go there,
+// what), and in the Harkonnens' zone (change destination, ignore the
+// warning, what); two bytes, then (phrase, action) pairs up to a phrase
+// of 0. Going on is the same action as the cockpit's "Cancel".
+constexpr std::size_t kSightingCommands = 0x1F92;
+constexpr std::size_t kZoneCommands = 0x1F9E;
+constexpr std::uint16_t kGoOn = 0xD2E2;
+constexpr std::size_t kNoArrows = 0x1D1E;
+// The ornithopter's cabin, behind a companion's face.
+constexpr int kCabinSheet = 0x34; // ORNYCAB.HSQ
 constexpr int kLastOrnithopterStep = 0x20;
 constexpr int kOrnithopterStepTicks = 0x14;
 constexpr int kSoundStep = 0x0D;
@@ -463,6 +473,22 @@ private:
             }
             return true;
         }
+        if (noticeShown_) {
+            if (action == kGoOn) {
+                endNotice();
+                return true;
+            }
+            if (action == Flight::kChange) {
+                // The cockpit opens; "Cancel" there goes on with the flight.
+                talk_.endRemark();
+                noticeShown_ = false;
+                flight_.endNotice();
+                flight_.paused = true;
+                openCockpit();
+                return true;
+            }
+            return false;
+        }
         if (cockpit_.command(action)) {
             if (cockpit_.leaving) {
                 leaveCockpit();
@@ -583,7 +609,68 @@ private:
         }
         if (flight_.arrived) {
             arrive();
+            return;
         }
+        if (flight_.notice != Flight::Notice::None && !noticeShown_) {
+            showNotice();
+        }
+    }
+
+    // What a step came upon: a companion speaks of it in the cabin, or,
+    // with nobody on board, the cockpit warns of the Harkonnens' zone.
+    // The flight waits for the answer.
+    void showNotice() {
+        noticeShown_ = true;
+        g_.closeVideo();
+        d_.targetBack();
+        bool what = true;
+        if (flight_.noticedBy >= 0) {
+            g_.selectSheet(kCabinSheet);
+            g_.drawSprite(0, 0, 0);
+            d_.flush();
+            if (!talk_.remark(flight_.noticedBy)) {
+                talk_.endRemark();
+                endNotice();
+                return;
+            }
+        } else {
+            cockpit_.drawWarning();
+            d_.showBack();
+            d_.flush();
+            what = false;
+        }
+        const ProgramFile& program = g_.resources().program();
+        std::vector<Command> commands;
+        const std::size_t list = flight_.notice == Flight::Notice::Sighting ? kSightingCommands : kZoneCommands;
+        for (std::size_t at = list + 2; program.dataU16(at) != 0; at += 4) {
+            Command c{program.dataU16(at), program.dataU16(at + 2)};
+            if (c.action == Talk::kWhat && !what) {
+                c.phrase = static_cast<std::uint16_t>(c.phrase | Command::kGrey);
+            }
+            commands.push_back(c);
+        }
+        panel_.setCommands(std::move(commands));
+        d_.targetScreen();
+        panel_.drawCommands();
+        panel_.setArrowZones(kNoArrows);
+        d_.targetBack();
+        panel_.drawCommands();
+        panel_.setArrowZones(kNoArrows);
+        lit_ = -1;
+    }
+
+    // "GO TOWARDS THIS PLACE" or "IGNORE WARNING": the flight goes on from
+    // the start of its first video.
+    void endNotice() {
+        const bool remarked = talk_.remarking();
+        talk_.endRemark();
+        noticeShown_ = false;
+        flight_.endNotice();
+        flight_.show();
+        if (remarked) {
+            openOrnament();
+        }
+        lit_ = -1;
     }
 
     // The place is reached: the approach, or the ornithopter landing in
@@ -1013,6 +1100,8 @@ private:
     Flight flight_;
     bool takingOff_ = false;
     bool endTalk_ = false;
+    // A companion's remark or the cockpit's warning is shown.
+    bool noticeShown_ = false;
     Surface ornamentStrip_{320, 200};
     bool clockRunning_ = false;
     std::uint32_t lastTick_ = 0;

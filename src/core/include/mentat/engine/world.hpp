@@ -71,6 +71,12 @@ public:
     // Landing at place `record`: in its first room, the place found if it
     // was hidden.
     void enterPlace(std::size_t record);
+    // A hidden place is found: shown on the maps from now on, and counted
+    // when it is a sietch.
+    void findPlace(std::size_t record);
+    // The word for a kind of place (byte 8), counted from "a sietch": 0 a
+    // sietch, 1 a palace, 2 a village, 3 a fortress.
+    static int kindWord(int kind);
 
     struct Character {
         int room = 0;

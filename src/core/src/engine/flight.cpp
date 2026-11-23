@@ -41,6 +41,36 @@ constexpr int kTurn = 4;
 // east or west.
 constexpr int kPoleSteer = 0x4D;
 
+// On the way: the state's byte for what is happening (3 a place seen, 4
+// the Harkonnens' zone), those who go with Paul and the two shown on the
+// panel, and the words a companion's line names: the side (0 left, 1
+// right), the kind of place and the side as phrases.
+constexpr std::size_t kSituation = 0x23;
+constexpr std::uint8_t kSighting = 3;
+constexpr std::uint8_t kInZone = 4;
+constexpr std::size_t kWith = 0x10;
+constexpr std::size_t kSlots = 0x1152;
+constexpr std::size_t kStateFlags = 0x00;
+constexpr std::size_t kSide = 0xE1;
+constexpr std::size_t kSeenKind = 0x11F3;
+constexpr std::size_t kSeenSide = 0x11F5;
+constexpr std::uint16_t kKindWords = 0x48; // "a sietch", "a palace", "a village", "a fortress"
+constexpr std::uint16_t kLeftWord = 0xCE;  // "on the left"; "on the right" two further
+// A companion looks over the 9 × 9 points around Paul, for a place
+// within this much of the heading either way.
+constexpr int kLookAround = 9;
+constexpr int kSeenWithin = 0x60;
+constexpr int kTopRow = -0x62;
+// Map bytes: a place at the point; both bits for the Harkonnens' zone.
+constexpr std::uint8_t kPlaceAtPoint = 0x40;
+constexpr std::uint8_t kZoneBits = 0x30;
+// Each step in the zone counts this much down from 256.
+constexpr int kZoneStep = 0x20;
+// A destination that is safe to fly to through the zone: a fortress
+// with this bit in its byte 0x0A.
+constexpr int kFirstFortress = 0x28;
+constexpr std::uint8_t kSafeFortress = 0x08;
+
 // The corner: the small map's rectangle, and the part of the screen the
 // corner covers, from the third buffer, over each frame of the videos.
 constexpr std::size_t kCornerMap = 0x148A;
@@ -238,6 +268,9 @@ void Flight::begin() {
     approach = false;
     changing = false;
     paused = false;
+    notice = Notice::None;
+    noticedBy = -1;
+    caught = false;
     hoursPassed = 0;
     steps_ = 0;
     base_ = kFirstDunes;
@@ -280,7 +313,11 @@ void Flight::drawCommands() {
     auto commandAt = [&](std::size_t at) { return Command{program.dataU16(at), program.dataU16(at + 2)}; };
     std::vector<Command> list;
     if (!free_) {
-        list.push_back(commandAt(kSkipCommand));
+        Command skip = commandAt(kSkipCommand);
+        if (skipGrey_) {
+            skip.phrase = static_cast<std::uint16_t>(skip.phrase | Command::kGrey);
+        }
+        list.push_back(skip);
     } else {
         list.push_back(commandAt(kBackCommand));
         if (world_.u8(kProgress) >= kNearestFrom) {
@@ -397,6 +434,11 @@ void Flight::step() {
         approach = true;
         return;
     }
+    lookAround(lon, lat);
+    if (notice != Notice::None && noticedBy >= 0) {
+        // A companion speaks: the rest waits for the flight to go on.
+        return;
+    }
     if (corner_ >= 0) {
         if (corner_ == 1) {
             corner_ = 0;
@@ -416,6 +458,134 @@ void Flight::step() {
         }
     }
     lookAhead();
+}
+
+// --- On the way
+
+// What is around after a step: a companion may see a hidden place, and
+// the Harkonnens' zone may begin.
+void Flight::lookAround(std::uint16_t lon, int lat) {
+    notice = Notice::None;
+    noticedBy = -1;
+    world_.setU8(kSituation, 0);
+    const std::uint16_t slots = world_.u16(kSlots);
+    const bool company = slots != 0xFFFF;
+    if (company && world_.u16(kWith) != 0) {
+        spotPlaces(lon, lat);
+    }
+    checkZone(lon, lat);
+    const std::uint8_t situation = world_.u8(kSituation);
+    if (situation == 0) {
+        return;
+    }
+    if (company) {
+        // The one who speaks: the second companion shown, unless there is
+        // none or the state's bit says the first.
+        int who = slots & 0xFF;
+        if ((slots >> 8) != 0xFF && !(world_.u16(kStateFlags) & 0x80)) {
+            who = slots >> 8;
+        }
+        if (who & 0x80) {
+            return;
+        }
+        noticedBy = who;
+    }
+    notice = situation == kSighting ? Notice::Sighting : Notice::Zone;
+    paused = true;
+}
+
+// The places in the 9 × 9 points around Paul: one that is hidden, that
+// the story has come to, and that lies ahead within a third of a turn
+// either way, is seen. It counts as found, and course is set for it.
+void Flight::spotPlaces(std::uint16_t lon, int lat) {
+    const FlatMap& m = map_.flatMap();
+    const auto& bytes = m.bytes();
+    const int top = std::max(lat - kLookAround / 2, kTopRow);
+    for (int row = top; row < top + kLookAround; ++row) {
+        const int ring = 2 * m.width(std::abs(row));
+        const int start = m.rowStart(row);
+        int column = m.pointAt(lon, row) - kLookAround / 2;
+        if (column < 0) {
+            column += ring;
+        }
+        for (int i = 0; i < kLookAround; ++i, ++column) {
+            if (column >= ring) {
+                column -= ring;
+            }
+            const int at = start + column;
+            if (at < 0 || static_cast<std::size_t>(at) >= bytes.size() || !(bytes[static_cast<std::size_t>(at)] & kPlaceAtPoint)) {
+                continue;
+            }
+            std::size_t record = 0;
+            for (std::size_t r = World::kPlaces; world_.u16(r) != 0xFFFF; r += World::kPlaceSize) {
+                if (world_.u16(r + 6) == at) {
+                    record = r;
+                    break;
+                }
+            }
+            if (record == 0 || !(world_.u8(record + 0x0A) & 0x80) || world_.u8(kProgress) < world_.u8(record + 0x0B)) {
+                continue;
+            }
+            int h = 0;
+            if (!headingTo(lon, lat, record, h)) {
+                continue;
+            }
+            const int off = (h - heading_ + kSeenWithin) & 0xFF;
+            if (off >= 2 * kSeenWithin) {
+                continue;
+            }
+            const int side = off >= kSeenWithin ? 1 : 0;
+            world_.setU8(kSide, static_cast<std::uint8_t>(side));
+            world_.setU16(kSeenSide, static_cast<std::uint16_t>(kLeftWord + 2 * side));
+            world_.setU16(kSeenKind, static_cast<std::uint16_t>(kKindWords + World::kindWord(world_.u8(record + 8))));
+            world_.setU8(kSituation, kSighting);
+            world_.findPlace(record);
+            setDestination(record);
+            g_.closeVideo();
+            Display& d = g_.display();
+            d.targetScreen();
+            drawCommands();
+            d.targetBack();
+            drawCommands();
+        }
+    }
+}
+
+// The Harkonnens' zone: the first step into it warns; after 8 steps in a
+// row Paul is caught. Flying to a fortress so marked is safe.
+void Flight::checkZone(std::uint16_t lon, int lat) {
+    const bool safe = !free_ && world_.u8(destination_ + 8) >= kFirstFortress &&
+                      (world_.u8(destination_ + 0x0A) & kSafeFortress);
+    if (safe || (terrain(lon, lat) & kZoneBits) != kZoneBits) {
+        zoneCount_ = 0;
+        greySkip(false);
+        return;
+    }
+    if (zoneCount_ == 0) {
+        world_.setU8(kSituation, kInZone);
+    }
+    greySkip(true);
+    zoneCount_ = (zoneCount_ - kZoneStep) & 0xFF;
+    if (zoneCount_ == 0) {
+        caught = true;
+    }
+}
+
+// "SKIP TO DESTINATION" is greyed in the zone: from the next time the
+// list is drawn, and in the list shown when it heads it.
+void Flight::greySkip(bool grey) {
+    skipGrey_ = grey;
+    std::vector<Command> list = panel_.commands();
+    if (!list.empty() && list.front().action == kSkip) {
+        list.front().phrase = static_cast<std::uint16_t>((list.front().phrase & ~Command::kGrey) | (grey ? Command::kGrey : 0));
+        panel_.setCommands(std::move(list));
+    }
+}
+
+void Flight::endNotice() {
+    notice = Notice::None;
+    noticedBy = -1;
+    world_.setU8(kSituation, 0);
 }
 
 void Flight::addToTrail(std::uint16_t longitude, int latitude) {

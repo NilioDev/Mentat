@@ -99,9 +99,15 @@ constexpr int kTalkZoom = 6;
 constexpr int kZoomRight = 0xF0;
 constexpr int kZoomBottom = 0x71;
 
-// The list of the story's own lines.
+// The list of the story's own lines, and its list of remarks on the way
+// (list 4 of character 16).
 constexpr std::size_t kEventList = 135;
 constexpr int kEventCharacter = 0x10;
+constexpr std::size_t kRemarkList = kEventCharacter * Dialogue::kListsPerCharacter + 4;
+// A remark waits this long after the face is shown, and its recordings are
+// numbered from here (counting the remarks' phrases from 1).
+constexpr int kRemarkDelay = 0x4B;
+constexpr int kFirstRemarkRecording = 0x3E7;
 
 // Characters with their own way of talking.
 constexpr int kRetriesWithOnceMore = 0x0D;
@@ -221,6 +227,14 @@ void Talk::setMenu() {
 
 bool Talk::command(std::uint16_t action) {
     if (!active()) {
+        return false;
+    }
+    if (remark_) {
+        // Only " WHAT ? " is the talk's: the rest goes back to the flight.
+        if (action == kWhat) {
+            speak();
+            return true;
+        }
         return false;
     }
     switch (action) {
@@ -408,6 +422,59 @@ void Talk::runEvents() {
     pageLine_ = savedPageLine;
 }
 
+// --- Remarks on the way
+
+bool Talk::remark(int c) {
+    character_ = c;
+    remark_ = true;
+    host_.showPointer(false);
+    Talker& talker = game_.talker();
+    talker.halt();
+    talker.overlay = [this](const ClipRect& dirty) {
+        if (subtitle_.shown && dirty.bottom > subtitle_.top) {
+            drawSubtitle(&dirty);
+        }
+    };
+    subtitle_.shown = false;
+    drawBackground(-1, -1);
+    talker.show(c, 0, 0, game_.textWords);
+    host_.keepOrnamentBackground();
+    showScene();
+    host_.showPointer(true);
+    game_.waitTicks(kRemarkDelay);
+
+    pages_.clear();
+    resume_.reset();
+    finished_ = false;
+    const auto list = dialogue_.list(kRemarkList);
+    if (!list) {
+        return false;
+    }
+    prepareCondition();
+    // A remark said before may be said again, unless it has bit 5.
+    const auto found = dialogue_.find(*list, DialogueLine::kOnceMore, [this](int n) { return condition(n); });
+    if (!found) {
+        return false;
+    }
+    sayLine(*found, false);
+    return true;
+}
+
+void Talk::endRemark() {
+    if (!remark_) {
+        return;
+    }
+    const std::size_t r = record();
+    world_.setU8(r + kFlags, static_cast<std::uint8_t>((world_.u8(r + kFlags) | kTalkedTo) & ~kWaiting));
+    Talker& talker = game_.talker();
+    talker.halt();
+    talker.overlay = nullptr;
+    subtitle_.shown = false;
+    pages_.clear();
+    character_ = -1;
+    remark_ = false;
+}
+
 // "Come with me": the character answers from list 5 of the group and goes
 // with Paul when the answer is yes.
 void Talk::comeWithMe() {
@@ -530,9 +597,11 @@ void Talk::speak() {
     if (mode_ == Subtitles::Below || character_ < 0 || character_ >= kNoFaceFrom) {
         return;
     }
-    // The recordings count each character's phrases from its first.
+    // The recordings count each character's phrases from its first; the
+    // remarks are counted from the first of the story's lines, after 999.
     int who = std::min(character_, kLastRecordedCharacter);
-    const int number = (phrase_ & ~0x0C00) - (dialogue_.firstPhrase(who) - 1);
+    const int number = remark_ ? (phrase_ & ~0x0C00) - (dialogue_.firstPhrase(kEventCharacter) - 1) + kFirstRemarkRecording
+                               : (phrase_ & ~0x0C00) - (dialogue_.firstPhrase(who) - 1);
     if (who == kLastRecordedCharacter && (number & 0xFE) == 0x2C) {
         who = 0x0C;
     }

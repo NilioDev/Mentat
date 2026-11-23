@@ -555,3 +555,92 @@ MTT_TEST("flight: a click on the desert flies that way, the arrows turn, and bac
     MTT_CHECK(f.command(Flight::kBack) && !f.free() && f.destination() == w.home());
     MTT_CHECK(panel.commands().front().action == Flight::kSkip);
 }
+
+MTT_TEST("flight: a companion sees a hidden place ahead, and the Harkonnens' zone warns") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
+    {
+        World w(*program);
+        w.goTo(0x2001, 0x0180);
+        // The story at step 4, Gurney with Paul, and the sietch east of the
+        // palace not found yet.
+        w.setU8(0x2A, 4);
+        w.setU8(0xFD8 + 16 * 4 + 0x0F, static_cast<std::uint8_t>(w.u8(0xFD8 + 16 * 4 + 0x0F) | 0x40));
+        w.setU16(0x10, static_cast<std::uint16_t>(w.u16(0x10) | (1 << 4)));
+        w.setU16(0x1152, 0xFF04);
+        const std::size_t sietch = World::placeRecord(12);
+        w.setU8(sietch + 0x0A, 0x80);
+        w.setU8(sietch + 0x0B, 0);
+        Panel panel(g, kEnglish);
+        MapScreen map(g, w, panel);
+        map.setUp();
+        Cockpit cockpit(g, w, panel, map);
+        cockpit.enter();
+        cockpit.drawScene();
+        const Cockpit::Destination east = cockpit.destinationAt(201, 89);
+        cockpit.leave();
+        Flight f(g, w, panel, map);
+        f.setFree(east.longitude, east.latitude);
+        f.begin();
+        f.show();
+        std::uint16_t lon = 0;
+        int lat = 0;
+        int steps = 0;
+        while (f.notice == Flight::Notice::None && steps < 20) {
+            f.step();
+            ++steps;
+        }
+        w.position(lon, lat);
+        // As the original: seen on the right, four points before reaching it.
+        MTT_CHECK(f.notice == Flight::Notice::Sighting && f.noticedBy == 4 && f.paused);
+        MTT_CHECK(lon == 0x22C0);
+        MTT_CHECK(!(w.u8(sietch + 0x0A) & 0x80) && !f.free() && f.destination() == sietch);
+        MTT_CHECK(w.u8(0x23) == 3 && w.u8(0xE1) == 1 && w.u16(0x11F3) == 0x48 && w.u16(0x11F5) == 0xD0);
+        MTT_CHECK(panel.commands().front().action == Flight::kSkip);
+        f.endNotice();
+        MTT_CHECK(f.notice == Flight::Notice::None && w.u8(0x23) == 0);
+    }
+    {
+        // Nobody on board, flying north: the cockpit warns at the zone's
+        // edge, and again after a point outside it.
+        World w(*program);
+        w.goTo(0x2001, 0x0180);
+        Panel panel(g, kEnglish);
+        MapScreen map(g, w, panel);
+        map.setUp();
+        Cockpit cockpit(g, w, panel, map);
+        cockpit.enter();
+        cockpit.drawScene();
+        const Cockpit::Destination north = cockpit.destinationAt(161, 62);
+        cockpit.leave();
+        Flight f(g, w, panel, map);
+        f.setFree(north.longitude, north.latitude);
+        f.begin();
+        f.show();
+        std::uint16_t lon = 0;
+        int lat = 0;
+        int steps = 0;
+        while (f.notice == Flight::Notice::None && steps < 40) {
+            f.step();
+            ++steps;
+        }
+        w.position(lon, lat);
+        MTT_CHECK(f.notice == Flight::Notice::Zone && f.noticedBy == -1 && lat == -0x17);
+        f.endNotice();
+        f.step();
+        w.position(lon, lat);
+        MTT_CHECK(lat == -0x18 && f.notice == Flight::Notice::None);
+        // A step that stays at that latitude, then one into the zone again.
+        f.step();
+        w.position(lon, lat);
+        MTT_CHECK(lat == -0x18 && f.notice == Flight::Notice::None);
+        f.step();
+        w.position(lon, lat);
+        MTT_CHECK(lat == -0x19 && f.notice == Flight::Notice::Zone && !f.caught);
+    }
+}

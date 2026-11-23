@@ -43,6 +43,10 @@ public:
     // and the cockpit's voice asking where to.
     void show();
     void leave();
+    // The warning when the ornithopter enters the Harkonnens' zone with
+    // nobody on board: the cockpit without its map, the warning written
+    // on the screen, on the back buffer.
+    void drawWarning();
 
     // A command of the cockpit's list; false when it is not one of them.
     // Sets `leaving` when the room should come back.

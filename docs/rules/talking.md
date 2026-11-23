@@ -114,6 +114,18 @@ When the talk ends and the character goes with Paul, it takes a slot of
 the panel (`0x1152`): the first free one, or else the second, the first
 character leaving Paul.
 
+## Remarks on the way
+
+A companion speaking up during a flight (see [flight.md](flight.md))
+takes its line from list 4 of character 16, the story's remarks, with
+the companion's face and the companion's record for the conditions.
+Its first line whose condition holds is said, passing over lines said
+before only when they have flag bit 5; the conditions read the side at
+state offset `0xE1` and the situation at `0x23`. The line is said as
+any other, and " WHAT ? " says it again. Its recording is that of the
+companion (character 14 and up use 14), numbered `0x3E7` plus the
+phrase less one less than the phrase of character 16's first line.
+
 ## Subtitles
 
 The text is laid out as in [text.md](text.md) in a width of 288 pixels in

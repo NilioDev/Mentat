@@ -34,8 +34,10 @@ and touch controls.
 > can take an ornithopter and fly to a place you know: it takes off, the
 > desert goes by with a small map of your way in the corner, and you land
 > at the place, or skip straight there. A click on the desert flies off
-> that way, steered with the arrows. Giving orders and the rest of the
-> game are not there yet.
+> that way, steered with the arrows. A companion on board points out a
+> hidden sietch you fly past, and you are warned when you enter the
+> Harkonnens' zone. Giving orders and the rest of the game are not there
+> yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the

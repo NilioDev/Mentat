@@ -84,21 +84,39 @@ void World::flyOver(std::uint16_t longitude, int latitude) {
     setPlaceHere(0);
 }
 
-void World::enterPlace(std::size_t record) {
+int World::kindWord(int kind) {
+    if (kind < 0x20) {
+        return 0; // a sietch
+    }
+    if (kind < 0x21 || kind >= 0x30) {
+        return 1; // a palace
+    }
+    return kind < 0x28 ? 2 : 3; // a village, a fortress
+}
+
+void World::findPlace(std::size_t record) {
     constexpr std::size_t kSietchesFound = 0x27;
-    constexpr std::size_t kPlaceNumber = 0x09;
     constexpr std::uint8_t kHidden = 0x80;
+    constexpr int kFirstNotSietch = 0x20;
+    if (!(u8(record + 0x0A) & kHidden)) {
+        return;
+    }
+    setU8(record + 0x0A, static_cast<std::uint8_t>(u8(record + 0x0A) & ~kHidden));
+    setU8(record + 0x0B, 0);
+    if (u8(record + 8) < kFirstNotSietch) {
+        setU8(kSietchesFound, static_cast<std::uint8_t>(u8(kSietchesFound) + 1));
+        // Finding one particular sietch also starts a moment of the story,
+        // which Mentat does not have yet.
+    }
+}
+
+void World::enterPlace(std::size_t record) {
+    constexpr std::size_t kPlaceNumber = 0x09;
     constexpr std::uint8_t kVisited = 0x10;
     constexpr int kFirstNotSietch = 0x20;
     const int n = static_cast<int>((record - kPlaces) / kPlaceSize) + 1;
     const int kind = u8(record + 8);
-    if (u8(record + 0x0A) & kHidden) {
-        setU8(record + 0x0A, static_cast<std::uint8_t>(u8(record + 0x0A) & ~kHidden));
-        setU8(record + 0x0B, 0);
-        if (kind < kFirstNotSietch) {
-            setU8(kSietchesFound, static_cast<std::uint8_t>(u8(kSietchesFound) + 1));
-        }
-    }
+    findPlace(record);
     if (kind >= kFirstNotSietch) {
         setU8(record + 0x0A, static_cast<std::uint8_t>(u8(record + 0x0A) | kVisited));
     }
