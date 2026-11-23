@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <utility>
+#include <vector>
 
 namespace mentat {
 
@@ -50,6 +51,11 @@ public:
     void show();
     // While the cockpit is open the flight waits.
     bool paused = false;
+    // Riding a worm rather than flying an ornithopter (see
+    // docs/rules/worms.md): its own video, the worm drawn over it, no
+    // Harkonnen zone and no ornithopter to leave.
+    bool worm = false;
+    static constexpr int kWormVideo = 1; // DFL2.HNM
 
     // While the game waits: the video's frames, with the corner over them,
     // and a step every 768 ticks.
@@ -125,6 +131,7 @@ private:
     void drawTrail();
     void drawCornerSprite(std::uint16_t sprite, int x, int y);
     void addToTrail(std::uint16_t longitude, int latitude);
+    void drawWorm();
 
     Game& g_;
     World& world_;
@@ -157,6 +164,10 @@ private:
     std::array<std::pair<std::uint16_t, int>, kTrailLength> trail_{};
     std::array<bool, kTrailLength> trailUsed_{};
     std::size_t trailNext_ = 0;
+    // The worm's animation (VER.BIN): its script and the next frame.
+    std::vector<std::uint8_t> wormScript_;
+    std::size_t wormStart_ = 0;
+    std::size_t wormAt_ = 0;
 };
 
 } // namespace mentat

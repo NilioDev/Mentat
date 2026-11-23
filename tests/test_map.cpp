@@ -705,6 +705,18 @@ MTT_TEST("flight: to a place a step at a time, the corner's map over the video, 
     f.land();
     MTT_CHECK(World::placeRecord(w.place() >> 8) == to);
     MTT_CHECK(!f.command(Flight::kSkip));
+
+    // A worm rides in its own video, and leaves the ornithopters alone.
+    w.goTo(0x2001, 0x0180);
+    const int before = w.u8(to + 0x15);
+    f.worm = true;
+    f.setDestination(to);
+    f.begin();
+    f.show();
+    MTT_CHECK(f.videoSlot() == Flight::kWormVideo);
+    MTT_CHECK(f.command(Flight::kSkip) && f.arrived);
+    f.land();
+    MTT_CHECK(World::placeRecord(w.place() >> 8) == to && w.u8(to + 0x15) == before);
 }
 
 MTT_TEST("world: flying takes the followers along, and landing finds a hidden place") {
