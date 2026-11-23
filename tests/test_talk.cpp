@@ -788,3 +788,35 @@ MTT_TEST("talk: the smuggler names his price, haggles and sells") {
     MTT_CHECK(talk.command(Talk::kAccept) && w.u8(0x9F) == 1);
     MTT_CHECK(w.u16(s + 0x0E) == 105 && w.u8(s + 5) == 1 && w.u8(0x200 + 0x15) == 1 && w.u8(0x22) == 1);
 }
+
+MTT_TEST("talk: overpowering the Harkonnens' captain, a try for each") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g);
+    FakeHost host;
+    Talk talk(g, w, panel, host);
+    talk.subtitles = Talk::Subtitles::Below;
+    talk.runEvents();
+    talk.runEvents();
+    g.places().enter(w.room(), w.place());
+    g.display().targetBack();
+    g.places().present = w.present();
+    w.findPresent();
+    g.places().drawView();
+    talk.start(0, 186, 53);
+    w.setU8(0xED, 0x30);
+    w.setU16(0xEE, 0);
+    MTT_CHECK(talk.command(Talk::kOverpower) && talk.active());
+    MTT_CHECK(w.u8(0xED) == 0x07 && (w.u16(0xEE) & 1) != 0 && (w.u8(0x10A7) & 0x10) == 0);
+    // Leto has tried: once more changes nothing.
+    MTT_CHECK(talk.command(Talk::kOverpower) && w.u8(0xED) == 0x07);
+    // Another try that takes it below 0 overpowers them.
+    w.setU16(0xEE, 0);
+    MTT_CHECK(talk.command(Talk::kOverpower) && w.u8(0xED) == 0xDE && (w.u8(0x10A7) & 0x10) != 0);
+}

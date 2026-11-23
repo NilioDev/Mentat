@@ -1665,6 +1665,7 @@ private:
             talk_.raiseProgress(kAllRallied);
         }
         people_ = world_.meetPeople();
+        talk_.harkonnens = people_.harkonnens;
         world_.findPresent();
         if (troop == kProspectorsTroop) {
             const std::size_t t = World::troopRecord(troop);
@@ -3137,6 +3138,7 @@ private:
         Places& places = g_.places();
         places.enter(world_.room(), world_.place());
         people_ = world_.meetPeople();
+        talk_.harkonnens = people_.harkonnens;
         const std::vector<World::Character> here = world_.findPresent();
         const bool war = atWar() && !scene_;
         if (scene_) {

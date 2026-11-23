@@ -258,5 +258,5 @@ palace falls (see [fights.md](fights.md)). How they are shown is in
 
 What the original
 does when a fort is taken in the middle of the green spreading (its walk
-then goes on as a looking over around the fort); the daily accounts, the
-Harkonnens' and the smugglers' hours.
+then goes on as a looking over around the fort). The daily accounts and
+the Harkonnens' and smugglers' hours are in [days.md](days.md).

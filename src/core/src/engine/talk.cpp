@@ -130,6 +130,13 @@ constexpr std::size_t kCharacterTable = 0xFD8;
 constexpr std::size_t kCharacterSize = 0x10;
 constexpr std::size_t kPresentWord = 0x12;
 constexpr std::size_t kCaptainHeld = 0x10A7; // the captain's flags: bit 4, overpowered
+// "Overpower": who has tried (a bit per character), the Harkonnens' will to
+// resist, what each try takes off it, and the story's list then said.
+constexpr std::size_t kOverpowerTried = 0xEE;
+constexpr std::size_t kResistance = 0xED;
+constexpr int kOverpowerBlow = 0x29;
+constexpr int kOverpowerList = 0x85;
+constexpr std::uint8_t kOverpowered = 0x10;
 constexpr std::size_t kStoryFlags = 0x0A;    // bit 4: the Fremen rally to Paul
 constexpr std::uint16_t kOverpowerPhrase = 0x9C;
 constexpr std::uint16_t kGiveOrdersPhrase = 0x93;
@@ -348,7 +355,7 @@ bool Talk::command(std::uint16_t action) {
             ordersAsked();
         }
         return true;
-    case kOverpower: return true;  // not built yet
+    case kOverpower: overpower(); return true;
     case kStopFollowing: stopFollowing(); return true;
     case kWhat:
         speak();
@@ -987,6 +994,47 @@ void Talk::comeWithMe(bool work) {
     world_.setU16(kWith, static_cast<std::uint16_t>(world_.u16(kWith) | bit(number)));
 }
 
+// "Overpower": while the Harkonnens' captain is in the room, each other
+// character may try once; each try takes from the Harkonnen troop's
+// spirits and their will to resist, and once that goes below 0 the troop
+// and the captain are overpowered. A line of the story's list 0x85 says
+// how it went.
+void Talk::overpower() {
+    const int number = world_.u8(record() + kNumber);
+    const std::uint16_t tried = world_.u16(kOverpowerTried);
+    if ((tried & bit(number)) == 0) {
+        world_.setU16(kOverpowerTried, static_cast<std::uint16_t>(tried | bit(number)));
+        const std::size_t t = harkonnens != 0 ? World::troopRecord(harkonnens) : 0;
+        if (t != 0) {
+            world_.setU8(t + 0x15, static_cast<std::uint8_t>(world_.u8(t + 0x15) - kOverpowerBlow));
+        }
+        const auto left = static_cast<std::uint8_t>(world_.u8(kResistance) - kOverpowerBlow);
+        world_.setU8(kResistance, left);
+        if ((left & 0x80) != 0) {
+            if (t != 0) {
+                world_.setU8(t + 3, static_cast<std::uint8_t>(world_.u8(t + 3) | kOverpowered));
+            }
+            world_.setU8(kCaptainHeld, static_cast<std::uint8_t>(world_.u8(kCaptainHeld) | kOverpowered));
+        }
+    }
+    answer_ = 0xFF;
+    const auto savedResume = resume_;
+    const bool savedFinished = finished_;
+    const std::uint8_t savedSkip = skipSaid_;
+    skipSaid_ = DialogueLine::kOnceMore;
+    prepareCondition();
+    if (const auto list = dialogue_.list(kOverpowerList)) {
+        if (const auto found = dialogue_.find(*list, skipSaid_, [this](int n) { return condition(n); })) {
+            pages_.clear();
+            eventLine_ = *found;
+            sayLine(*found, false);
+        }
+    }
+    skipSaid_ = savedSkip;
+    resume_ = savedResume;
+    finished_ = savedFinished;
+}
+
 // "Stop following me": list 6 of the group, and the character stays.
 void Talk::stopFollowing() {
     answer_ = 0xFF;
@@ -1212,7 +1260,7 @@ void Talk::recording(int& who, int& number, int& variant) {
     // The recordings count each character's phrases from its first; the
     // remarks are counted from the first of the story's lines, after 999.
     who = std::min(character_, kLastRecordedCharacter);
-    number = remark_ && !sceneLine_ ? (phrase_ & ~0x0C00) - (dialogue_.firstPhrase(kEventCharacter) - 1) + kFirstRemarkRecording
+    number = (remark_ && !sceneLine_) || eventLine_ == pageLine_ ? (phrase_ & ~0x0C00) - (dialogue_.firstPhrase(kEventCharacter) - 1) + kFirstRemarkRecording
                                     : (phrase_ & ~0x0C00) - (dialogue_.firstPhrase(who) - 1);
     if (who == kLastRecordedCharacter && (number & 0xFE) == 0x2C) {
         who = 0x0C;
