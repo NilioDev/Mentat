@@ -958,7 +958,42 @@ private:
         return kArrowPointer;
     }
 
+    // What a gamepad's pointer can jump to: the panel's zones in use (the
+    // lines of the list that hold a command) and the people in the room.
+    void publishTargets() {
+        std::vector<ClipRect>& targets = g_.platform().pointerTargets;
+        targets.clear();
+        const auto& zones = panel_.zones();
+        const int lines = static_cast<int>(panel_.commands().size());
+        for (std::size_t i = 0; i < zones.size(); ++i) {
+            const Zone& z = zones[i];
+            if ((z.flags & Zone::kActive) == 0) {
+                continue;
+            }
+            const int line = static_cast<int>(i) - Panel::kCommandLines;
+            if (line >= 0 && line < Panel::kLines && line >= lines) {
+                continue;
+            }
+            targets.push_back(ClipRect{z.left, z.top, z.right, z.bottom});
+        }
+        if (map_.active() && !globe_.active()) {
+            // The places on the map and the troops' marks.
+            for (const MapScreen::Shown& sh : map_.shownPlaces()) {
+                targets.push_back(ClipRect{sh.x - 2, sh.y - 2, sh.x + 3, sh.y + 3});
+            }
+            for (const MapScreen::Mark& m : map_.marks()) {
+                targets.push_back(m.rect);
+            }
+        }
+        if (!map_.active() && !globe_.active() && !cockpit_.active() && !flight_.active()) {
+            for (const Places::Shown& sh : g_.places().shown()) {
+                targets.push_back(ClipRect{sh.rect.left, sh.rect.top, sh.rect.right, std::min(sh.rect.bottom, kSceneBottom)});
+            }
+        }
+    }
+
     void followMouse() {
+        publishTargets();
         Platform& p = g_.platform();
         const int x = p.mouseX;
         const int y = p.mouseY;

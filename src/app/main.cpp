@@ -21,6 +21,7 @@
 #include "mentat/engine/intro.hpp"
 #include "mentat/engine/platform.hpp"
 #include "mentat/engine/play.hpp"
+#include "mentat/engine/pointer_jump.hpp"
 #include "mentat/game_files.hpp"
 #include "mentat/version.hpp"
 
@@ -55,6 +56,13 @@ struct App {
     std::vector<Uint32> rgba = std::vector<Uint32>(static_cast<std::size_t>(kScreenW) * kScreenH);
     mentat::Surface shown; // the screen with the mouse pointer over it
     bool systemCursor = true;
+    // The gamepad's pointer: used instead of the mouse's from the moment
+    // the gamepad moves it or clicks, until the mouse moves again.
+    bool padPointer = false;
+    float padX = 0;
+    float padY = 0;
+    std::uint8_t padButtons = 0; // as the mouse's: bit 0 left, bit 1 right
+    Uint64 lastFrameNs = 0;
 
     ~App() {
         game.reset(); // stop the game thread before what it uses goes away
@@ -183,6 +191,58 @@ void playQueuedSound(App& app) {
     app.platform.sound.clear();
 }
 
+// --- The gamepad (see docs/gamepad.md)
+
+// The pointer the gamepad moves starts where the mouse's is.
+void takePadPointer(App& app) {
+    if (!app.padPointer) {
+        app.padPointer = true;
+        app.padX = static_cast<float>(app.platform.mouseX);
+        app.padY = static_cast<float>(app.platform.mouseY);
+    }
+}
+
+// The left stick moves the pointer freely, faster the further it is pushed.
+void movePadPointer(App& app, float seconds) {
+    constexpr float kDeadZone = 8000.0f;
+    constexpr float kFullSpeed = 220.0f; // screen pixels a second
+    int count = 0;
+    SDL_JoystickID* ids = SDL_GetGamepads(&count);
+    float ax = 0;
+    float ay = 0;
+    for (int i = 0; i < count; ++i) {
+        SDL_Gamepad* pad = SDL_GetGamepadFromID(ids[i]);
+        if (pad == nullptr) {
+            continue;
+        }
+        const float x = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTX);
+        const float y = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTY);
+        if (std::fabs(x) > kDeadZone || std::fabs(y) > kDeadZone) {
+            ax = x / 32767.0f;
+            ay = y / 32767.0f;
+        }
+    }
+    SDL_free(ids);
+    if (ax == 0 && ay == 0) {
+        return;
+    }
+    takePadPointer(app);
+    const auto curve = [](float v) { return v * std::fabs(v); }; // finer near the middle
+    app.padX = std::clamp(app.padX + curve(ax) * kFullSpeed * seconds, 0.0f, kScreenW - 1.0f);
+    app.padY = std::clamp(app.padY + curve(ay) * kFullSpeed * seconds, 0.0f, kScreenH - 1.0f);
+}
+
+// The direction pad jumps to the next thing that can be clicked that way.
+void jumpPadPointer(App& app, int dx, int dy) {
+    takePadPointer(app);
+    const auto to = mentat::jumpTarget(app.platform.pointerTargets, static_cast<int>(app.padX), static_cast<int>(app.padY),
+                                       dx, dy);
+    if (to) {
+        app.padX = static_cast<float>(to->x);
+        app.padY = static_cast<float>(to->y);
+    }
+}
+
 void updateInput(App& app) {
     using namespace mentat;
     auto& p = app.platform;
@@ -191,10 +251,19 @@ void updateInput(App& app) {
     float y = 0;
     const SDL_MouseButtonFlags buttons = SDL_GetMouseState(&x, &y);
     SDL_RenderCoordinatesFromWindow(app.renderer, x, y, &x, &y);
-    p.mouseX = std::clamp(static_cast<int>(std::floor(x)), 0, kScreenW - 1);
-    p.mouseY = std::clamp(static_cast<int>(std::floor(y)), 0, kScreenH - 1);
+    const Uint64 now = SDL_GetTicksNS();
+    const float seconds = app.lastFrameNs == 0 ? 0.0f : static_cast<float>(now - app.lastFrameNs) / 1e9f;
+    app.lastFrameNs = now;
+    movePadPointer(app, seconds);
+    if (app.padPointer) {
+        p.mouseX = std::clamp(static_cast<int>(app.padX), 0, kScreenW - 1);
+        p.mouseY = std::clamp(static_cast<int>(app.padY), 0, kScreenH - 1);
+    } else {
+        p.mouseX = std::clamp(static_cast<int>(std::floor(x)), 0, kScreenW - 1);
+        p.mouseY = std::clamp(static_cast<int>(std::floor(y)), 0, kScreenH - 1);
+    }
     p.mouseButtons = static_cast<std::uint8_t>(((buttons & SDL_BUTTON_LMASK) != 0 ? 1 : 0) |
-                                               ((buttons & SDL_BUTTON_RMASK) != 0 ? 2 : 0));
+                                               ((buttons & SDL_BUTTON_RMASK) != 0 ? 2 : 0) | app.padButtons);
     for (int i = 0; i < kChannels; ++i) {
         SDL_AudioStream* stream = app.streams[static_cast<std::size_t>(i)];
         const int rate = app.streamRates[static_cast<std::size_t>(i)];
@@ -280,11 +349,36 @@ SDL_AppResult SDL_AppEvent(void* state, SDL_Event* event) {
     case SDL_EVENT_GAMEPAD_ADDED:
         SDL_OpenGamepad(event->gdevice.which);
         return SDL_APP_CONTINUE;
+    case SDL_EVENT_MOUSE_MOTION:
+        app->padPointer = false;
+        return SDL_APP_CONTINUE;
     case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
-        if (event->gbutton.button == SDL_GAMEPAD_BUTTON_BACK) {
+        switch (event->gbutton.button) {
+        case SDL_GAMEPAD_BUTTON_BACK:
             return SDL_APP_SUCCESS;
+        case SDL_GAMEPAD_BUTTON_DPAD_UP: jumpPadPointer(*app, 0, -1); break;
+        case SDL_GAMEPAD_BUTTON_DPAD_DOWN: jumpPadPointer(*app, 0, 1); break;
+        case SDL_GAMEPAD_BUTTON_DPAD_LEFT: jumpPadPointer(*app, -1, 0); break;
+        case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: jumpPadPointer(*app, 1, 0); break;
+        case SDL_GAMEPAD_BUTTON_SOUTH:
+            takePadPointer(*app);
+            app->padButtons |= 1;
+            break;
+        case SDL_GAMEPAD_BUTTON_EAST:
+            takePadPointer(*app);
+            app->padButtons |= 2;
+            break;
+        default:
+            app->platform.keys.push_back(mentat::KeyPress{0x39, ' '});
+            break;
         }
-        app->platform.keys.push_back(mentat::KeyPress{0x39, ' '});
+        return SDL_APP_CONTINUE;
+    case SDL_EVENT_GAMEPAD_BUTTON_UP:
+        if (event->gbutton.button == SDL_GAMEPAD_BUTTON_SOUTH) {
+            app->padButtons &= static_cast<std::uint8_t>(~1u);
+        } else if (event->gbutton.button == SDL_GAMEPAD_BUTTON_EAST) {
+            app->padButtons &= static_cast<std::uint8_t>(~2u);
+        }
         return SDL_APP_CONTINUE;
     default:
         return SDL_APP_CONTINUE;

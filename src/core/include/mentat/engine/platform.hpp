@@ -9,6 +9,7 @@
 #include "mentat/audio/opl.hpp"
 #include "mentat/engine/fiber.hpp"
 #include "mentat/gfx/palette.hpp"
+#include "mentat/gfx/scene.hpp"
 #include "mentat/gfx/surface.hpp"
 
 #include <array>
@@ -88,6 +89,9 @@ struct Platform {
     bool cursorShown = false;
     MouseCursor cursor;
     std::vector<SoundCommand> sound;
+    // What can be clicked on the screen now, for a gamepad's pointer to
+    // jump to (see pointer_jump.hpp).
+    std::vector<ClipRect> pointerTargets;
 
     Fiber* fiber = nullptr;
     // The music player, run on the timer; null when there is no music.
