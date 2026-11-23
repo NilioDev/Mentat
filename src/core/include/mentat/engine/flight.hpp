@@ -79,6 +79,20 @@ public:
     // Plays video slot `slot` through on the scene.
     void playVideo(int slot);
 
+    // What the last step came upon, for the game to show: a companion
+    // seeing a hidden place, or the Harkonnens' zone. The flight waits
+    // until it is answered.
+    enum class Notice { None, Sighting, Zone };
+    Notice notice = Notice::None;
+    // The companion who speaks of it; -1 when nobody goes with Paul (the
+    // cockpit warns of the zone instead).
+    int noticedBy = -1;
+    // Too long in the Harkonnens' zone: Paul is caught.
+    bool caught = false;
+    // The notice is answered: "GO TOWARDS THIS PLACE" or "IGNORE WARNING"
+    // (then the flight is shown again) or "CHANGE DESTINATION".
+    void endNotice();
+
     // Steps for tests and tools.
     void step();
     // The heading, 256 to a turn: 0 north, then clockwise.
@@ -90,6 +104,10 @@ private:
     void advance(std::uint16_t& longitude, int& latitude);
     void move(std::uint16_t& longitude, int& latitude);
     void steer(int latitude);
+    void lookAround(std::uint16_t longitude, int latitude);
+    void spotPlaces(std::uint16_t longitude, int latitude);
+    void checkZone(std::uint16_t longitude, int latitude);
+    void greySkip(bool grey);
     void drawCommands();
     bool headingTo(std::uint16_t longitude, int latitude, std::size_t record, int& heading) const;
     static bool headingToward(std::uint16_t longitude, int latitude, std::uint16_t toLongitude, int toLatitude,
@@ -119,6 +137,10 @@ private:
     int heading_ = 0;
     int fraction_ = 0x80;
     int steps_ = 0;
+    // Steps left in the Harkonnens' zone, counted down in 32s from 256;
+    // 0 outside it.
+    int zoneCount_ = 0;
+    bool skipGrey_ = false;
     std::uint32_t lastStep_ = 0;
     // The corner: shown and up to date (0), to be drawn again around the
     // player (1), or not shown (-1).

@@ -32,6 +32,14 @@ constexpr std::size_t kOverMap = 0x14C0;
 constexpr std::size_t kCommands = 0x212E;
 constexpr std::size_t kArrowZones = 0x1CCA;
 
+// The warning of the Harkonnens' zone: its phrase, where it starts and
+// its colours.
+constexpr std::uint16_t kWarningPhrase = 0xBF;
+constexpr int kWarningX = 0x66;
+constexpr int kWarningY = 0x4E;
+constexpr std::uint16_t kWarningColours = 0x200C;
+constexpr int kWarningLineStep = 7;
+
 // Paul's mark: blinks every 300 ticks, its bottom at his place and 13
 // pixels left of it.
 constexpr std::uint16_t kPlayerMark = 0x4C;
@@ -126,6 +134,37 @@ void Cockpit::drawScene() {
     drawList(kOverMap);
     // The panel's ornament stays as it is, over the cockpit.
     panel_.drawOrnament();
+}
+
+void Cockpit::drawWarning() {
+    const ProgramFile& program = g_.resources().program();
+    Display& d = g_.display();
+    d.targetBack();
+    g_.places().drawSky();
+    auto drawList = [&](std::size_t at) {
+        for (; program.dataU16(at) != 0xFFFF; at += 6) {
+            g_.drawSprite(program.dataU16(at), s16(program.dataU16(at + 2)), s16(program.dataU16(at + 4)));
+        }
+    };
+    g_.selectSheet(kCockpitSheet);
+    drawList(kUnderMap);
+    drawList(kOverMap);
+    panel_.drawOrnament();
+    if (!font_) {
+        font_ = Font::parse(g_.resources().load(resource::kFont), Font::Size::Small);
+    }
+    const std::string& text = panel_.phrases().at(kWarningPhrase - 1);
+    int x = kWarningX;
+    int y = kWarningY + d.originRows();
+    for (const char c : text) {
+        if (c == '\r') {
+            x = kWarningX;
+            y += kWarningLineStep;
+            continue;
+        }
+        x = font_->draw(d.target(), x, y, std::string_view(&c, 1), static_cast<std::uint8_t>(kWarningColours),
+                             static_cast<std::uint8_t>(kWarningColours >> 8));
+    }
 }
 
 void Cockpit::show() {

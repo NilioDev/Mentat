@@ -4,9 +4,9 @@ From the cockpit (see [cockpit.md](cockpit.md)) a click on a place sets
 off for it: the ornithopter takes off from the place's entrance, the
 desert goes by in the videos with a small map in the top right corner,
 and at the place the ornithopter comes down in front of its entrance.
-This page covers flying to a place and flying off over the desert. What
-happens on the way (places seen ahead, the Harkonnens' zones) and flying
-from the desert are not covered yet.
+This page covers flying to a place, flying off over the desert, and what
+a companion sees on the way and the Harkonnens' zones. Being caught in a
+zone and flying from the desert are not covered yet.
 
 ## Choosing the place
 
@@ -120,7 +120,9 @@ Every 768 ticks (the first at once):
    the trail (one pixel up and left, clipped to the map), and Paul's new
    place is added to the trail. The trail keeps the last 276 places.
 4. When Paul's map point (see [map.md](map.md)) is the destination's
-   (record offset 6), the place is reached (below).
+   (record offset 6), the place is reached (below). Otherwise Paul looks
+   around (see "On the way"); when a companion speaks up, the step ends
+   here.
 5. While the corner is shown: when it was marked to be drawn again, it is
    drawn again around Paul with the whole trail (each point whose sprite
    corner falls within (`0xCC`, 4) to (`0x13A`, `0x3A`)). Then, when
@@ -163,6 +165,103 @@ bits are 8 or more the ground ahead is rocky. The next video is then:
 When a video ends, the next one starts; when it is the same one, it
 starts again.
 
+## On the way
+
+After each step that does not reach the place, state offset `0x23` is
+cleared and:
+
+1. When somebody is shown on the panel (the word at state offset
+   `0x1152` is not `0xFFFF`) and somebody goes with Paul (the word at
+   `0x10` is not 0), the companions look for places (below).
+2. The Harkonnens' zone is checked (below).
+3. When `0x23` is then set, the flight stops for an answer: with
+   somebody on the panel, a companion says what it is; with nobody, the
+   cockpit warns of the zone.
+
+### Places seen
+
+The 9 × 9 map points around Paul are looked at: 9 rows from latitude −
+4 (but not above −`0x62`), each the 9 points around the one at Paul's
+longitude in that row's ring (wrapping round it), row by row and from
+west to east. A point whose map byte has bit 6 holds a place: the first
+place in the table whose point (record offset 6) it is. Such a place is
+seen when
+
+- it is hidden (byte `0x0A` bit 7) and the story has come to it (state
+  offset `0x2A` at least byte `0x0B`);
+- the heading toward it from Paul, less the heading he flies, plus
+  `0x60`, is below `0xC0` (8 bits), that is within a third of a turn
+  either way; from `0x60` it is on the right, below on the left.
+
+A place seen:
+
+- the state's byte `0xE1` takes the side (0 left, 1 right), the word at
+  `0x11F5` the phrase for it (`0xCE` "on the left", `0xD0` "on the
+  right"), the word at `0x11F3` the phrase for the kind of place: `0x48`
+  plus 0 for a sietch (kind below `0x20`), 1 for the palace (`0x20`) and
+  the kinds from `0x30`, 2 for a village (to `0x27`), 3 for a fortress;
+- `0x23` becomes 3;
+- the place is found (as when reached, below);
+- course is set for it (flying freely stops), the video stops and the
+  commands are those for flying to a place.
+
+The look goes on through the rest of the points, so the last place seen
+wins.
+
+### The Harkonnens' zone
+
+Paul is in the zone when his point's map byte has both bits 4 and 5
+set. Flying to a place (not freely) whose kind is `0x28` or more and
+whose byte `0x0A` has bit 3, he is safe anywhere.
+
+Outside the zone, or safe, a count is set to 0 and "SKIP TO DESTINATION"
+is no longer greyed. In it: when the count is 0, `0x23` becomes 4;
+"SKIP TO DESTINATION" is greyed (from the next time a list is drawn, and
+in the list shown when it heads it); the count goes down by `0x20` (8
+bits). When it comes back to 0, 8 steps in a row in the zone, Paul is
+caught.
+
+### A companion speaks
+
+The companion who speaks is the second shown on the panel (the high
+byte of the word at `0x1152`), or the first when there is no second or
+bit 7 of the state's word at 0 is set; nobody when that byte is `0xFF`
+or more than `0x7F`.
+
+1. The video stops, and the corner is to be drawn again later.
+2. Over the scene, sprite 0 of `ORNYCAB.HSQ` (resource `0x34`), the
+   ornithopter's cabin, at (0, 0), with its colours.
+3. The companion's face, as when talking (see [talking.md](talking.md)),
+   for `0x4B` ticks.
+4. The companion's remark: the first line of the story's list of remarks
+   that may be said (see [talking.md](talking.md)).
+5. The commands: for a place seen, data offset `0x1F92` ("GO TOWARDS
+   THIS PLACE", " WHAT ? "); for the zone, data offset `0x1F9E` ("CHANGE
+   DESTINATION", "IGNORE WARNING", " WHAT ? "). No arrows.
+
+### The cockpit's warning
+
+With nobody on the panel, entering the zone shows the cockpit as it
+opens (see [cockpit.md](cockpit.md)) but without the map, its places or
+the title: the sky, the sprites at data offset `0x14B4`, then those at
+`0x14C0`. Over it the warning, phrase `0xBF` of the commands' text, in
+the small font from (`0x66`, `0x4E`), colour `0x0C` on `0x20`, each line
+7 rows below the last (the phrase has an empty line). The commands are
+those at data offset `0x1F9E`, " WHAT ? " greyed.
+
+### The answer
+
+"GO TOWARDS THIS PLACE" and "IGNORE WARNING" (action `0xD2E2`) end the
+remark (the companion counts as talked to) or the warning, clear
+`0x23`, and show the flight again from its first video. The next step
+comes at once when 768 ticks have passed since the last. "CHANGE
+DESTINATION" opens the cockpit instead, as during the flight. " WHAT ? "
+says the remark again.
+
+Places a companion could see straight ahead are also looked at, every
+step, in the 8 points ahead; the original keeps what it finds there but
+nothing comes of it.
+
 ## Commands
 
 - "SKIP TO DESTINATION": the video stops and up to 200 steps are taken at
@@ -193,8 +292,9 @@ starts again.
    room, the place he is in and the place last entered are this place.
    A place that was hidden is found (bit 7 of byte `0x0A` cleared, byte
    `0x0B` cleared, and for a sietch the count of sietches found, state
-   offset `0x27`, goes up); other kinds than sietches are marked visited
-   (byte `0x0A` bit 4). The characters who go with Paul come too.
+   offset `0x27`, goes up; finding the sietch named `0x603` also starts a
+   moment of the story, not covered yet); other kinds than sietches are
+   marked visited (byte `0x0A` bit 4). The characters who go with Paul come too.
 4. When the place was reached flying, by the place's kind (byte 8):
    - a sietch (below `0x20`) or the palace (`0x20`): the corner goes, and
      the flight's videos go on over dunes until slot 2's frame `0x3C` (a

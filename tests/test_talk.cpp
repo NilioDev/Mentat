@@ -5,6 +5,7 @@
 #include "mentat/data/phrase_file.hpp"
 #include "mentat/data/reader.hpp"
 #include "mentat/engine/dialogue.hpp"
+#include "mentat/engine/fiber.hpp"
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/intro.hpp"
 #include "mentat/engine/panel.hpp"
@@ -178,4 +179,56 @@ MTT_TEST("talk: Leto's first lines in a new game, then the talk ends") {
     MTT_CHECK(talk.command(Talk::kStopTalking) && !talk.active());
     MTT_CHECK((w.u8(0xFD8 + 0x0F) & 0x20) != 0);
     MTT_CHECK(Talk::characterOf(0x92F2) == 0 && Talk::characterOf(0x92F7) == 1 && Talk::characterOf(0x9300) == -1);
+}
+
+MTT_TEST("talk: a companion's remark on the way, and what it answers to") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g, kEnglish);
+    FakeHost host;
+    Talk talk(g, w, panel, host, kEnglish);
+    talk.subtitles = Talk::Subtitles::Below;
+    auto remark = [&](int c) {
+        bool said = false;
+        Fiber fiber([&] {
+            g.display().targetBack();
+            said = talk.remark(c);
+        });
+        p.fiber = &fiber;
+        while (!fiber.finished()) {
+            fiber.resume();
+            ++p.ticks;
+        }
+        p.fiber = nullptr;
+        return said;
+    };
+    // Gurney sees a sietch on the right.
+    w.setU8(0x23, 3);
+    w.setU8(0xE1, 1);
+    w.setU16(0x11F3, 0x48);
+    MTT_CHECK(remark(4));
+    MTT_CHECK(talk.active() && talk.remarking() && talk.character() == 4 && talk.phrase() == 0x1C5);
+    MTT_CHECK(talk.subtitleShown());
+    const auto text = talk.phraseText(0x1C5 | 0x800, true);
+    MTT_CHECK(!text.empty() && text[0].find("a sietch on the right") != std::string::npos);
+    // " WHAT ? " is the talk's; going on is not.
+    MTT_CHECK(talk.command(Talk::kWhat) && !talk.command(0xD2E2) && talk.active());
+    talk.endRemark();
+    MTT_CHECK(!talk.active() && host.ended == 0 && (w.u8(0xFD8 + 16 * 4 + 0x0F) & 0x20) != 0);
+    // Said before, it may be said again; on the left it is the next line.
+    MTT_CHECK(remark(4) && talk.phrase() == 0x1C5);
+    talk.endRemark();
+    w.setU8(0xE1, 0);
+    MTT_CHECK(remark(4) && talk.phrase() == 0x1C6);
+    talk.endRemark();
+    // The Harkonnens' zone.
+    w.setU8(0x23, 4);
+    MTT_CHECK(remark(4) && talk.phrase() == 0x1C7);
+    talk.endRemark();
 }

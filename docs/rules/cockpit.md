@@ -4,7 +4,8 @@ In a palace's entrance, "TAKE AN ORNITHOPTER" (phrase `0xA7`, action
 `0x42E9`, greyed while no ornithopter is kept there) puts Paul in an
 ornithopter's cockpit, where he chooses where to fly on a small map.
 This page covers the cockpit as it opens, what the mouse shows on it and
-"Cancel". A click on a place flies there (see [flight.md](flight.md)).
+"Cancel". Its warning of the Harkonnens' zone is in
+[flight.md](flight.md). A click on a place flies there (see [flight.md](flight.md)).
 "CHANGE DESTINATION" opens the cockpit during a flight too.
 
 ## Opening the cockpit
