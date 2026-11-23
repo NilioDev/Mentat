@@ -160,6 +160,16 @@ MTT_TEST("mixer panel: volumes, balances, the language and the subtitles") {
     MTT_CHECK(m.active());
     MTT_CHECK(m.press(10, 180) == MixerPanel::Click::Outside);
     MTT_CHECK(m.press(100, 128) == MixerPanel::Click::VoiceTest);
+    // For a gamepad: three knobs, three balances, the test and ten rows.
+    const std::vector<ClipRect> targets = m.targets();
+    MTT_CHECK(targets.size() == 17);
+    for (const ClipRect& r : targets) {
+        MTT_CHECK(m.press((r.left + r.right) / 2, (r.top + r.bottom) / 2) != MixerPanel::Click::Outside);
+        m.release();
+    }
+    m.open(2);
+    g.language = kEnglish;
+    m.open(2);
 
     // The voices' knob, dragged down 8 rows, takes 4 a row off.
     MTT_CHECK(m.press(57, 37) == MixerPanel::Click::Nothing && m.holding());

@@ -49,6 +49,17 @@ public:
     }
     // Draws it again, after a change.
     void redraw();
+
+    // Dragging the window by its top strip: an outline of it follows the
+    // mouse, by (dx, dy) at a time, kept on the map; the mouse going down
+    // to row 0x98 lets go. Letting go returns true when the window is to
+    // move (the state keeps the new corner): the screen under it should
+    // come back before it is drawn there with moveToKept().
+    void startDrag();
+    void drag(int dx, int dy, int y);
+    bool dragging() const { return dragging_; }
+    bool endDrag();
+    void moveToKept();
     // Moves its middle by a step of the arrows.
     void scroll(int longitude, int latitude);
 
@@ -64,8 +75,14 @@ public:
         Map,     // on the map, `place` the place pointed at or 0
     };
     Click click(int x, int y, std::size_t& place);
+    // The places shown on it.
+    const SmallMap& smallMap() const { return small_; }
     // The place the mouse points at, 0 for none.
     std::size_t pointed() const { return pointed_; }
+
+    // For the prospectors' troop, the places of its route in turn: its way
+    // goes through them instead of to its place.
+    std::vector<std::size_t> route;
 
     // The colouring: false the spice of each region, true the work of
     // Paul's troops in it.
@@ -87,6 +104,9 @@ private:
     void drawMainView();
     void drawMarker();
     void markDensity(int index);
+    // Flips the colours of the window's outline at the corner the state
+    // keeps.
+    void flipOutline();
     std::size_t nearestPlace(int x, int y) const;
     std::vector<std::uint8_t> colours() const;
     void counts(std::size_t record, int& spice, int& army, int& ecology) const;
@@ -97,6 +117,7 @@ private:
     MapScreen& map_;
     SmallMap small_;
     bool shown_ = false;
+    bool dragging_ = false;
     int troop_ = 0;
     int left_ = 0;
     int top_ = 0;

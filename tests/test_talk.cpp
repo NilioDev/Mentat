@@ -15,6 +15,7 @@
 #include "mentat/engine/places.hpp"
 #include "mentat/engine/platform.hpp"
 #include "mentat/engine/talk.hpp"
+#include "mentat/engine/talker.hpp"
 #include "mentat/engine/text_box.hpp"
 #include "mentat/engine/world.hpp"
 #include "mentat/gfx/font.hpp"
@@ -401,11 +402,16 @@ MTT_TEST("orders: a troop's chief answers in a box over the map and takes up an 
         }
         p.fiber = nullptr;
     };
+    double& voice = p.soundQueued[static_cast<int>(SoundChannel::Digital)];
+    voice = 0;
     run([&] { orders.open(troop); });
     MTT_CHECK(orders.active() && map.active() && talk.active() && talk.inBox());
-    // The chief says where his troop is, waiting; the commands are the
-    // orders, with only the occupation to choose and no more orders.
-    MTT_CHECK(talk.phrase() == 0x118);
+    // The chief says where his troop is, waiting, and is heard saying it;
+    // the commands are the orders, with only the occupation to choose and
+    // no more orders.
+    MTT_CHECK(talk.phrase() == 0x118 && g.talker().speaking());
+    g.pollInput();
+    MTT_CHECK(voice > 0);
     const auto& c = panel.commands();
     MTT_CHECK(c.size() == 5 && c[0].action == Orders::kInformation && c[1].phrase == 0x56 && (c[2].phrase & Command::kGrey) &&
               (c[3].phrase & Command::kGrey) && c[4].action == Orders::kNoMoreOrders);
@@ -787,4 +793,65 @@ MTT_TEST("talk: the smuggler names his price, haggles and sells") {
     // Accepted: on his bill, and in Paul's place.
     MTT_CHECK(talk.command(Talk::kAccept) && w.u8(0x9F) == 1);
     MTT_CHECK(w.u16(s + 0x0E) == 105 && w.u8(s + 5) == 1 && w.u8(0x200 + 0x15) == 1 && w.u8(0x22) == 1);
+}
+
+MTT_TEST("talk: overpowering the Harkonnens' captain, a try for each") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g);
+    FakeHost host;
+    Talk talk(g, w, panel, host);
+    talk.subtitles = Talk::Subtitles::Below;
+    talk.runEvents();
+    talk.runEvents();
+    g.places().enter(w.room(), w.place());
+    g.display().targetBack();
+    g.places().present = w.present();
+    w.findPresent();
+    g.places().drawView();
+    talk.start(0, 186, 53);
+    w.setU8(0xED, 0x30);
+    w.setU16(0xEE, 0);
+    MTT_CHECK(talk.command(Talk::kOverpower) && talk.active());
+    MTT_CHECK(w.u8(0xED) == 0x07 && (w.u16(0xEE) & 1) != 0 && (w.u8(0x10A7) & 0x10) == 0);
+    // Leto has tried: once more changes nothing.
+    MTT_CHECK(talk.command(Talk::kOverpower) && w.u8(0xED) == 0x07);
+    // Another try that takes it below 0 overpowers them.
+    w.setU16(0xEE, 0);
+    MTT_CHECK(talk.command(Talk::kOverpower) && w.u8(0xED) == 0xDE && (w.u8(0x10A7) & 0x10) != 0);
+}
+
+MTT_TEST("talk: a companion in the room tells a chief's message itself, and the talk goes on") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g);
+    FakeHost host;
+    Talk talk(g, w, panel, host);
+    talk.subtitles = Talk::Subtitles::None;
+    talk.runEvents();
+    talk.runEvents();
+    g.places().enter(w.room(), w.place());
+    g.display().targetBack();
+    g.places().present = w.present();
+    w.findPresent();
+    g.places().drawView();
+    // The message is one of the story's remarks.
+    w.setU8(0xEA, 0x07);
+    talk.sayMessage(0, 186, 53);
+    const int said = talk.phrase();
+    MTT_CHECK(talk.active() && said == 0x1BD);
+    // Then Leto talks on as in any talk.
+    MTT_CHECK(talk.command(Talk::kTalkToMe) && talk.active() && talk.phrase() != said);
 }

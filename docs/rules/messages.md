@@ -1,8 +1,8 @@
 # The chiefs' messages
 
 How the messages left for Paul (see
-[work.md](work.md#the-chiefs-messages)) reach him: in a room, as a
-vision.
+[work.md](work.md#the-chiefs-messages)) reach him: in a room, told by a
+companion there or as a vision.
 
 ## When one comes
 
@@ -62,8 +62,30 @@ queue. After `0xBB8` ticks (or a key or click) the shimmer stops, the
 talk ends, byte `0xEA` becomes `0xFF` and byte `0xE8` `0x0A`, and the
 room comes back through the mosaic with the ornament open.
 
-## Not built yet
+## A companion tells it
 
-When the speaker is with Paul, the original lets that companion say the
-message in the room instead, the talk going on afterwards, and drops that
-companion's other messages; here every message comes as a vision.
+The one who speaks may be with Paul (its bit in the state's word `0x12`;
+for the chiefs, 15, the message must also be about Paul's place). Then
+there is no vision:
+
+- **On coming into a room**, the characters there are gone through in
+  their order as for speaking up (see [talking.md](talking.md)): the first
+  with a line of its list 4 to say says it; one that has none but has a
+  message waiting (the first in the queue it says; for the chiefs, about
+  Paul's place) tells that message instead.
+- **While Paul stays in the room**, once `0x32` ticks have passed, when
+  the first message waiting is said by someone in the room, that one
+  tells it at once (before any blur, at war too), and what is happening
+  (byte `0x23`) becomes 0.
+
+Telling a message: the place word it carries, when not 0, is learned
+(the place learned before is learned again afterwards), byte `0xEA`
+takes the message's low byte, and the talk with that character starts
+with the first line of list 4 of character 16 that may be said, recorded
+as the remarks are (see [talking.md](talking.md#voices)); byte `0xEA`
+then becomes `0xFF`. The talk goes on as any talk.
+
+Whenever a character speaks up or tells a message, every message it says
+leaves the queue (for the chiefs, those about Paul's place): those kept
+move up, and only the entry just after them is cleared. Byte `0xE7` (see
+[desert.md](desert.md)) becomes 0.

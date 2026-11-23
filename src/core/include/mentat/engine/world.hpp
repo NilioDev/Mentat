@@ -225,6 +225,9 @@ public:
     int linkTroop(int troop, std::size_t place);
     // The troop sets off for `place`, and makes its first steps.
     void startMove(int troop, std::size_t place, FlatMap& map);
+    // The prospectors' route (state word 0x11D3, three places).
+    std::size_t nextOnRoute(int troop);
+    void shiftRoute();
     // The equipment at `place` that none of the troops there holds, by kind.
     std::array<int, 7> freeEquipment(std::size_t place) const;
     // Where a troop at `from` would go to fetch a piece of kind `kind`
@@ -247,6 +250,9 @@ public:
     // Harkonnens won the place he is at.
     bool sietchHere = false;
     bool lostWithPaul = false;
+    // Set when one of Paul's troops settles at the place Paul is at while
+    // he is in the room where the troops stand.
+    bool troopArrivedHere = false;
     // Set when the Harkonnens attack the place Paul is at, and when the
     // fight there is over.
     bool attackedHere = false;
@@ -263,8 +269,19 @@ public:
     static constexpr std::size_t kAwayWord = 0x10;
     static constexpr std::size_t kPlaceKindByte = 0x08;
     static constexpr std::uint8_t kOutside = 0xFF;
+    // As the map of the regions opens: when a fort was taken and every
+    // fort of its name is Paul's now, the Harkonnens' land in the regions
+    // of the places of that name becomes his (see
+    // docs/rules/places_taken.md). `regions` is MAP2.HSQ.
+    void takeRegions(const std::vector<std::uint8_t>& regions, FlatMap& map);
     bool firstMessage(std::uint16_t& message, std::uint16_t& place) const;
     void dropMessage();
+    // The first message waiting that character `c` says (for the chiefs,
+    // 15, one about Paul's place). False when there is none.
+    bool messageFrom(int c, std::uint16_t& message, std::uint16_t& place) const;
+    // Every message waiting that character `c` says goes (for the chiefs,
+    // those about Paul's place), as when it speaks up.
+    void dropMessagesFrom(int c);
     // The messages that only say news waits (those whose word's low byte is
     // 1) go, as when the news is looked at.
     void dropNewsReminders();

@@ -31,7 +31,7 @@ clipped one pixel within the border. Each piece of the face goes where it
 would in a talk, less the face's focus point, plus the frame's inside
 corner: the focus is the pair of words at `0x22B9` plus four times the face
 less `0x0E` (the three Fremen faces). The face's set is the troop's, as in
-talks; it moves as in talks, with no voice.
+talks; it moves as in talks.
 
 The text is laid out like a box's text (see [text.md](text.md)) in colour
 `0xF0` over the box's fill, from `0x49` columns into the box and 4 rows
@@ -47,6 +47,11 @@ start when nothing more is found. "Ask for more information" says the next.
 When a line leaves the answer "maybe" (`0x80`, see
 [talking.md](talking.md)), the chief shows what his troop holds in his
 box, as when modifying it (below).
+
+After each line, when there is a recording of it (counted as in talks,
+see [talking.md](talking.md#voices)), the face starts a new idle sequence,
+its calm part as long as the words of the page, and the chief's voice says
+it, whatever is chosen for the subtitles: the text stays in the box.
 
 ## The commands
 
@@ -263,8 +268,8 @@ command file in the box (see below), the commands become the list at
 map as for "see spice density" (see [spice_map.md](spice_map.md)),
 showing the spice, at column `0x5C`: at row `0x1E` when the box is at
 row 5, at row `0x0E` when it is low. It marks the troop and its way
-instead of Paul. The troop of record `0x8E0` is shown three sietches in
-turn instead; that is not built yet.
+instead of Paul. The troop of record `0x8E0` (troop 3, the prospectors)
+is shown up to three sietches in turn instead (below).
 
 The phrase goes in the box's text area, which is cleared whole: laid out
 from one row higher than a line of news, `0x19` rows deep, and `0x26`
@@ -340,8 +345,22 @@ sets off or is given another destination, its mark (not the ring), if it
 has one, goes; a new one, as above, takes its place at the end of the
 marks when the troop is on the move and near, or its place is in sight.
 
-## Not built yet
+## The prospectors' route
 
-The chief's voice in the box, the troop shown three
-sietches, the orders
-from the map for troops on the move, and what troops do day by day.
+For troop 3, "Move troop" takes the three words at state `0x11D3` as the
+route so far (up to the first that is 0), the chief says phrase `0x55`
+instead, and the commands are the list at `0x2136`: ADD A DESTINATION
+(`0x80C7`, greyed when the route is empty or full, and doing nothing),
+GIVE NEW DESTINATIONS (`0x80D9`), Done (`0x8214`) and Cancel. The small
+map opens as above; the troop's way is drawn from its point through each
+place of the route in turn.
+
+- A click on a place that is a sietch (kind below `0x20`), or whose byte
+  `0x0A` has bit 3, adds it to the route; a full route starts over first.
+  The small map and the commands are drawn again. With three places, after
+  `0x32` ticks, it is as Done.
+- GIVE NEW DESTINATIONS empties the route and draws again.
+- Done keeps the route at `0x11D3` (all three words). With none, as
+  Cancel. Otherwise the chief answers as for a place clicked, about the
+  route's first place (the situation always `0x0B`, never "where it is").
+  How the troop then goes is in [moves.md](moves.md#the-prospectors-route).

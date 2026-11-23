@@ -524,6 +524,13 @@ MTT_TEST("globe screen: opens on the map's middle, turns with the arrows and goe
     MTT_CHECK((panel.commands()[0].phrase & Command::kGrey) == 0 && (panel.commands()[2].phrase & Command::kGrey) != 0);
     MTT_CHECK(panel.zones()[Panel::kArrows].action == GlobeScreen::kExit);
     MTT_CHECK(panel.zones()[Panel::kArrows + 1].action == GlobeScreen::kUp);
+    // A gamepad's pointer can jump to Paul's place, facing us, and other
+    // places known on the planet.
+    const std::vector<ClipRect> places = globe.targets();
+    MTT_CHECK(!places.empty());
+    for (const ClipRect& r : places) {
+        MTT_CHECK(r.left >= 90 && r.right <= 240 && r.top >= 10 && r.bottom <= 140);
+    }
     // Over the planet the list offers the map of the area.
     MTT_CHECK(globe.pointAt(160, 80) && panel.commands().size() == 1);
     MTT_CHECK(!globe.pointAt(161, 80));
@@ -963,6 +970,26 @@ MTT_TEST("messages: the queue gives its first message, and the vision shows the 
     w.dropMessage();
     MTT_CHECK(w.u8(q) == 0 && !w.firstMessage(message, at));
 
+    // A companion's messages: the chiefs' only about Paul's place.
+    w.setU8(q, 4);
+    w.setU16(q + 1, 0x0F0C);
+    w.setU16(q + 3, place);
+    w.setU16(q + 5, 0x0507);
+    w.setU16(q + 7, 0);
+    w.setU16(q + 9, 0x0F07);
+    w.setU16(q + 11, static_cast<std::uint16_t>(World::placeRecord(6)));
+    w.setU16(q + 13, 0x0508);
+    w.setU16(q + 15, place);
+    w.setU16(0x114E, static_cast<std::uint16_t>(World::placeRecord(6)));
+    MTT_CHECK(w.messageFrom(5, message, at) && message == 0x0507 && at == 0);
+    MTT_CHECK(w.messageFrom(0x0F, message, at) && message == 0x0F07);
+    MTT_CHECK(!w.messageFrom(4, message, at));
+    w.dropMessagesFrom(5);
+    MTT_CHECK(w.u8(q) == 2 && w.u16(q + 1) == 0x0F0C && w.u16(q + 5) == 0x0F07 && w.u16(q + 9) == 0);
+    w.dropMessagesFrom(0x0F);
+    MTT_CHECK(w.u8(q) == 1 && w.u16(q + 1) == 0x0F0C && w.u16(q + 3) == place);
+    w.setU8(q, 0);
+
     // The vision of a place away from Paul has the small map in its frame.
     Vision v(g, w, map);
     v.draw(place);
@@ -1226,10 +1253,15 @@ MTT_TEST("world: a troop fetches equipment from the nearest place that has it fr
     w.startMove(1, sietch, m);
     MTT_CHECK(w.u8(sietch + 0x15) == 0 && w.u8(t + 0x19) == 0x40 && w.u8(t + 0x0F) == 0);
     MTT_CHECK(w.u16(t + 4) == home && (w.u8(t + 3) & 0x40) && w.u8(sietch + 9) == 0);
-    // Home again, it settles with it and mines spice once more.
+    MTT_CHECK(!w.troopArrivedHere);
+    // Home again, it settles with it and mines spice once more; Paul is
+    // there, in the second room, where the troops stand: it is to be seen.
+    w.setU16(0x114E, static_cast<std::uint16_t>(home));
+    w.setU8(0x0B, 2);
     w.stepTroop(1, 4, m);
     MTT_CHECK(!(w.u8(t + 3) & 0x40) && (w.u8(t + 3) & 0x0F) == 0 && w.u8(home + 9) == 1);
     MTT_CHECK(w.u8(home + 0x15) == 1);
+    MTT_CHECK(w.troopArrivedHere);
 }
 
 MTT_TEST("world: Jessica's powers let Paul reach his troops further off") {
@@ -1372,4 +1404,123 @@ MTT_TEST("world: a massive attack fights the rounds at once") {
     MTT_CHECK(w.u8(ours + 0x1A) != before);
     MTT_CHECK(w.u16(0x9A) != 0); // what Paul's side lost
     MTT_CHECK(w.u16(0x98) == 0); // the Harkonnens lost nothing
+}
+
+MTT_TEST("world: the prospectors go to the places of their route in turn") {
+    World w;
+    const std::size_t a = World::placeRecord(1);
+    const std::size_t b = World::placeRecord(2);
+    const std::size_t c = World::placeRecord(3);
+    const std::size_t t = World::troopRecord(3);
+    w.setU16(t + 4, static_cast<std::uint16_t>(a));
+    // Their route starts where they stand: that place is taken off.
+    w.setU16(0x11D3, static_cast<std::uint16_t>(a));
+    w.setU16(0x11D5, static_cast<std::uint16_t>(b));
+    w.setU16(0x11D7, static_cast<std::uint16_t>(c));
+    MTT_CHECK(w.nextOnRoute(3) == b);
+    MTT_CHECK(w.u16(0x11D3) == b && w.u16(0x11D5) == c && w.u16(0x11D7) == 0);
+    // On the move, nothing is taken off.
+    w.setU8(t + 3, 0x40);
+    w.setU16(t + 4, static_cast<std::uint16_t>(b));
+    MTT_CHECK(w.nextOnRoute(3) == b && w.u16(0x11D3) == b);
+    // An empty route: they stay.
+    w.setU8(t + 3, 0);
+    w.setU16(0x11D3, 0);
+    MTT_CHECK(w.nextOnRoute(3) == 0);
+}
+
+MTT_TEST("places taken: once every fort of a name is Paul's, the Harkonnens' land in its regions is his") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    const std::vector<std::uint8_t> regions = g.resources().load(resource::kRegions);
+    std::vector<std::uint8_t>& points = map.flatMap().bytes();
+    MTT_CHECK(regions.size() == points.size());
+    // A name with a fort, and the forts of that name.
+    int name = 0;
+    std::vector<std::size_t> forts;
+    for (std::size_t at = World::kPlaces; w.u8(at) != 0xFF; at += 0x1C) {
+        if (w.u8(at + 8) >= 0x28 && w.u8(at) >= 1 && w.u8(at) <= 12 && w.u8(at) != 7) {
+            name = w.u8(at);
+            break;
+        }
+    }
+    MTT_CHECK(name != 0);
+    std::size_t region = 0;
+    for (std::size_t at = World::kPlaces; w.u8(at) != 0xFF; at += 0x1C) {
+        if (w.u8(at) == name) {
+            if (w.u8(at + 8) >= 0x28) {
+                forts.push_back(at);
+            }
+            region = w.u8(at + 0x10);
+        }
+    }
+    std::size_t inside = regions.size();
+    for (std::size_t i = 0; i < regions.size(); ++i) {
+        if (regions[i] == region) {
+            points[i] = static_cast<std::uint8_t>((points[i] & 0x0F) | 0x30);
+            inside = i;
+        }
+    }
+    MTT_CHECK(inside < regions.size());
+    // One fort of the name still the Harkonnens': nothing changes.
+    for (std::size_t i = 1; i < forts.size(); ++i) {
+        w.setU8(forts[i] + 0x0A, static_cast<std::uint8_t>(w.u8(forts[i] + 0x0A) | 8));
+    }
+    w.setU8(forts[0] + 0x0A, static_cast<std::uint8_t>(w.u8(forts[0] + 0x0A) & ~8));
+    w.setU16(0x115A, static_cast<std::uint16_t>(1u << (name - 1)));
+    w.takeRegions(regions, map.flatMap());
+    MTT_CHECK(w.u16(0x115A) == 0 && (points[inside] & 0x30) == 0x30);
+    // All of them Paul's: the land there is his.
+    w.setU8(forts[0] + 0x0A, static_cast<std::uint8_t>(w.u8(forts[0] + 0x0A) | 8));
+    w.setU16(0x115A, static_cast<std::uint16_t>(1u << (name - 1)));
+    w.takeRegions(regions, map.flatMap());
+    MTT_CHECK((points[inside] & 0x30) == 0x20);
+}
+
+MTT_TEST("spice map: dragged by its top strip, an outline follows and the window moves when let go") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    w.enterPlace(World::placeRecord(12));
+    g.display().targetBack();
+    map.enter();
+    SpiceMap spice(g, w, panel, map);
+    spice.open();
+    const ClipRect f = spice.frame();
+    std::size_t place = 0;
+    MTT_CHECK(spice.click(f.left + 20, f.top + 2, place) == SpiceMap::Click::Title);
+    const Surface& screen = g.display().screen();
+    const std::uint8_t corner = screen.at(f.left, f.top);
+    spice.startDrag();
+    MTT_CHECK(spice.dragging() && screen.at(f.left, f.top) == (corner ^ 0x0F));
+    spice.drag(10, 4, 50);
+    MTT_CHECK(screen.at(f.left, f.top) == corner);
+    MTT_CHECK(w.u16(0x11C1) == f.left + 10 && w.u16(0x11C3) == f.top + 4);
+    // Kept within the map: from 5 to 0x91 across, 5 to 0x1D down.
+    spice.drag(-500, 500, 50);
+    MTT_CHECK(w.u16(0x11C1) == 5 && w.u16(0x11C3) == 0x1D);
+    MTT_CHECK(spice.endDrag() && !spice.dragging());
+    spice.moveToKept();
+    MTT_CHECK(spice.frame().left == 5 && spice.frame().top == 0x1D && spice.shown());
+    // Back where it was: nothing to move. Reaching row 0x98 lets go.
+    spice.startDrag();
+    spice.drag(0, 0, 0x98);
+    MTT_CHECK(!spice.dragging());
 }

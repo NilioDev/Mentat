@@ -9,6 +9,7 @@
 
 #include <array>
 #include <cstdint>
+#include <vector>
 
 namespace mentat {
 
@@ -54,6 +55,10 @@ public:
     void release() { held_ = Held::None; }
     // Whether a control is held (the pointer changes meanwhile).
     bool holding() const { return held_ != Held::None; }
+
+    // What can be clicked or held on the window, for a gamepad's pointer:
+    // the knobs, the voice test and the rows of the lists.
+    std::vector<ClipRect> targets() const;
 
     // How lines are shown (0 subtitles, 1 balloons, 2 none), as chosen
     // on the panel.

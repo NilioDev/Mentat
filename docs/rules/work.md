@@ -161,7 +161,8 @@ have: the spice skill grows by 2 and the place's byte `0x0A` gets bit 6.
 
 A prospected place: the troop finds again whether it can work (it
 cannot), word `0x0E` becomes 100, and unless its orders are being shown,
-it sets off for its own place when the state's word `0x11D3` is not 0;
+it sets off (along its route, see [moves.md](moves.md#the-prospectors-route))
+when the state's word `0x11D3` is not 0;
 otherwise, when it could work before, message `0x0F0E` is left for the
 place.
 
@@ -258,5 +259,5 @@ palace falls (see [fights.md](fights.md)). How they are shown is in
 
 What the original
 does when a fort is taken in the middle of the green spreading (its walk
-then goes on as a looking over around the fort); the daily accounts, the
-Harkonnens' and the smugglers' hours.
+then goes on as a looking over around the fort). The daily accounts and
+the Harkonnens' and smugglers' hours are in [days.md](days.md).

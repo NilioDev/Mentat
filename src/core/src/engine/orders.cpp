@@ -82,6 +82,13 @@ constexpr std::size_t kHiddenFort = 0xE4; // the nearest fort not found, of the 
 // "Cancel") and where the small map opens, by where the box is.
 constexpr std::uint16_t kWhereTo = 0x54;
 constexpr std::size_t kMoveList = 0x212E;
+// The prospectors' route: its three words in the state, the chief's
+// question, the list of commands, and the wait once it is full.
+constexpr std::size_t kRoute = 0x11D3;
+constexpr std::uint16_t kWhereToInTurn = 0x55;
+constexpr std::size_t kRouteList = 0x2136;
+constexpr int kRouteFullTicks = 0x32;
+constexpr int kFirstForeignKind = 0x20;
 constexpr int kMoveMapX = 0x5C;
 constexpr int kMoveMapUnderBox = 0x1E;
 constexpr int kMoveMapOverBox = 0x0E;
@@ -367,19 +374,84 @@ void Orders::specialize(int occupation) {
 // "MOVE TROOP": the chief asks where to, and the small map opens over the
 // map for the place to be pointed at.
 void Orders::chooseDestination() {
+    spice_.route.clear();
     if (troop_ == kThreeSietches) {
-        return; // shown three sietches in turn: not built yet
+        // The prospectors are shown up to three sietches, from the route
+        // they have.
+        routeCount_ = 0;
+        for (std::size_t i = 0; i < route_.size(); ++i) {
+            route_[i] = world_.u16(kRoute + 2 * i);
+        }
+        while (routeCount_ < 3 && route_[static_cast<std::size_t>(routeCount_)] != 0) {
+            spice_.route.push_back(route_[static_cast<std::size_t>(routeCount_)]);
+            ++routeCount_;
+        }
+        talk_.boxCommand(kWhereToInTurn);
+        setRouteMenu();
+    } else {
+        talk_.boxCommand(kWhereTo);
+        panel_.setCommands(readCommands(g_.resources().program(), kMoveList));
+        Display& d = g_.display();
+        d.targetScreen();
+        panel_.drawCommands();
+        d.targetBack();
+        panel_.drawCommands();
     }
-    talk_.boxCommand(kWhereTo);
-    panel_.setCommands(readCommands(g_.resources().program(), kMoveList));
+    spice_.occupations = false;
+    spice_.openFor(troop_, kMoveMapX, box_.top == kBoxHigh ? kMoveMapUnderBox : kMoveMapOverBox);
+    choosing_ = true;
+}
+
+// "ADD A DESTINATION" is greyed while the route is empty or full.
+void Orders::setRouteMenu() {
+    std::vector<Command> commands = readCommands(g_.resources().program(), kRouteList);
+    if (!commands.empty() && (routeCount_ == 0 || routeCount_ == 3)) {
+        commands[0].phrase |= Command::kGrey;
+    }
+    panel_.setCommands(std::move(commands));
     Display& d = g_.display();
     d.targetScreen();
     panel_.drawCommands();
     d.targetBack();
     panel_.drawCommands();
-    spice_.occupations = false;
-    spice_.openFor(troop_, kMoveMapX, box_.top == kBoxHigh ? kMoveMapUnderBox : kMoveMapOverBox);
-    choosing_ = true;
+}
+
+// A place clicked for the prospectors: a sietch, or a fort of Paul's
+// (byte 0x0A bit 3), goes on the route (a full route starts over); with
+// three, the route is done after a moment.
+void Orders::addToRoute(std::size_t place) {
+    if (world_.u8(place + 8) >= kFirstForeignKind && (world_.u8(place + 0x0A) & 0x08) == 0) {
+        return;
+    }
+    if (routeCount_ >= 3) {
+        clearRoute();
+    }
+    route_[static_cast<std::size_t>(routeCount_++)] = static_cast<std::uint16_t>(place);
+    spice_.route.push_back(place);
+    spice_.redraw();
+    setRouteMenu();
+    if (routeCount_ == 3) {
+        g_.waitTicks(kRouteFullTicks);
+        finishRoute();
+    }
+}
+
+void Orders::clearRoute() {
+    route_ = {};
+    routeCount_ = 0;
+    spice_.route.clear();
+}
+
+// "Done": the route is kept, and the chief is asked to go to its first
+// place.
+void Orders::finishRoute() {
+    for (std::size_t i = 0; i < route_.size(); ++i) {
+        world_.setU16(kRoute + 2 * i, route_[i]);
+    }
+    stopChoosing();
+    if (route_[0] == 0 || !sendTo(route_[0])) {
+        setMenu();
+    }
 }
 
 // The small map goes, and the chief tells about his troop again.
@@ -402,7 +474,7 @@ bool Orders::sendTo(std::size_t place) {
     const std::size_t t = World::troopRecord(troop_);
     const std::size_t at = world_.u16(t + 4);
     std::uint8_t situation = kSamePlace;
-    if (place != at) {
+    if (place != at || troop_ == kThreeSietches) {
         world_.setU16(t + 4, static_cast<std::uint16_t>(place));
         world_.learnTroop(troop_);
         world_.namePlace(place);
@@ -456,7 +528,9 @@ void Orders::clickSmallMap(int x, int y) {
         setMenu();
         return;
     case SpiceMap::Click::Map:
-        if (place != 0) {
+        if (place != 0 && troop_ == kThreeSietches) {
+            addToRoute(place);
+        } else if (place != 0) {
             confirmDestination(place);
         }
         return;
@@ -795,6 +869,19 @@ bool Orders::command(std::uint16_t action) {
         setMenu();
         return true;
     case kMove: chooseDestination(); return true;
+    case kAddDestination: return choosing_;
+    case kNewDestinations:
+        if (choosing_) {
+            clearRoute();
+            spice_.redraw();
+            setRouteMenu();
+        }
+        return choosing_;
+    case kRouteDone:
+        if (choosing_) {
+            finishRoute();
+        }
+        return choosing_;
     case kNoMoreOrders: leave(fromRoom_); return true;
     case kLeaveTroop: leave(false); return true;
     case kEquipment: openEquipment(); return true;

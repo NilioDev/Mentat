@@ -104,7 +104,3 @@ becomes `0xFF`, word `0x118D` takes the day and the Emperor makes his first
 demand (see [days.md](days.md#the-emperors-demand-hour-3)), byte `0x0A`
 gets bit 0 (messages may now be left), message `0x0001` is left, and the
 story's lines run.
-
-## Not built yet
-
-Some of the scenes' steps (see [story_scenes.md](story_scenes.md)).

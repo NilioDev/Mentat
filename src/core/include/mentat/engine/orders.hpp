@@ -43,6 +43,10 @@ public:
     static constexpr std::uint16_t kSearchArmy = 0x7734;
     static constexpr std::uint16_t kSearchEcology = 0x775C;
     static constexpr std::uint16_t kCancel = 0xD2E2;
+    // The prospectors' route: up to three sietches in turn.
+    static constexpr std::uint16_t kAddDestination = 0x80C7;
+    static constexpr std::uint16_t kNewDestinations = 0x80D9;
+    static constexpr std::uint16_t kRouteDone = 0x8214;
 
     Orders(Game& game, World& world, Panel& panel, MapScreen& map, Talk& talk, SpiceMap& spice);
 
@@ -99,6 +103,11 @@ private:
     // The chief answers whether his troop goes to `place`; on a yes it sets
     // off and the orders are over. False on a no.
     bool sendTo(std::size_t place);
+    // The prospectors' route: the commands, a place added, and done.
+    void setRouteMenu();
+    void addToRoute(std::size_t place);
+    void clearRoute();
+    void finishRoute();
     void say(int list);
     void chooseDestination();
     void stopChoosing();
@@ -130,6 +139,9 @@ private:
     // Which list of orders is shown (its data offset).
     std::size_t list_ = 0;
     bool choosing_ = false;
+    // The places chosen for the prospectors' route, 0 for none.
+    std::array<std::uint16_t, 3> route_{};
+    int routeCount_ = 0;
     ClipRect box_{};
     // The last line of news showed the troop's equipment.
     bool heldShown_ = false;

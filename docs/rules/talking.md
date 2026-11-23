@@ -40,7 +40,7 @@ The second line is decided in this order:
 1. For anyone but the Harkonnens' captain (character 12), while the
    captain is in the room (bit 12 of the word at `0x12`) and not
    overpowered (bit 4 of `0x10A7`): OVERPOWER THE PRISONER (`0x9C`,
-   action `0x9584`; not built yet).
+   action `0x9584`, below).
 2. For the chiefs of Paul's troops (character 15): GIVE ORDERS TO TROOP
    (`0x93`, action `0x5A03`): the talk ends as STOP TALKING ends it, without
    the room coming back, and the orders open (see [orders.md](orders.md)).
@@ -267,3 +267,19 @@ the room is drawn again with its people and shown, and the ornament opens.
 
 A new game starts both random number generators from the PC's clock: the
 ticks since midnight, 18.2 a second.
+
+## Overpower the prisoner
+
+When the room is built with a Harkonnen troop in it, its captain stands
+there (see [people.md](people.md)), the word at `0xEE` becomes 0 and the
+byte at `0xED` takes the troop's spirits (byte `0x15`), or `0xFF` when the
+troop already has bit 4 of byte 3.
+
+OVERPOWER THE PRISONER: when the bit of the character Paul talks with
+(1 << its number) is not yet set in the word at `0xEE`, it is set, the
+troop's byte `0x15` and the byte at `0xED` lose `0x29`, and when that
+byte's result has bit 7 set, the troop's byte 3 and the captain's flags
+(`0x10A7`) get bit 4. Either way a line of the dialogue's list `0x85` is
+then said, as COME WITH ME says its line, and its recording is counted
+as the story's remarks are (from the first phrase of character `0x10`,
+after 999).

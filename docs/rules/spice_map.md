@@ -149,7 +149,8 @@ Otherwise, with the mouse inside the frame:
 A click inside the frame:
 
 - in its first 7 rows: within its first 10 pixels it closes the window;
-  further on it is where the window would be dragged (not built yet);
+  further on it starts dragging the window (below), except when the
+  window was opened for a troop's orders;
 - on its last rows from the map's bottom on: the window switches between
   spice density and troop occupation, and is drawn again;
 - on the map: when a place is pointed at, the window goes and the main
@@ -159,7 +160,24 @@ The arrows move the window's middle by their steps instead of the main
 map's. The middle of the arrows puts the main map back on Paul, and the
 window is drawn again over it.
 
-## Not built yet
+## Opening
 
-Dragging the window; the state's word `0x115A`, which changes the regions
-of `MAP2.HSQ` as the story goes on.
+Before the window is drawn, the regions whose forts have all been taken
+become Paul's land (see
+[places_taken.md](places_taken.md#the-regions-changing-hands)).
+
+## Dragging
+
+While dragging, an outline of the window (`0xAA` × `0x6C` from the corner
+the state keeps, its colours flipped by exclusive-or with `0x0F` as the
+scale's mark, kept within (4, 4) to (`0x13C`, `0x94`)) shows where it
+will go. Each move of the mouse by (dx, dy) flips the outline back, moves
+the corner kept in the state by (dx, dy), and flips it at the new corner.
+The corner stays from 5 to `0x91` across and from 5 to `0x1D` down: when
+x + dx − 5 falls outside 0 to `0x8B` it is put at 5 (below) or `0x91`
+(above), and y + dy − 5 outside 0 to `0x17` at 5 or `0x1D`.
+
+Letting go of the button, or the mouse reaching row `0x98`, ends it: the
+outline is flipped back, and when the corner kept is not where the window
+is, the map comes back under the window and the window is drawn again at
+the new corner, its middle unchanged.

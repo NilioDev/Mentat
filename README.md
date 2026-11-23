@@ -25,7 +25,9 @@ and touch controls.
 > meet: their face over the room and their own recorded voice, saying
 > what fits how far the story has come. People also speak up by
 > themselves when you come in or head for a door, and may stop you
-> going, and those who follow you walk with you from room to room. "See Dune map" opens the map of
+> going, and those who follow you walk with you from room to room. Where
+> a Harkonnen captain is held, each of them can try once to overpower the
+> prisoner. "See Dune map" opens the map of
 > the planet around you with the places you know, and you can move it
 > with the arrows; a click on a place shows its label, with what it is,
 > its name and, for places you know, the battle there or its equipment.
@@ -52,20 +54,23 @@ and touch controls.
 > gets the better of you, and you wake up back where you came from. In a
 > sietch you meet its Fremen, who can agree to work
 > for you. Their chief then takes your orders on the map, answering in a
-> box with his face: he tells you about his troop, and you can have it
+> box with his face and his own voice: he tells you about his troop, and you can have it
 > specialize in spice, the army or ecology, send an army troop to spy out
 > the nearest hidden Harkonnen fort and then attack it, have an ecology
 > troop build a wind-trap, give it equipment the sietch keeps
 > or take some back, send it to fetch the equipment it lacks from the
 > nearest place that has it, or send it somewhere: point at a
 > place on the small map of the regions, and if the chief agrees the troop
-> sets off and walks there hour by hour, its mark crossing the map. A
+> sets off and walks there hour by hour, its mark crossing the map. The
+> prospectors can be given up to three sietches to visit in turn. A
 > troop that reaches a Harkonnen fort, or a place being fought over,
 > where nobody else is takes it. As Jessica teaches Paul her powers he
 > reaches his troops from further off: "CONTACT FREMEN TROOPS" on the map
 > then gives orders to troops far away, and "NEXT TROOP" goes from one to
 > the next. Taking a
-> Harkonnen fort raises your charisma and your troops' spirits. Hour by
+> Harkonnen fort raises your charisma and your troops' spirits, and once
+> every fort of a region is yours, the Harkonnens' land there becomes
+> yours. Hour by
 > hour your troops work: they mine spice into your stock (and a harvester
 > may meet a worm), prospect places, train for the army, build wind-traps
 > and make the desert green. Send them to attack a Harkonnen place and
@@ -80,7 +85,8 @@ and touch controls.
 > its bar, by the work of your troops there; point at a place to see who
 > is there, or click it to move the map to it. While you wait in a room,
 > news from your troops reaches you: the room blurs and a chief's face
-> appears in a shimmering vision, showing the place on a small map. As the
+> appears in a shimmering vision, showing the place on a small map; when
+> the one with news is in the room with you, they tell you themselves. As the
 > story moves on, doors in the palace open, people move to other rooms,
 > new places become known and news arrives. At moments of the story a
 > scene plays: the family gathers in a room and each speaks in turn while
@@ -115,8 +121,7 @@ original game's files: you need your own copy.
 - 🎯 A one-to-one copy of the CD version 3.7: same story, dialogue, rules,
   timing, music and spoken voices.
 - 🖥️ Windows, macOS, Linux and Android from one codebase.
-- 🎮 Gamepad: the pointer also jumps between places on the small maps and
-  the globe, and every button can be changed.
+- 🎮 Gamepad: every button can be changed.
 - 💾 Save whenever you like.
 
 ## Add your game
@@ -140,8 +145,8 @@ and the original can load the games you save in Mentat.
 ## Controls
 
 With a gamepad, the left stick moves the pointer, and the direction pad
-jumps it to the next line of the list, arrow, button, person or place on
-the map that way.
+jumps it to the next line of the list, arrow, button, person, place on
+the map, the small maps or the globe, or knob of the mixer panel that way.
 A clicks, B is the right mouse button, Back closes Mentat, and any other
 button acts as a key.
 
@@ -157,7 +162,7 @@ button acts as a key.
 | See what a place is | On the map, click the place; click it again or elsewhere to close the label | | |
 | Send a troop somewhere | In its orders, "MOVE TROOP", then click a place on the small map; "Cancel" or a click outside it goes back | | |
 | Equip a troop | In its orders, "MODIFY EQUIPMENT", then click a piece in the chief's box to give it back or in the box below to take it; "Done" or a click elsewhere ends | | |
-| See the spice and your troops' work | On the map, "SEE SPICE DENSITY"; click its bar to switch, a place to go there, the box at its top left (or the command again) to close it | | |
+| See the spice and your troops' work | On the map, "SEE SPICE DENSITY"; click its bar to switch, a place to go there, the box at its top left (or the command again) to close it, its top strip to drag it elsewhere | | |
 | Look at the globe | On the map, click the small planet at the left of the panel; "EXIT GLOBE" or the button beside the list goes back | | |
 | Turn the globe | Click or hold an arrow; the middle turns it to you; click on the planet to see the map there | | |
 | See how you are doing | On the globe, "SEE RESULTS"; "STANDARD VISION" goes back | | |

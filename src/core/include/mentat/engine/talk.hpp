@@ -98,6 +98,9 @@ public:
     // Paul answered (state byte 0x9F says it).
     std::function<void()> waterOfLife;
     // A line shows the place last named in a window on the planet.
+    // The Harkonnen troop at Paul's place (whose captain stands in the
+    // room), 0 for none.
+    int harkonnens = 0;
     std::function<void()> showNamedPlace;
     // Stilgar sends the troops to the Harkonnens' palace.
     std::function<void()> attackLaunched;
@@ -138,6 +141,10 @@ public:
     // group has a line that may be said now, and the talk starts with it.
     // False, with nothing shown, when there is none.
     bool speakUp(int c, int x, int y, int face = -1, int variant = 0);
+    // A companion in the room tells a chief's message itself: the talk
+    // starts with the first line of the story's remarks that may be said,
+    // recorded as the remarks are, and goes on from there.
+    void sayMessage(int c, int x, int y, int face = -1, int variant = 0);
     // The answer of the last line that gave one: 0xFF yes. Paul goes
     // through a door when nobody there said no.
     std::uint8_t answer() const { return answer_; }
@@ -230,6 +237,7 @@ private:
     int face_ = -1;
     int faceVariant_ = 0;
     void comeWithMe(bool work);
+    void overpower();
     void stopFollowing();
     void leaves(std::size_t record);
     void takeSlot(int number);
@@ -265,6 +273,8 @@ private:
     bool endAfter_ = false;
     std::vector<std::string> pages_; // the pages of the line still to show
     std::size_t pageLine_ = 0;
+    // The line said for "overpower": recorded with the story's remarks.
+    std::optional<std::size_t> eventLine_;
     std::uint8_t lineFlags_ = 0; // the flags of the line being said
     int take_ = 0;               // which recording of it
     int phrase_ = 0;      // the last phrase, with 0x1000 for each page after the first

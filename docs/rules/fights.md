@@ -90,7 +90,7 @@ Paul's charisma (`0x29`) falls by 4, to 1 at least. For each multiple of
 ## A place lost
 
 The place's byte `0x0A` loses bit 1. When it is the place Paul is at, the
-game is lost (not built yet: the end shown). Otherwise:
+game is lost (see [game_over.md](game_over.md)). Otherwise:
 
 - a sietch becomes a Harkonnen fort: its kind becomes `0x28` plus its low
   three bits, the count of sietches (`0x27`) goes down by one, and the
@@ -103,10 +103,8 @@ game is lost (not built yet: the end shown). Otherwise:
 - the place loses bits 0 and 3 of byte `0x0A`, and the map is drawn
   again.
 
-## Not built yet
-
-The Harkonnens attacking Paul's place, and the end of the game when the
-place Paul is at is lost.
+The Harkonnens attacking Paul's place is in [days.md](days.md#a-harkonnen-attack-hour-4)
+and [attack.md](attack.md).
 
 ## At Paul's place: the view and "Massive attack"
 

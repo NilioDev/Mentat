@@ -323,6 +323,10 @@ constexpr int kVisionShown = 0xBB8;
 constexpr int kMessageCharacters = 0x10;
 constexpr int kTroopShownSietches = 3;
 constexpr std::size_t kMessageAbout = 0xEA; // and 0xEB
+constexpr std::size_t kLearnedPlace = 0x11CE;
+constexpr std::size_t kSpiceWindowX = 0x11C1;
+constexpr std::size_t kSpiceWindowY = 0x11C3;
+constexpr std::size_t kFoundUnconscious = 0xE7;
 constexpr std::size_t kMessageAfter = 0xE8;
 constexpr std::uint8_t kMessageAfterValue = 0x0A;
 constexpr std::uint16_t kFirstPlace = 0x100;
@@ -335,6 +339,10 @@ constexpr int kSkyRefadeSteps = 0x30;
 // track waits until the next picture is shown, while the old one fades
 // out.
 constexpr std::size_t kMusicForMoment = 0x375C;
+// During a scene the music is that of moment 0, or of moment 0x0A at the
+// story's step 0x48.
+constexpr int kSceneOwnMusicStep = 0x48;
+constexpr int kSceneOwnMusic = 0x0A;
 // The mouse pointer: the arrow.
 constexpr std::size_t kArrowPointer = 0x2584;
 // The pointer's other shapes: a hand over the map or the planet, and
@@ -532,6 +540,21 @@ private:
         if (quiet < kMessageWait) {
             return;
         }
+        {
+            // When the one who speaks is with Paul, it tells the message
+            // itself (the chiefs only about Paul's place).
+            std::uint16_t message = 0;
+            std::uint16_t place = 0;
+            world_.firstMessage(message, place);
+            const int c = message >> 8;
+            if (c < 16 && (world_.present() & (1u << c)) != 0 &&
+                (c != kChiefs || place == world_.u16(kPaulsPlaceWord))) {
+                world_.setU8(kSituation, 0);
+                tellMessage(c, message, place);
+                spokeUp(c);
+                return;
+            }
+        }
         if (world_.u8(kAtWar) == 0) {
             if (quiet < kFirstBlur) {
                 blurRoom(Display::kMosaicFine);
@@ -679,6 +702,7 @@ private:
         sceneMenu_ = 0;
         sceneBlink_ = false;
         g_.addTimer(kSceneBlinkTimer, kSceneBlinkTicks, [this] { sceneBlink_ = !sceneBlink_; });
+        chooseMusic(); // the scene's own music
     }
 
     std::vector<Command> sceneCommands() const {
@@ -939,9 +963,7 @@ private:
                 endScene();
                 return;
             default:
-                // The other steps (night falling, the pictures of the later
-                // scenes and the ending) are not built yet.
-                break;
+                break; // no script holds another step
             }
         }
     }
@@ -1104,14 +1126,43 @@ private:
             }
             targets.push_back(ClipRect{z.left, z.top, z.right, z.bottom});
         }
+        const auto placeTarget = [&](int x, int y) { targets.push_back(ClipRect{x - 2, y - 2, x + 3, y + 3}); };
         if (map_.active() && !globe_.active()) {
-            // The places on the map and the troops' marks.
-            for (const MapScreen::Shown& sh : map_.shownPlaces()) {
-                targets.push_back(ClipRect{sh.x - 2, sh.y - 2, sh.x + 3, sh.y + 3});
+            if (spice_.shown()) {
+                // The small map of the regions over the map: its places.
+                const ClipRect frame = spice_.frame();
+                targets.erase(std::remove_if(targets.begin(), targets.end(),
+                                             [&](const ClipRect& r) {
+                                                 return r.left < frame.right && r.right > frame.left &&
+                                                        r.top < frame.bottom && r.bottom > frame.top;
+                                             }),
+                              targets.end());
+                for (const SmallMap::Shown& sh : spice_.smallMap().shown()) {
+                    placeTarget(sh.x, sh.y);
+                }
+            } else {
+                // The places on the map and the troops' marks.
+                for (const MapScreen::Shown& sh : map_.shownPlaces()) {
+                    placeTarget(sh.x, sh.y);
+                }
+                for (const MapScreen::Mark& m : map_.marks()) {
+                    targets.push_back(m.rect);
+                }
             }
-            for (const MapScreen::Mark& m : map_.marks()) {
-                targets.push_back(m.rect);
+        }
+        if (globe_.active()) {
+            const std::vector<ClipRect> places = globe_.targets();
+            targets.insert(targets.end(), places.begin(), places.end());
+        }
+        if (cockpit_.active()) {
+            for (const SmallMap::Shown& sh : cockpit_.smallMap().shown()) {
+                placeTarget(sh.x, sh.y);
             }
+        }
+        if (mixer_.active()) {
+            const std::vector<ClipRect> knobs = mixer_.targets();
+            targets.insert(targets.end(), knobs.begin(), knobs.end());
+            return;
         }
         if (!map_.active() && !globe_.active() && !cockpit_.active() && !flight_.active()) {
             for (const Places::Shown& sh : g_.places().shown()) {
@@ -1154,6 +1205,16 @@ private:
                 mixer_.release();
             } else if (!clicked && (movedX != 0 || movedY != 0)) {
                 mixer_.drag(x, y, movedX, movedY);
+            }
+        }
+        if (spice_.dragging()) {
+            if (!down) {
+                letGoSpiceMap();
+            } else if (!clicked && (movedX != 0 || movedY != 0)) {
+                spice_.drag(movedX, movedY, y);
+                if (!spice_.dragging()) {
+                    moveSpiceMap();
+                }
             }
         }
         if (changed && map_.active()) {
@@ -1381,7 +1442,7 @@ private:
             return;
         }
         if (orders_.active()) {
-            return; // the rest of the orders is not built yet
+            return; // nothing else acts while the orders are shown
         }
         if (talk_.command(action)) {
             return;
@@ -1433,9 +1494,16 @@ private:
         }
     }
 
+    enum class Opening { Asked, SpeakingUp, Message };
+
     // Starts talking to character `c` where the room shows it; or, with
     // `speakingUp`, only when it has something to say as Paul comes in.
     bool talkTo(int c, std::uint16_t phrase, bool speakingUp) {
+        return talkTo(c, phrase, speakingUp ? Opening::SpeakingUp : Opening::Asked);
+    }
+
+    bool talkTo(int c, std::uint16_t phrase, Opening opening) {
+        const bool speakingUp = opening != Opening::Asked;
         int x = -1;
         int y = -1;
         for (const Places::Shown& s : g_.places().shown()) {
@@ -1449,11 +1517,34 @@ private:
         }
         int variant = 0;
         const int face = look(c, variant);
+        if (opening == Opening::Message) {
+            talk_.sayMessage(c, x, y, face, variant);
+            return true;
+        }
         if (speakingUp) {
             return talk_.speakUp(c, x, y, face, variant);
         }
         talk_.start(c, x, y, face, variant);
         return true;
+    }
+
+    // A companion in the room tells its message itself (see
+    // docs/rules/messages.md): the talk starts with it.
+    void tellMessage(int c, std::uint16_t message, std::uint16_t place) {
+        const std::uint16_t learned = world_.u16(kLearnedPlace);
+        if (place != 0) {
+            world_.learnPlace(place);
+        }
+        world_.setU8(kMessageAbout, static_cast<std::uint8_t>(message & 0xFF));
+        talkTo(c, 0, Opening::Message);
+        world_.setU8(kMessageAbout, 0xFF);
+        world_.learnPlace(learned);
+    }
+
+    // Whoever spoke up has no more messages to tell.
+    void spokeUp(int c) {
+        world_.dropMessagesFrom(c);
+        world_.setU8(kFoundUnconscious, 0);
     }
 
     // Paul comes into a room or goes for a door: the first of those
@@ -1466,7 +1557,18 @@ private:
         }
         std::sort(here.begin(), here.end());
         for (const int c : here) {
-            if (c <= kChiefs && talkTo(c, 0, true)) {
+            if (c > kChiefs) {
+                continue;
+            }
+            if (talkTo(c, 0, true)) {
+                spokeUp(c);
+                return true;
+            }
+            std::uint16_t message = 0;
+            std::uint16_t place = 0;
+            if (world_.messageFrom(c, message, place)) {
+                tellMessage(c, message, place);
+                spokeUp(c);
                 return true;
             }
         }
@@ -1640,6 +1742,7 @@ private:
             talk_.raiseProgress(kAllRallied);
         }
         people_ = world_.meetPeople();
+        talk_.harkonnens = people_.harkonnens;
         world_.findPresent();
         if (troop == kProspectorsTroop) {
             const std::size_t t = World::troopRecord(troop);
@@ -1865,6 +1968,9 @@ private:
         case SpiceMap::Click::Close:
             spice_.close();
             return true;
+        case SpiceMap::Click::Title:
+            spice_.startDrag();
+            return true;
         case SpiceMap::Click::Map:
             // A place: the map moves to it, the small map gone.
             if (place != 0) {
@@ -1875,6 +1981,25 @@ private:
         default:
             return true;
         }
+    }
+
+    // The small map of the regions let go after a drag: when it moved,
+    // the map comes back under where it was and it is drawn at its new
+    // place.
+    void letGoSpiceMap() {
+        if (spice_.endDrag()) {
+            moveSpiceMap();
+        }
+    }
+
+    void moveSpiceMap() {
+        const ClipRect old = spice_.frame();
+        if (old.left == static_cast<std::int16_t>(world_.u16(kSpiceWindowX)) &&
+            old.top == static_cast<std::int16_t>(world_.u16(kSpiceWindowY))) {
+            return;
+        }
+        d_.copyRect(d_.back(), d_.screen(), old);
+        spice_.moveToKept();
     }
 
     // "TAKE AN ORNITHOPTER": the cockpit, shown at once, its sky in the
@@ -2436,6 +2561,11 @@ private:
     // In the CD style a track that has ended is followed by the next one
     // after a short silence, unless a voice speaks or the place is at war.
     void cdTick() {
+        if ((g_.musicStyle & kCdStyleBit) == 0 && waitingTrack_ != 0 && !g_.musicPlaying()) {
+            // The music waiting for the last one to fade starts once it has.
+            startWaitingMusic();
+            return;
+        }
         if ((g_.musicStyle & kCdStyleBit) == 0 || g_.musicOff || !g_.hasMusic() || g_.musicPlaying()) {
             cdSilent_ = false;
             return;
@@ -2926,6 +3056,17 @@ private:
             gameOver(reason);
             return;
         }
+        if (world_.troopArrivedHere) {
+            // A troop came to the room Paul is in: it is drawn again, with
+            // the newcomers, when nothing is shown over it.
+            world_.troopArrivedHere = false;
+            if (plainView()) {
+                d_.targetBack();
+                drawView();
+                d_.showBack();
+                d_.flush();
+            }
+        }
         d_.targetScreen();
         panel_.drawZones(1, 1);
         panel_.drawClock(world_);
@@ -3044,6 +3185,9 @@ private:
 
     // What kind of moment it is, for the music; see docs/rules/game.md.
     int musicMoment() const {
+        if (scene_) {
+            return world_.u8(kProgress) == kSceneOwnMusicStep ? kSceneOwnMusic : 0;
+        }
         if (globe_.active()) {
             return 1;
         }
@@ -3112,6 +3256,7 @@ private:
         Places& places = g_.places();
         places.enter(world_.room(), world_.place());
         people_ = world_.meetPeople();
+        talk_.harkonnens = people_.harkonnens;
         const std::vector<World::Character> here = world_.findPresent();
         const bool war = atWar() && !scene_;
         if (scene_) {
@@ -3202,6 +3347,13 @@ private:
 
     // The fight at Paul's place began or ended with the hour: the view
     // is drawn again, unless something else is shown.
+    // Whether the room is shown with its own commands and nothing over it.
+    bool plainView() const {
+        return !(talk_.active() || map_.active() || globe_.active() || cockpit_.active() || flight_.active() ||
+                 orders_.active() || messageRoom_.active() || mixer_.active() || over_ || scene_ || mirror_ ||
+                 planShown_);
+    }
+
     void warChanged() {
         if (!atWar()) {
             war_.stop();
