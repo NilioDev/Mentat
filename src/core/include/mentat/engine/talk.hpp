@@ -142,6 +142,15 @@ public:
     // a mosaic and says the first line of the story's remarks that may be
     // said. False when there is none. endRemark() ends it.
     bool vision(int c, int face, int variant);
+    // A line of one of the story's scenes: character `c` (shown with
+    // portrait `face`, set `variant`), zoomed in on where the room shows
+    // it (`x`, `y`, or negative), says the first line of its list 7 that
+    // may be said. False when there is none. endRemark() ends it.
+    bool sceneLine(int c, int x, int y, int face, int variant);
+    // The talk ends without a word, as when a scene takes over.
+    void leave();
+    // A scene shows character `c` in front of the room, saying nothing.
+    void sceneFace(int c, int face, int variant);
     // The flight goes on: the remark is over.
     void endRemark();
     bool remarking() const { return remark_; }
@@ -166,6 +175,7 @@ private:
         bool shown = false;
     };
 
+    bool sceneLine_ = false;
     void begin(int c, int x, int y, int face, int variant);
     void prepareCondition();
     bool condition(int n);

@@ -98,6 +98,8 @@ constexpr int kSceneBottom = 152;
 
 // The background: the room enlarged four times around the character.
 constexpr int kTalkZoom = 6;
+// What each character says in the story's scenes.
+constexpr int kSceneList = 7;
 constexpr int kZoomRight = 0xF0;
 constexpr int kZoomBottom = 0x71;
 
@@ -458,6 +460,12 @@ void Talk::runAction(const DialogueLine& line) {
             raiseProgress((world_.u8(kProgress) & 0xFC) + 4);
         }
         break;
+    case 13: {
+        // One of the story's scenes, by how far the story has come.
+        const int step = world_.u8(kProgress);
+        world_.scene = step < 0x14 ? 0x12F8 : step < 0x18 ? 0x134F : step < 0x30 ? 0x1370 : 0x12DB;
+        break;
+    }
     case 14:
         if (!line.said()) {
             world_.setU8(kExploits, static_cast<std::uint8_t>(world_.u8(kExploits) + 1));
@@ -572,12 +580,64 @@ bool Talk::vision(int c, int face, int variant) {
     return true;
 }
 
+void Talk::sceneFace(int c, int face, int variant) {
+    endRemark();
+    Talker& talker = game_.talker();
+    talker.halt();
+    talker.overlay = nullptr;
+    subtitle_.shown = false;
+    drawBackground(-1, -1);
+    talker.show(face < 0 ? c : face, 0, variant, game_.textWords);
+    host_.keepOrnamentBackground();
+    showScene();
+    talker.halt();
+}
+
+bool Talk::sceneLine(int c, int x, int y, int face, int variant) {
+    endRemark();
+    character_ = c;
+    remark_ = true;
+    sceneLine_ = true;
+    host_.showPointer(false);
+    Talker& talker = game_.talker();
+    talker.halt();
+    talker.overlay = [this](const ClipRect& dirty) {
+        if (subtitle_.shown && dirty.bottom > subtitle_.top) {
+            drawSubtitle(&dirty);
+        }
+    };
+    subtitle_.shown = false;
+    drawBackground(x, y);
+    talker.show(face < 0 ? c : face, 0, variant, game_.textWords);
+    host_.keepOrnamentBackground();
+    showScene();
+    host_.showPointer(true);
+
+    pages_.clear();
+    resume_.reset();
+    finished_ = false;
+    const auto list = dialogue_.list(static_cast<std::size_t>(c * Dialogue::kListsPerCharacter + kSceneList));
+    if (!list) {
+        return false;
+    }
+    prepareCondition();
+    const auto found = dialogue_.find(*list, DialogueLine::kSaid, [this](int n) { return condition(n); });
+    if (!found) {
+        return false;
+    }
+    sayLine(*found, false);
+    return true;
+}
+
 void Talk::endRemark() {
     if (!remark_) {
         return;
     }
     const std::size_t r = record();
-    world_.setU8(r + kFlags, static_cast<std::uint8_t>((world_.u8(r + kFlags) | kTalkedTo) & ~kWaiting));
+    if (!sceneLine_) {
+        world_.setU8(r + kFlags, static_cast<std::uint8_t>((world_.u8(r + kFlags) | kTalkedTo) & ~kWaiting));
+    }
+    sceneLine_ = false;
     Talker& talker = game_.talker();
     talker.halt();
     talker.overlay = nullptr;
@@ -702,6 +762,14 @@ void Talk::stop() {
 
 // The talk is over: the character was talked to and, going with Paul,
 // takes a slot.
+void Talk::leave() {
+    if (remark_) {
+        endRemark();
+    } else if (active() && !box_) {
+        end();
+    }
+}
+
 void Talk::end() {
     const std::size_t r = record();
     world_.setU8(r + kFlags, static_cast<std::uint8_t>((world_.u8(r + kFlags) | kTalkedTo) & ~kWaiting));
@@ -842,14 +910,14 @@ void Talk::speak() {
     // The recordings count each character's phrases from its first; the
     // remarks are counted from the first of the story's lines, after 999.
     int who = std::min(character_, kLastRecordedCharacter);
-    const int number = remark_ ? (phrase_ & ~0x0C00) - (dialogue_.firstPhrase(kEventCharacter) - 1) + kFirstRemarkRecording
+    const int number = remark_ && !sceneLine_ ? (phrase_ & ~0x0C00) - (dialogue_.firstPhrase(kEventCharacter) - 1) + kFirstRemarkRecording
                                : (phrase_ & ~0x0C00) - (dialogue_.firstPhrase(who) - 1);
     if (who == kLastRecordedCharacter && (number & 0xFE) == 0x2C) {
         who = 0x0C;
     }
     game_.indoors = world_.inside() && (world_.room() & 0xFF) != kEntranceHall;
     const int variant = ((number >> 12) & 0x0F) | take_;
-    game_.talker().speak(number & 0xFFF, variant, remark_ ? -1 : who);
+    game_.talker().speak(number & 0xFFF, variant, remark_ && !sceneLine_ ? -1 : who);
 }
 
 // --- Text
@@ -1109,11 +1177,14 @@ void Talk::drawBackground(int x, int y) {
         Places& places = game_.places();
         const std::uint16_t present = places.present;
         const std::uint16_t absent = places.absent;
+        std::vector<int> standing = std::move(places.standingList);
+        places.standingList.clear();
         places.present = 0;
         places.absent = 0;
         places.drawView();
         places.present = present;
         places.absent = absent;
+        places.standingList = std::move(standing);
         d.zoom(kTalkZoom, std::min(x, kZoomRight), std::min(y, kZoomBottom), d.back(), d.saved());
     } else {
         d.saveBackground();

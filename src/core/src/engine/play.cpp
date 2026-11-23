@@ -174,6 +174,19 @@ constexpr int kSkyTimer = 0x3916;
 // the room was shown (in ticks), as a vision.
 constexpr int kMessagesFrom = 0x14;
 constexpr int kQuietStep = 0x14;
+// The story's scenes: their steps, menus and the blinking of the menu's
+// first line.
+constexpr int kSceneRoom = 0x00;
+constexpr int kSceneSay = 0x02;
+constexpr int kSceneRedraw = 0x04;
+constexpr int kSceneTalker = 0x06;
+constexpr int kSceneWait = 0x08;
+constexpr int kSceneEnd = 0xFF;
+constexpr std::size_t kSceneMenu = 0x1FBA;
+constexpr std::size_t kSceneTalkMenu = 0x1FAE;
+constexpr int kSceneBlinkTimer = 0x176B;
+constexpr int kSceneBlinkTicks = 0x64;
+constexpr std::size_t kRoomByte = 0x04;
 constexpr std::uint32_t kQuietStepWait = 0x3E8;
 constexpr std::uint32_t kQuietStepAgain = 0x3B6;
 constexpr std::uint32_t kMessageWait = 0x32;
@@ -287,6 +300,10 @@ public:
             if (quit_) {
                 return;
             }
+            if (scene_ && !g_.platform().keys.empty()) {
+                g_.platform().keys.clear();
+                sceneNext();
+            }
             g_.waitTicks(1);
             runClock();
             if (endTalk_) {
@@ -390,9 +407,13 @@ private:
     // What the story changed that shows: ways between rooms opened. And at
     // step 0x14, a long quiet outside with nobody along moves it on.
     void checkStory() {
-        if (over_ || talk_.active() || map_.active() || globe_.active() || cockpit_.active() || flight_.active() ||
+        if (scene_ || over_ || talk_.active() || map_.active() || globe_.active() || cockpit_.active() || flight_.active() ||
             orders_.active() || noticeShown_) {
             return;
+        }
+        if (world_.scene != 0 && !scene_) {
+            startScene(world_.scene);
+            world_.scene = 0;
         }
         if (world_.roomsChanged) {
             world_.roomsChanged = false;
@@ -406,6 +427,132 @@ private:
             quietSince_ += kQuietStepAgain;
             world_.quietAtStep14();
         }
+    }
+
+    // --- The story's scenes (see docs/rules/story_scenes.md)
+
+    // A scene begins: the first line of the menu blinks until a click or a
+    // key plays its first steps.
+    void startScene(std::uint16_t script) {
+        scene_ = true;
+        sceneAt_ = script;
+        sceneRoom_ = world_.room();
+        sceneTalker_ = -1;
+        sceneStanding_.clear();
+        sceneMenu_ = 0;
+        sceneBlink_ = false;
+        g_.addTimer(kSceneBlinkTimer, kSceneBlinkTicks, [this] { sceneBlink_ = !sceneBlink_; });
+    }
+
+    std::vector<Command> sceneCommands() const {
+        std::vector<Command> list;
+        if (sceneMenu_ == 0) {
+            return placeCommands();
+        }
+        const ProgramFile& program = g_.resources().program();
+        for (std::size_t at = sceneMenu_ + 2;; at += 4) {
+            const Command c{program.dataU16(at), program.dataU16(at + 2)};
+            if (c.phrase == 0) {
+                break;
+            }
+            list.push_back(c);
+        }
+        return list;
+    }
+
+    void sceneShowRoom() {
+        talk_.endRemark();
+        d_.targetBack();
+        drawView();
+        d_.showBack();
+        d_.flush();
+        lit_ = -1;
+    }
+
+    void sceneMenu(std::uint16_t menu) {
+        sceneMenu_ = menu;
+        panel_.setCommands(sceneCommands());
+        lit_ = -1;
+        d_.targetScreen();
+        panel_.drawCommands();
+        d_.targetBack();
+        panel_.drawCommands();
+    }
+
+    // The scene's next steps, up to one that waits for a click.
+    void sceneNext() {
+        const ProgramFile& program = g_.resources().program();
+        for (;;) {
+            const int op = program.codeU8(sceneAt_++);
+            switch (op) {
+            case kSceneRoom: {
+                const int room = program.codeU8(sceneAt_++);
+                const int count = program.codeU8(sceneAt_++);
+                sceneStanding_.clear();
+                for (int i = 0; i < count; ++i) {
+                    const int c = program.codeU8(sceneAt_++);
+                    sceneStanding_.push_back(c == 0xFF ? -1 : c);
+                }
+                world_.setU8(kRoomByte, static_cast<std::uint8_t>(room));
+                sceneMenu_ = kSceneMenu;
+                sceneShowRoom();
+                break;
+            }
+            case kSceneSay: {
+                const int c = program.codeU8(sceneAt_++);
+                sceneMenu(kSceneTalkMenu);
+                if (c != sceneTalker_ && talk_.active()) {
+                    sceneShowRoom();
+                    sceneMenu(kSceneTalkMenu);
+                }
+                sceneTalker_ = c;
+                int x = -1;
+                int y = -1;
+                for (const Places::Shown& sh : g_.places().shown()) {
+                    if (sh.character == c) {
+                        x = sh.rect.left;
+                        y = sh.rect.top;
+                    }
+                }
+                int variant = 0;
+                const int face = look(c, variant);
+                talk_.sceneLine(c, x, y, face, variant);
+                return;
+            }
+            case kSceneRedraw:
+                sceneMenu_ = kSceneMenu;
+                sceneShowRoom();
+                break;
+            case kSceneTalker: {
+                sceneTalker_ = program.codeU8(sceneAt_++);
+                sceneMenu(kSceneMenu);
+                int variant = 0;
+                const int face = look(sceneTalker_, variant);
+                talk_.sceneFace(sceneTalker_, face, variant);
+                break;
+            }
+            case kSceneWait:
+                return;
+            case kSceneEnd:
+                endScene();
+                return;
+            default:
+                // The other steps (night falling, the pictures of the later
+                // scenes and the ending) are not built yet.
+                break;
+            }
+        }
+    }
+
+    void endScene() {
+        g_.removeTimer(kSceneBlinkTimer);
+        talk_.endRemark();
+        scene_ = false;
+        sceneStanding_.clear();
+        world_.setU8(kRoomByte, static_cast<std::uint8_t>(sceneRoom_ & 0xFF));
+        sceneShowRoom();
+        openOrnament();
+        quietSince_ = g_.platform().ticks;
     }
 
     void blurRoom(int transition) {
@@ -543,7 +690,7 @@ private:
         if (map_.active()) {
             spice_.pointAt(x, y);
         }
-        lightCommand(commandUnder(x, y));
+        lightCommand(scene_ ? (sceneBlink_ ? 0 : -1) : commandUnder(x, y));
         const bool down = (p.mouseButtons & 1) != 0;
         const bool clicked = down && !buttonWasDown_;
         const bool changed = down != buttonWasDown_;
@@ -615,6 +762,24 @@ private:
     void click(int x, int y) {
         const auto& zones = panel_.zones();
         const int line = commandUnder(x, y);
+        if (world_.scene != 0 && !scene_ && !orders_.active() && !map_.active() && !globe_.active()) {
+            // A scene the talk began takes over at the next click.
+            talk_.leave();
+            startScene(world_.scene);
+            world_.scene = 0;
+        }
+        if (scene_) {
+            // In a scene " WHAT ? " says the line again; any other click
+            // goes on.
+            const auto& commands = panel_.commands();
+            if (line >= 0 && static_cast<std::size_t>(line) < commands.size() &&
+                commands[static_cast<std::size_t>(line)].action == Talk::kWhat) {
+                talk_.command(Talk::kWhat);
+                return;
+            }
+            sceneNext();
+            return;
+        }
         if (orders_.active()) {
             // Anything but an order that can be given ends the orders;
             // while the troop is shown where to go, the small map takes the
@@ -1712,11 +1877,15 @@ private:
         places.enter(world_.room(), world_.place());
         people_ = world_.meetPeople();
         const std::vector<World::Character> here = world_.findPresent();
-        panel_.setArrows(world_, places.exits());
+        if (scene_) {
+            panel_.setArrowZones(kNoArrows);
+        } else {
+            panel_.setArrows(world_, places.exits());
+        }
         panel_.drawSlots(world_);
 
-        std::vector<Command> commands = placeCommands();
-        for (const World::Character& c : here) {
+        std::vector<Command> commands = scene_ ? sceneCommands() : placeCommands();
+        for (const World::Character& c : scene_ ? std::vector<World::Character>{} : here) {
             commands.push_back(Command{static_cast<std::uint16_t>(kFirstPersonPhrase + c.number), c.talk});
             if (c.number == kChiefs) {
                 // A line for each chief of Paul's troops here; the
@@ -1744,6 +1913,7 @@ private:
         places.absent = world_.away();
         places.spotTurn = world_.u8(kSpotTurn);
         places.moreChiefs = people_.chiefs.empty() ? 0 : static_cast<int>(people_.chiefs.size()) - 1;
+        places.standingList = scene_ ? sceneStanding_ : std::vector<int>{};
         const int room = world_.room();
         if (world_.inside() && room == kSkyRoom) {
             places.drawView([&] { places.drawSky(); });
@@ -1833,6 +2003,13 @@ private:
     Orders orders_;
     Vision vision_;
     // When the room was last shown: a message waits a while after it.
+    bool scene_ = false;
+    std::uint16_t sceneAt_ = 0;
+    int sceneRoom_ = 0;
+    int sceneTalker_ = -1;
+    std::vector<int> sceneStanding_;
+    std::size_t sceneMenu_ = 0;
+    bool sceneBlink_ = false;
     std::uint32_t quietSince_ = 0;
     World::People people_;
     std::size_t chief_ = 0; // which of the chiefs here Paul talks to
