@@ -183,6 +183,8 @@ The map's commands are kept at data offset `0x20F2`: two bytes, then
   greyed while no troop moves on the map.
 - The third, the spice density, is greyed until the story (state byte
   `0x2A`) reaches 5; until then there is no fifth command.
+  The spice density opens the map of the regions, see
+  [spice_map.md](spice_map.md).
 - The fourth, taking an ornithopter, is greyed (taking one from the map
   is not built yet).
 

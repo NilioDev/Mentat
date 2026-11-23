@@ -26,6 +26,7 @@ add_library(mtt_core STATIC
     src/engine/panel.cpp
     src/engine/places.cpp
     src/engine/small_map.cpp
+    src/engine/spice_map.cpp
     src/engine/play.cpp
     src/engine/resources.cpp
     src/engine/talker.cpp

@@ -13,6 +13,7 @@
 #include "mentat/engine/panel.hpp"
 #include "mentat/engine/places.hpp"
 #include "mentat/engine/saved_games.hpp"
+#include "mentat/engine/spice_map.hpp"
 #include "mentat/engine/talk.hpp"
 #include "mentat/engine/talker.hpp"
 #include "mentat/engine/text_box.hpp"
@@ -216,7 +217,8 @@ public:
           saves_(game.platform().saveFolder, game.resources().program(), world_, talk_.dialogue(),
                  [this]() -> std::vector<std::uint8_t>& { return map_.mapBytes(); }),
           globe_(game, world_, panel_, map_, language, &saves_), cockpit_(game, world_, panel_, map_),
-          flight_(game, world_, panel_, map_), orders_(game, world_, panel_, map_, talk_) {
+          flight_(game, world_, panel_, map_), spice_(game, world_, panel_, map_),
+          orders_(game, world_, panel_, map_, talk_) {
         talk_.subtitles = subtitlesFor(language);
         talk_.enlisted = [this] { enlistFremen(); };
         talk_.ordersAsked = [this] { openOrders(); };
@@ -366,6 +368,9 @@ private:
             lit_ = -1;
         }
         cockpit_.pointAt(x, y);
+        if (map_.active()) {
+            spice_.pointAt(x, y);
+        }
         lightCommand(commandUnder(x, y));
         const bool down = (p.mouseButtons & 1) != 0;
         const bool clicked = down && !buttonWasDown_;
@@ -487,6 +492,9 @@ private:
         }
         if (orders_.active()) {
             return; // the map stays as it is while orders are given
+        }
+        if (map_.active() && spice_.shown() && clickSpiceMap(x, y)) {
+            return;
         }
         if (map_.active() || globe_.active()) {
             // The map's panel keeps its globe, which opens the globe.
@@ -751,7 +759,55 @@ private:
             }
             return true;
         }
+        if (map_.active() && action == SpiceMap::kOpen) {
+            if (spice_.shown()) {
+                spice_.close();
+            } else {
+                map_.hideBox();
+                map_.hideLabel();
+                spice_.occupations = false;
+                spice_.open();
+            }
+            return true;
+        }
+        if (map_.active() && spice_.shown()) {
+            // The arrows move the small map; its middle puts the map back
+            // on Paul under it.
+            int lon = 0;
+            int lat = 0;
+            if (map_.arrowStep(action, lon, lat)) {
+                spice_.scroll(lon, lat);
+                return true;
+            }
+            if (map_.command(action)) {
+                spice_.redraw();
+                return true;
+            }
+            return false;
+        }
         return map_.command(action);
+    }
+
+    // A click while the small map of the regions is shown; false when it
+    // is not on it.
+    bool clickSpiceMap(int x, int y) {
+        std::size_t place = 0;
+        switch (spice_.click(x, y, place)) {
+        case SpiceMap::Click::Outside:
+            return false;
+        case SpiceMap::Click::Close:
+            spice_.close();
+            return true;
+        case SpiceMap::Click::Map:
+            // A place: the map moves to it, the small map gone.
+            if (place != 0) {
+                spice_.forget();
+                map_.centreOn(world_.u16(place + 2), static_cast<std::int16_t>(world_.u16(place + 4)));
+            }
+            return true;
+        default:
+            return true;
+        }
     }
 
     // "TAKE AN ORNITHOPTER": the cockpit, shown at once, its sky in the
@@ -1141,6 +1197,7 @@ private:
     void openGlobe() {
         const std::uint16_t lon = map_.longitude();
         const int lat = map_.latitude();
+        spice_.forget();
         map_.leave();
         globe_.enter(lon, lat);
         chooseMusic();
@@ -1175,6 +1232,7 @@ private:
             lit_ = -1;
             return;
         }
+        spice_.forget();
         map_.leave();
         d_.targetBack();
         panel_.setLayout(kWalkLayout);
@@ -1567,6 +1625,7 @@ private:
     GlobeScreen globe_;
     Cockpit cockpit_;
     Flight flight_;
+    SpiceMap spice_;
     Orders orders_;
     World::People people_;
     std::size_t chief_ = 0; // which of the chiefs here Paul talks to

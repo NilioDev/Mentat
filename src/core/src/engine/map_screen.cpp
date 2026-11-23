@@ -457,28 +457,50 @@ void MapScreen::scroll(int longitude, int latitude) {
     g_.display().copyRect(g_.display().back(), g_.display().screen(), r);
 }
 
+bool MapScreen::arrowStep(std::uint16_t action, int& longitude, int& latitude) const {
+    int n = 0;
+    switch (action) {
+    case kUp:
+        n = 0;
+        break;
+    case kRight:
+        n = 1;
+        break;
+    case kDown:
+        n = 2;
+        break;
+    case kLeft:
+        n = 3;
+        break;
+    default:
+        return false;
+    }
+    const ProgramFile& program = g_.resources().program();
+    const std::size_t at = kScrollSteps + 4 * static_cast<std::size_t>(n);
+    longitude = s16(program.dataU16(at));
+    latitude = s16(program.dataU16(at + 2));
+    return true;
+}
+
+void MapScreen::centreOn(std::uint16_t longitude, int latitude) {
+    longitude_ = longitude;
+    latitude_ = latitude;
+    drawView();
+    g_.display().copyRect(g_.display().back(), g_.display().screen(), view());
+}
+
 bool MapScreen::command(std::uint16_t action) {
     if (!active_) {
         return false;
     }
     const ProgramFile& program = g_.resources().program();
-    auto step = [&](int n) {
-        const std::size_t at = kScrollSteps + 4 * static_cast<std::size_t>(n);
-        scroll(s16(program.dataU16(at)), s16(program.dataU16(at + 2)));
-    };
+    int lon = 0;
+    int lat = 0;
+    if (arrowStep(action, lon, lat)) {
+        scroll(lon, lat);
+        return true;
+    }
     switch (action) {
-    case kUp:
-        step(0);
-        return true;
-    case kRight:
-        step(1);
-        return true;
-    case kDown:
-        step(2);
-        return true;
-    case kLeft:
-        step(3);
-        return true;
     case kCentre:
         // Back to the player's place, the box left as it is.
         playerPoint(longitude_, latitude_);

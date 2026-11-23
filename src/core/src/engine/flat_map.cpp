@@ -240,28 +240,26 @@ void FlatMap::draw(Surface& to, int x, int y, std::uint16_t longitude, int latit
     }
 }
 
-int FlatMap::drawSmall(Surface& to, int left, int top, int right, int bottom, std::uint16_t longitude,
-                       int latitude) const {
-    const int width = right - left;
-    const int rows = bottom - top;
+int FlatMap::gatherSmall(std::span<const std::uint8_t> source, int width, int rows, std::uint16_t longitude,
+                         int latitude, std::vector<std::uint8_t>& work) const {
     const int half = (rows - 1) / 2;
     const int limit = kSmallLimit - half;
     if (std::abs(latitude) >= limit) {
         latitude = latitude < 0 ? -limit : limit;
     }
     const int first = latitude - half;
-    // The rows are gathered first, each with the points around the
-    // longitude; a ring narrower than the rectangle is centred in it.
-    std::vector<std::uint8_t> work(static_cast<std::size_t>(kSmallStride * rows), 0);
+    // Each row holds the points around the longitude; a ring narrower than
+    // the rectangle is centred in it.
+    work.assign(static_cast<std::size_t>(kSmallStride * (rows + 1)), 0);
     for (int r = 0; r < rows; ++r) {
         const int lat = first + r;
         const int ring = 2 * this->width(std::abs(lat));
         const int start = rowStart(lat);
         const int middle = static_cast<int>((static_cast<std::uint32_t>(longitude) * static_cast<std::uint32_t>(ring)) >> 16);
-        int to2 = kSmallStride * r;
+        int to = kSmallStride * r;
         int count = width;
         if (ring < width) {
-            to2 += (width - ring) / 2;
+            to += (width - ring) / 2;
             count = ring;
         }
         int at = middle - count / 2;
@@ -269,16 +267,22 @@ int FlatMap::drawSmall(Surface& to, int left, int top, int right, int bottom, st
             at += ring;
         }
         for (int k = 0; k < count; ++k) {
-            work[static_cast<std::size_t>(to2 + k)] = value(start + at) >> 4;
+            const int i = start + at;
+            work[static_cast<std::size_t>(to + k)] =
+                i >= 0 && static_cast<std::size_t>(i) < source.size() ? source[static_cast<std::size_t>(i)] : 0;
             if (++at == ring) {
                 at = 0;
             }
         }
     }
-    // Then drawn from the bottom row up; near the poles the planet's rim
-    // closes in from both sides.
-    for (int r = rows - 1; r >= 0; --r) {
-        const int lat = std::abs(first + r);
+    return latitude;
+}
+
+void FlatMap::paintSmall(Surface& to, int left, int top, int width, int rows, int firstLatitude,
+                         const std::vector<std::uint8_t>& work, int order, const SmallColour& colour) const {
+    for (int i = 0; i < rows; ++i) {
+        const int r = order < 0 ? rows - 1 - i : i;
+        const int lat = std::abs(firstLatitude + r);
         const std::uint8_t* from = &work[static_cast<std::size_t>(kSmallStride * r)];
         const int y = top + r;
         int x = left;
@@ -308,7 +312,7 @@ int FlatMap::drawSmall(Surface& to, int left, int top, int right, int bottom, st
             to.set(x++, y, kRim[3]);
         }
         for (int k = 0; k < middle; ++k) {
-            to.set(x++, y, static_cast<std::uint8_t>(kSmallFirstColour + (from[in + k] & 0x0F)));
+            to.set(x++, y, colour(r, from + in + k, k == middle - 1));
         }
         if (side > 0) {
             to.set(x++, y, kRim[3]);
@@ -322,7 +326,20 @@ int FlatMap::drawSmall(Surface& to, int left, int top, int right, int bottom, st
             }
         }
     }
+}
+
+int FlatMap::drawSmall(Surface& to, int left, int top, int right, int bottom, std::uint16_t longitude,
+                       int latitude) const {
+    const int width = right - left;
+    const int rows = bottom - top;
+    std::vector<std::uint8_t> work;
+    latitude = gatherSmall(map_, width, rows, longitude, latitude, work);
+    // Drawn from the bottom row up, each point in its colour.
+    paintSmall(to, left, top, width, rows, latitude - (rows - 1) / 2, work, -1,
+               [](int, const std::uint8_t* p, bool) { return static_cast<std::uint8_t>(kSmallFirstColour + (*p & 0x0F)); });
     return latitude;
 }
+
+int FlatMap::smallStride() { return kSmallStride; }
 
 } // namespace mentat

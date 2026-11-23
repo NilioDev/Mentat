@@ -45,7 +45,11 @@ and touch controls.
 > game or stop. In a sietch you meet its Fremen, who can agree to work
 > for you. Their chief then takes your orders on the map, answering in a
 > box with his face: he tells you about his troop, and you can have it
-> specialize in spice or in the army. Moving troops, their equipment,
+> specialize in spice or in the army. Once the story gets that far,
+> "See spice density" on the map opens a small map of the regions you
+> know, coloured by their spice or, with a click on its bar, by the work
+> of your troops there; point at a place to see who is there, or click it
+> to move the map to it. Moving troops, their equipment,
 > their daily work and the rest of the game are not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
@@ -90,6 +94,7 @@ and the original can load the games you save in Mentat.
 | Look at the map | Click "SEE DUNE MAP"; "EXIT MAPS" goes back | | |
 | Move the map | Click or hold an arrow; the middle goes back to you | | |
 | See what a place is | On the map, click the place; click it again or elsewhere to close the label | | |
+| See the spice and your troops' work | On the map, "SEE SPICE DENSITY"; click its bar to switch, a place to go there, the box at its top left (or the command again) to close it | | |
 | Look at the globe | On the map, click the small planet at the left of the panel; "EXIT GLOBE" or the button beside the list goes back | | |
 | Turn the globe | Click or hold an arrow; the middle turns it to you; click on the planet to see the map there | | |
 | See how you are doing | On the globe, "SEE RESULTS"; "STANDARD VISION" goes back | | |

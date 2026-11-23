@@ -63,6 +63,13 @@ public:
     // A command of the map's list or an arrow. False when it is not one of
     // the map's.
     bool command(std::uint16_t action);
+    // How far arrow `action` moves the view; false when it is not an arrow.
+    bool arrowStep(std::uint16_t action, int& longitude, int& latitude) const;
+    // Puts the view's middle at (longitude, latitude) and shows it.
+    void centreOn(std::uint16_t longitude, int latitude);
+    // Takes the box that names the map, or a place's label, off the screen.
+    void hideBox();
+    void hideLabel();
 
     // The map's points as they are now (with the marks the game adds).
     std::vector<std::uint8_t>& mapBytes() { return map().bytes(); }
@@ -96,10 +103,8 @@ private:
     void drawPlayer();
     void drawFrame();
     void showBox();
-    void hideBox();
     void scroll(int longitude, int latitude);
     void showLabel(std::size_t record, int x, int y);
-    void hideLabel();
     int labelSize(std::size_t record) const;
     bool knownInside(std::size_t record) const;
     int battle(std::size_t record) const;
