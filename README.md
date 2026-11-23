@@ -45,7 +45,9 @@ and touch controls.
 > game or stop. In a sietch you meet its Fremen, who can agree to work
 > for you. Their chief then takes your orders on the map, answering in a
 > box with his face: he tells you about his troop, and you can have it
-> specialize in spice or in the army, give it equipment the sietch keeps
+> specialize in spice, the army or ecology, send an army troop to spy out
+> the nearest hidden Harkonnen fort and then attack it, have an ecology
+> troop build a wind-trap, give it equipment the sietch keeps
 > or take some back, or send it somewhere: point at a
 > place on the small map of the regions, and if the chief agrees the troop
 > sets off and walks there hour by hour, its mark crossing the map. A

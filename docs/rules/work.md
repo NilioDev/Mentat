@@ -29,7 +29,7 @@ Each troop record from the first to the last, in turn:
    [moves.md](moves.md)), unless it is the troop given orders just then.
 4. Otherwise it does the work of its occupation (the low four bits of
    byte 3) at its place, below: 0 spice mining, 1 prospecting, 4 the army,
-   5 attacking and 6 fighting (see [fights.md](fights.md)), 8 ecology, 9
+   5 espionage and 6 attacking (see [fights.md](fights.md)), 8 ecology, 9
    a wind-trap, 10 ecology waiting for water. The others do nothing
    here. Then it may forget (below).
 

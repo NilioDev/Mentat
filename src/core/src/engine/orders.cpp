@@ -71,6 +71,7 @@ constexpr std::size_t kClockWord = 0x02;
 constexpr int kLeftFirst = 0x60;
 constexpr std::uint8_t kSamePlace = 0x10; // the situation when the troop is shown where it is
 constexpr std::uint8_t kSendTo = 0x0B;    // and when it is shown another place
+constexpr std::size_t kHiddenFort = 0xE4; // the nearest fort not found, of the place learnt
 
 // Showing a troop where to go: what the chief says, the commands (only
 // "Cancel") and where the small map opens, by where the box is.
@@ -392,6 +393,12 @@ void Orders::stopChoosing() {
 // the troop sets off and the orders are over.
 void Orders::confirmDestination(std::size_t place) {
     stopChoosing();
+    if (!sendTo(place)) {
+        setMenu();
+    }
+}
+
+bool Orders::sendTo(std::size_t place) {
     const std::size_t t = World::troopRecord(troop_);
     const std::size_t at = world_.u16(t + 4);
     std::uint8_t situation = kSamePlace;
@@ -406,14 +413,35 @@ void Orders::confirmDestination(std::size_t place) {
     talk_.expectYes();
     talk_.boxAnswer(kAnswerList);
     if (talk_.answer() != 0xFF) {
-        setMenu();
-        return;
+        return false;
     }
     world_.startMove(troop_, place, map_.flatMap());
     close();
     if (sent) {
         sent();
     }
+    return true;
+}
+
+void Orders::specializeWithin(int occupation) {
+    const std::size_t t = World::troopRecord(troop_);
+    specialize((world_.u8(t + 3) & 0x0C) | occupation);
+}
+
+// Espionage: the troop takes it up (or is asked to), then is asked to go to
+// the fort not found yet nearest its place. On a no it goes back to the
+// army's plain work.
+void Orders::spy() {
+    specializeWithin(1);
+    const std::size_t t = World::troopRecord(troop_);
+    world_.setU16(t + 0x10, static_cast<std::uint16_t>(world_.u16(t + 0x10) & ~0x40));
+    world_.learnPlace(world_.u16(t + 4));
+    const std::size_t fort = world_.u16(kHiddenFort);
+    if (fort != 0 && sendTo(fort)) {
+        return;
+    }
+    world_.setOccupation(troop_, world_.u8(t + 3) & 0xFC);
+    setMenu();
 }
 
 void Orders::clickSmallMap(int x, int y) {
@@ -644,6 +672,9 @@ bool Orders::command(std::uint16_t action) {
     case kSpice: specialize(0); return true;
     case kArmy: specialize(4); return true;
     case kEcology: specialize(8); return true;
+    case kWindTrap: specializeWithin(1); return true;
+    case kAttack: specializeWithin(2); return true;
+    case kEspionage: spy(); return true;
     case kCancel:
         if (equipping_) {
             closeEquipment();

@@ -36,6 +36,9 @@ public:
     static constexpr std::uint16_t kSpice = 0x6A71;
     static constexpr std::uint16_t kArmy = 0x6A83;
     static constexpr std::uint16_t kEcology = 0x6A87;
+    static constexpr std::uint16_t kWindTrap = 0x6A2B;
+    static constexpr std::uint16_t kAttack = 0x6A2F;
+    static constexpr std::uint16_t kEspionage = 0x6A45;
     static constexpr std::uint16_t kCancel = 0xD2E2;
 
     Orders(Game& game, World& world, Panel& panel, MapScreen& map, Talk& talk, SpiceMap& spice);
@@ -76,6 +79,13 @@ private:
     void setMenu();
     void occupationMenu();
     void specialize(int occupation);
+    // An occupation of the troop's speciality: its bits 0 and 1.
+    void specializeWithin(int occupation);
+    // The troop spies out the nearest fort not found: it is asked to go there.
+    void spy();
+    // The chief answers whether his troop goes to `place`; on a yes it sets
+    // off and the orders are over. False on a no.
+    bool sendTo(std::size_t place);
     void say(int list);
     void chooseDestination();
     void stopChoosing();
