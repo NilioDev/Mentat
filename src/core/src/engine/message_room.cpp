@@ -9,6 +9,8 @@
 #include "mentat/engine/talk.hpp"
 #include "mentat/engine/talker.hpp"
 #include "mentat/engine/world.hpp"
+#include "mentat/gfx/scene.hpp"
+#include "mentat/gfx/sprite_sheet.hpp"
 
 namespace mentat {
 
@@ -60,6 +62,26 @@ constexpr std::uint8_t kViewedSituation = 6;
 constexpr int kEmperorsTroops = 0x0C;
 constexpr int kEmperorsEnd = 7;
 constexpr ClipRect kScene{0, 0, 320, 152};
+
+// The shipment: space's pictures, Dune's hologram over the device, the
+// view going out and in, and the frigate's way across the part of the
+// screen at 0x15AA (126, 76, 320, 152).
+constexpr int kStars = 0x2C;
+constexpr int kDuneHologram = 0x1B;
+constexpr int kDuneX = 0x8C;
+constexpr int kDuneY = 0x27;
+constexpr int kSpaceSteps = 0x18;
+constexpr int kSpaceTicks = 0x0C;
+constexpr int kDuneShownTicks = 0x64;
+constexpr int kBeforeFrigateTicks = 0xC8;
+constexpr int kSentVoice = 0x27;
+constexpr int kFrigateSound = 1;
+constexpr std::size_t kFrigatePart = 0x15AA;
+constexpr std::size_t kFrigateWay = 0x15B2;
+constexpr std::size_t kFrigateLeaves = 0x161E; // its sound stops there
+constexpr int kSun = 0x24;
+constexpr int kKaitain = 0x25;
+constexpr int kFirstDune = 3;
 
 } // namespace
 
@@ -283,6 +305,141 @@ void MessageRoom::hideHologram() {
     for (int frame = kVanishFrom; frame >= 0; --frame) {
         step(frame);
         wait(due);
+    }
+    drawDevice(1);
+}
+
+// --- The shipment leaving
+
+void MessageRoom::waitFrom(std::uint32_t& due, int ticks) {
+    due += static_cast<std::uint32_t>(ticks);
+    const std::uint32_t now = g_.platform().ticks;
+    if (static_cast<std::int32_t>(due - now) > 0) {
+        g_.waitTicks(static_cast<int>(due - now));
+    }
+}
+
+// Dune's hologram over the device, on the target, with its sound.
+void MessageRoom::drawDune() {
+    g_.playSound(kHologramSound);
+    g_.drawSprite(kDuneHologram, kDuneX, kDuneY);
+}
+
+// Space at step n (0 close to Dune, 0x18 at the device): the stars slide
+// left by n² / 2, the sun by twice n², Kaitain comes in from the right and Dune
+// grows (pictures 3 + n), each drawn by its middle.
+void MessageRoom::drawSpace(int n) {
+    Display& d = g_.display();
+    g_.selectSheet(kStars);
+    const SpriteSheet& sheet = g_.sheet();
+    const Canvas canvas = g_.canvas();
+    d.target().fillRect(kScene.left, kScene.top + d.originRows(), kScene.right - kScene.left,
+                        kScene.bottom - kScene.top, 0);
+    const int slide = (n * n) / 2;
+    for (int i = 0; i < 3; ++i) {
+        drawSpriteClipped(canvas, sheet.sprite(static_cast<std::size_t>(i)), -slide + 0x130 * i, 0, kScene);
+    }
+    auto centred = [&](int sprite, int x, int y) {
+        const SpriteView v = sheet.sprite(static_cast<std::size_t>(sprite));
+        drawSpriteClipped(canvas, v, x - ((v.header.widthAndFlags & 0x0FFF) >> 1), y - (v.header.height >> 1), kScene);
+    };
+    centred(kSun, 0x45 - 4 * slide, 0x4E);
+    const int kaitainX = n > 0x14 ? 0x3E2 - n * n : 4 * n + 0xF2;
+    centred(kKaitain + n / 4, kaitainX, 0x67);
+    centred(kFirstDune + n, 0x80 + (slide >> 4), 0x4F);
+}
+
+void MessageRoom::shipmentLeaves() {
+    Display& d = g_.display();
+    const ProgramFile& program = g_.resources().program();
+    // The device lights up and sparkles, then Dune's hologram rises.
+    drawDevice(1);
+    drawGlow(2);
+    std::uint32_t due = g_.platform().ticks;
+    for (int frame = 0; frame < kOnFrames; ++frame) {
+        sparkle(frame);
+        waitFrom(due, kFrameTicks);
+    }
+    g_.waitSound();
+    drawGlow(1);
+    due = g_.platform().ticks;
+    for (int frame = 0; frame < kAppearFrames; ++frame) {
+        step(frame);
+        waitFrom(due, kFrameTicks);
+    }
+    d.copyRect(d.screen(), d.back(), kScene);
+    d.targetBack();
+    g_.selectSheet(kStars);
+    drawDune();
+    d.transition(Display::kSparkle);
+    g_.waitTicks(kDuneShownTicks);
+
+    // Out into space, away from Dune.
+    d.targetBack();
+    drawSpace(kSpaceSteps);
+    d.transition(Display::kMosaic);
+    due = g_.platform().ticks;
+    for (int n = kSpaceSteps - 1; n >= 0; --n) {
+        drawSpace(n);
+        d.copyRect(d.back(), d.screen(), kScene);
+        waitFrom(due, kSpaceTicks);
+    }
+
+    // The frigate takes the spice away.
+    g_.talker().playVoice(kComputer, kSentVoice);
+    const ClipRect part{program.dataU16(kFrigatePart), program.dataU16(kFrigatePart + 2),
+                        program.dataU16(kFrigatePart + 4), program.dataU16(kFrigatePart + 6)};
+    Surface kept = d.back();
+    g_.waitTicks(kBeforeFrigateTicks);
+    g_.waitSound();
+    g_.playSound(kFrigateSound);
+    auto frigate = [&](std::size_t at) {
+        d.copyRect(kept, d.back(), part);
+        if (at != 0) {
+            const auto sprite = static_cast<std::int16_t>(program.dataU16(at));
+            if (sprite >= 0) {
+                g_.drawSprite(static_cast<std::uint16_t>(sprite), static_cast<std::int16_t>(program.dataU16(at + 2)),
+                              static_cast<std::int16_t>(program.dataU16(at + 4)));
+            }
+        }
+        d.copyRect(d.back(), d.screen(), part);
+    };
+    due = g_.platform().ticks;
+    for (std::size_t at = kFrigateWay; program.dataU8(at) != 0xFF; at += 6) {
+        if (at == kFrigateLeaves) {
+            g_.stopSound();
+        }
+        frigate(at);
+        waitFrom(due, kSpaceTicks);
+    }
+    frigate(0);
+
+    // Back to Dune, and into the room.
+    due = g_.platform().ticks;
+    for (int n = 1; n <= kSpaceSteps; ++n) {
+        drawSpace(n);
+        d.copyRect(d.back(), d.screen(), kScene);
+        waitFrom(due, kSpaceTicks);
+    }
+    d.targetBack();
+    if (drawRoom) {
+        drawRoom();
+    }
+    g_.selectSheet(kStars);
+    drawDune();
+    d.transition(Display::kMosaic);
+    d.targetBack();
+    if (drawRoom) {
+        drawRoom();
+    }
+    d.transition(Display::kSparkle);
+    // The device goes out as after a hologram.
+    g_.selectSheet(kSheet);
+    g_.playSound(kVanishSound);
+    due = g_.platform().ticks;
+    for (int frame = kVanishFrom; frame >= 0; --frame) {
+        step(frame);
+        waitFrom(due, kFrameTicks);
     }
     drawDevice(1);
 }

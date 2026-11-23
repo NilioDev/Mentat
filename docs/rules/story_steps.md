@@ -107,6 +107,4 @@ story's lines run.
 
 ## Not built yet
 
-Some of the scenes' steps (see [story_scenes.md](story_scenes.md)), and
-riding a worm (step `0x50`). Mentat has no ways out of a place's rooms
-yet, so Paul is never outside but when flying.
+Some of the scenes' steps (see [story_scenes.md](story_scenes.md)).

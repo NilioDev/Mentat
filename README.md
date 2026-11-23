@@ -89,7 +89,7 @@ spice map and how it will be kept up to date. In the palace's message room you c
 news sent to you: the sender's hologram rises over the device and speaks.
 When the Emperor demands spice, Duncan shows you the stock and proposes
 amounts to send: answer ACCEPT, REFUSE or ARGUE; take him to the message
-room and the spice goes, and the Emperor's mood and his next demand follow
+room and the spice goes, carried off by a frigate on the room's device, and the Emperor's mood and his next demand follow
 from how much he got. Stilgar offers you the water of life, which only a
 leader with enough charisma survives, and, when the time comes, asks
 whether to launch the last attack on the Harkonnens' palace.

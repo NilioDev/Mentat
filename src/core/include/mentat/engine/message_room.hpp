@@ -39,6 +39,11 @@ public:
         hologram_ = 0;
     }
 
+    // The spice sent to the Emperor leaves: Dune's hologram rises over the
+    // device, the view goes out into space, a frigate takes the spice
+    // away and the view comes back. See docs/rules/shipments.md.
+    void shipmentLeaves();
+
     // Draws the room as it is, with its commands, on the back buffer.
     std::function<void()> drawRoom;
     // The room's commands come back after the news; the scene stays.
@@ -61,6 +66,9 @@ private:
     void showHologram(int kind);
     void hideHologram();
     void drawHologram();
+    void drawDune();
+    void drawSpace(int n);
+    void waitFrom(std::uint32_t& due, int ticks);
 
     Game& g_;
     World& world_;

@@ -64,9 +64,6 @@ constexpr std::size_t kExploits = 0xC2;
 constexpr std::size_t kVisits = 0xF5;
 constexpr std::size_t kFilledIn = 0x11EB; // words a phrase can name, codes 0x81 to 0x8F
 constexpr std::size_t kNamedPlace = 0x11DB;
-constexpr std::size_t kPlaceName = 0x11ED;
-constexpr std::size_t kPlaceKind = 0x11EF;
-constexpr int kPlaceKindPhrase = 0x0C;
 constexpr std::size_t kSlots = 0x1152; // the two followers shown on the panel
 constexpr std::size_t kFirstStoryMark = 0x100B;
 
@@ -221,8 +218,7 @@ void Talk::prepareCondition() {
     if (world_.u8(kProgress) < 100 && character_ < 9) {
         const std::uint16_t place = world_.u16(kNamedPlace);
         if (place != 0) {
-            world_.setU16(kPlaceName, world_.u8(place));
-            world_.setU16(kPlaceKind, static_cast<std::uint16_t>(world_.u8(place + 1u) + kPlaceKindPhrase));
+            world_.namePlace(place);
         }
     }
 }
@@ -547,9 +543,12 @@ void Talk::runAction(const DialogueLine& line) {
             endAfter_ = true;
         }
         break;
+    case 13:
+        if (showNamedPlace) {
+            showNamedPlace();
+        }
+        break;
     default:
-        // The others start things this port does not have yet (the
-        // chiefs' places).
         break;
     }
 }

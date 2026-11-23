@@ -108,6 +108,7 @@ void World::resetOccupation(int troop, int occupation) {
 
 void World::namePlace(std::size_t record) {
     constexpr int kKindWords = 0x0C;
+    namedPlace = record;
     setU16(0x11ED, u8(record));
     setU16(0x11EF, static_cast<std::uint16_t>(u8(record + 1) + kKindWords));
 }
