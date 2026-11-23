@@ -121,8 +121,48 @@ Any other occupation can always be done, and nothing more happens. For
 these three, bit 4 of byte 3 keeps whether the troop cannot; when that
 changes from cannot to can, the work starts again from now as above.
 
+## The troops' marks
+
+While the orders are shown, the map shows the troops at the places in
+sight, place by place in the order of the map's places, each place's
+troops in the order of its chain (byte 9, then each troop's byte 1). A
+troop's mark is a list of frames in the program, three bytes each: a
+sprite of the map's sheet and how far the mark moves (signed column and
+row), ending at a sprite 0 after the first frame. Which list:
+
+- none for a troop whose byte `0x10` has bit 4;
+- Fremen not yet Paul's (byte 3 from `0x80`, byte `0x10` without bit
+  7): the list at `0x181F` when their place's byte `0x0A` has bit 4,
+  else none;
+- a troop on the move (byte 3 bit 6): not built yet;
+- when byte 3 has bit 4 or 5: for spice mining (occupation 0) with
+  equipment in bits 7 and 6 of byte `0x19`, `0x1813` for bit 7 alone,
+  `0x1817` for bit 6 alone, `0x181B` for both; otherwise the word at
+  `0x16B6` plus twice the occupation;
+- otherwise, for spice mining with that equipment, `0x17BC`, `0x17C9`
+  or `0x1806` the same way; else the word at `0x179C` plus twice the
+  occupation. When that is `0x1732` and the place's byte `0x0A` has bit
+  1, it is `0x16AA`. When it is `0x1732` or `0x1774`, the troop's turn
+  at the place (byte 2, less one, low three bits) moves it on by 10
+  bytes for turn 3, 20 for 4 and 30 for 5 to 7.
+
+The mark is centred (half its width and height, rounded down, to the
+left and up) on the place's point moved by the turn's pair at `0x1672`
+(see the box above), and clipped to the map's view. After the marks,
+the troop given orders gets a ring around it: the list at `0x18FD`,
+centred on the same point.
+
+A mark with more than one frame shows its first and goes on from a
+frame picked at random: the second generator's numbers, masked to the
+smallest run of low bits that holds the count of further frames, until
+one is not above it. Every `0x0F` ticks the ring shows its next frame,
+and at every fourth of these steps the other moving marks do too; after
+the last frame the list starts over. Each step moves the mark by the
+frame's offsets and draws the map again over where it was and is, with
+the marks, except under the chief's box.
+
 ## Not built yet
 
-The troops' marks on the map, modifying equipment, moving a troop,
+Modifying equipment, moving a troop,
 searching for equipment, espionage, attacking, the wind-trap, the orders
 from the map for troops on the move, and what troops do day by day.

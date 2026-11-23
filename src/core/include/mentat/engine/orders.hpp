@@ -5,11 +5,13 @@
 #pragma once
 
 #include "mentat/gfx/scene.hpp"
+#include "mentat/gfx/surface.hpp"
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <vector>
 
 namespace mentat {
 
@@ -48,8 +50,25 @@ public:
     // Closes the orders; the caller shows the room again.
     void close();
 
+    // Runs every tick while the orders are shown: the troops' marks move.
+    void tick();
+
     // The orders are over and Paul is back in the room.
     std::function<void()> finished;
+
+    // A troop's mark on the map: its picture (frames of three bytes in
+    // the program, a sprite and how far it moves, ending at a sprite 0)
+    // and where it is now.
+    struct Mark {
+        int troop = 0;
+        std::size_t frames = 0; // the first frame
+        std::size_t next = 0;   // the frame shown at the next step
+        int sprite = 0;
+        ClipRect rect{};
+        bool animated = false;
+        bool chosen = false; // the ring around the troop given orders
+    };
+    const std::vector<Mark>& marks() const { return marks_; }
 
 private:
     void drawBox();
@@ -58,6 +77,12 @@ private:
     void specialize(int occupation);
     void say(int list);
     std::array<int, 7> freeEquipment(std::size_t place) const;
+    std::size_t markFrames(int troop) const;
+    bool markPoint(int troop, int placeX, int placeY, int& x, int& y) const;
+    void addMark(int troop, std::size_t frames, int x, int y, bool chosen);
+    void drawMarks();
+    void stepMark(Mark& m);
+    void redraw(const ClipRect& region);
 
     Game& g_;
     World& world_;
@@ -66,6 +91,10 @@ private:
     Talk& talk_;
     int troop_ = 0;
     ClipRect box_{};
+    std::vector<Mark> marks_;
+    Surface base_{320, 200}; // the map without the marks
+    std::uint32_t lastStep_ = 0;
+    int steps_ = 0;
 };
 
 } // namespace mentat

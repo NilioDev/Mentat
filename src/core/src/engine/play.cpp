@@ -238,6 +238,7 @@ public:
             }
             if (map_.active()) {
                 map_.tick();
+                orders_.tick();
             }
             if (flight_.active()) {
                 flight_.tick();

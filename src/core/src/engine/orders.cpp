@@ -2,12 +2,16 @@
 #include "mentat/engine/orders.hpp"
 
 #include "mentat/data/program_file.hpp"
+#include "mentat/data/program_tables.hpp"
+#include "mentat/engine/platform.hpp"
+#include "mentat/gfx/sprite_sheet.hpp"
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/map_screen.hpp"
 #include "mentat/engine/panel.hpp"
 #include "mentat/engine/talk.hpp"
 #include "mentat/engine/world.hpp"
 
+#include <algorithm>
 #include <array>
 #include <vector>
 
@@ -39,6 +43,19 @@ constexpr int kBoxHeight = 0x43;
 constexpr int kLowHalf = 0x4C; // a troop's mark from this row down is low
 constexpr int kMarkHalf = 7;   // the mark's top is this far above its middle
 constexpr std::size_t kMarkOffsets = 0x1672; // a troop's mark off its place, by its turn there
+// The marks' pictures: by occupation while working (0x179C) and while it
+// cannot or is stopped (0x16B6); spice miners holding equipment; Fremen
+// not yet Paul's; the ring around the troop given orders.
+constexpr std::size_t kWorkMarks = 0x179C;
+constexpr std::size_t kStoppedMarks = 0x16B6;
+constexpr std::array<std::size_t, 3> kHeldMarks{0x1813, 0x1817, 0x181B};
+constexpr std::array<std::size_t, 3> kMiningMarks{0x17BC, 0x17C9, 0x1806};
+constexpr std::size_t kOthersMark = 0x181F;
+constexpr std::size_t kStandingMark = 0x1732;
+constexpr std::size_t kStandingInside = 0x16AA;
+constexpr std::size_t kTurnedMark = 0x1774;
+constexpr std::size_t kChosenMark = 0x18FD;
+constexpr std::uint32_t kMarkTicks = 0x0F;
 constexpr int kFaceFrame = 0x3D;
 constexpr int kTextLeft = 0x49;
 constexpr int kTextColour = 0xF0;
@@ -121,6 +138,8 @@ void Orders::open(int troop) {
     Display& d = g_.display();
     d.targetBack();
     map_.enter();
+    base_ = d.back();
+    drawMarks();
     setMenu();
     d.transition(Display::kDissolveScreen);
     drawBox();
@@ -130,6 +149,209 @@ void Orders::open(int troop) {
 void Orders::close() {
     talk_.endBox();
     troop_ = 0;
+    marks_.clear();
+}
+
+// --- The troops' marks
+
+// What a troop's mark looks like, by what it does; 0 when it has none.
+std::size_t Orders::markFrames(int troop) const {
+    const ProgramFile& program = g_.resources().program();
+    const std::size_t t = World::troopRecord(troop);
+    const std::size_t place = world_.u16(t + 4);
+    const int job = world_.u8(t + 3);
+    const int flags = world_.u8(t + 0x10);
+    const int held = world_.u8(t + 0x19) & 0xC0;
+    if (flags & 0x10) {
+        return 0;
+    }
+    if (!(flags & 0x80) && (job & 0x80)) {
+        // Fremen not yet Paul's show only where he knows what is inside.
+        return (world_.u8(place + 0x0A) & 0x10) ? kOthersMark : 0;
+    }
+    if (job & 0x40) {
+        return 0; // troops on the move: not built yet
+    }
+    const int occupation = job & 0x0F;
+    if (job & 0x30) {
+        if (occupation == 0 && held != 0) {
+            return held == 0x80 ? kHeldMarks[0] : held == 0x40 ? kHeldMarks[1] : kHeldMarks[2];
+        }
+        return program.dataU16(kStoppedMarks + 2 * static_cast<std::size_t>(occupation));
+    }
+    if (occupation == 0 && held != 0) {
+        return held == 0x80 ? kMiningMarks[0] : held == 0x40 ? kMiningMarks[1] : kMiningMarks[2];
+    }
+    std::size_t frames = program.dataU16(kWorkMarks + 2 * static_cast<std::size_t>(occupation));
+    if (frames == kStandingMark && (world_.u8(place + 0x0A) & 2)) {
+        return kStandingInside;
+    }
+    if (frames == kStandingMark || frames == kTurnedMark) {
+        // Turned by the troop's turn at the place.
+        const int turn = (world_.u8(t + 2) - 1) & 7;
+        if (turn >= 3) {
+            frames += 10;
+        }
+        if (turn >= 4) {
+            frames += 10;
+        }
+        if (turn >= 5) {
+            frames += 10;
+        }
+    }
+    return frames;
+}
+
+// Where a troop's mark goes: off its place by its turn there.
+bool Orders::markPoint(int troop, int placeX, int placeY, int& x, int& y) const {
+    const ProgramFile& program = g_.resources().program();
+    const std::size_t t = World::troopRecord(troop);
+    const std::size_t place = world_.u16(t + 4);
+    int turn = (world_.u8(t + 2) - 1) & 0x0F;
+    if (world_.u8(place + 0x0A) & 2) {
+        turn ^= 8;
+    }
+    x = placeX + static_cast<std::int8_t>(program.dataU8(kMarkOffsets + 2 * static_cast<std::size_t>(turn)));
+    y = placeY + static_cast<std::int8_t>(program.dataU8(kMarkOffsets + 2 * static_cast<std::size_t>(turn) + 1));
+    return true;
+}
+
+void Orders::addMark(int troop, std::size_t frames, int x, int y, bool chosen) {
+    const ProgramFile& program = g_.resources().program();
+    Mark m;
+    m.troop = troop;
+    m.frames = frames;
+    m.next = frames;
+    m.chosen = chosen;
+    m.sprite = program.dataU8(frames);
+    const SpriteView v = g_.sheet().sprite(static_cast<std::size_t>(m.sprite));
+    const int w = v.header.width();
+    const int h = v.header.height;
+    m.rect = ClipRect{x - w / 2, y - h / 2, x - w / 2 + w, y - h / 2 + h};
+    // A mark of more than one frame goes on from one of them at random.
+    int more = 0;
+    while (program.dataU8(frames + 3 * static_cast<std::size_t>(more + 1)) != 0) {
+        ++more;
+    }
+    if (more > 0) {
+        int mask = 0;
+        while (mask < more) {
+            mask = mask * 2 + 1;
+        }
+        int r = 0;
+        do {
+            r = g_.random2() & mask;
+        } while (r > more);
+        m.next = frames + 3 * static_cast<std::size_t>(r);
+        m.animated = true;
+    }
+    marks_.push_back(m);
+}
+
+// The marks of the troops at the places in sight, place by place, then the
+// ring around the troop given orders.
+void Orders::drawMarks() {
+    marks_.clear();
+    g_.selectSheet(resource::kMapSprites);
+    for (const MapScreen::Shown& s : map_.shownPlaces()) {
+        for (int troop = world_.u8(s.record + 9); troop != 0;) {
+            const std::size_t t = World::troopRecord(troop);
+            const std::size_t frames = markFrames(troop);
+            int x = 0;
+            int y = 0;
+            if (frames != 0 && markPoint(troop, s.x, s.y, x, y)) {
+                addMark(troop, frames, x, y, false);
+            }
+            troop = world_.u8(t + 1);
+        }
+    }
+    for (const Mark& m : std::vector<Mark>(marks_)) {
+        if (m.troop == troop_) {
+            const int x = (m.rect.left + m.rect.right) / 2;
+            const int y = (m.rect.top + m.rect.bottom) / 2;
+            addMark(troop_, kChosenMark, x, y, true);
+            break;
+        }
+    }
+    const ClipRect view = map_.view();
+    for (const Mark& m : marks_) {
+        drawSpriteClipped(g_.canvas(), g_.sheet().sprite(static_cast<std::size_t>(m.sprite)), m.rect.left, m.rect.top, view);
+    }
+}
+
+// The next frame of a mark: its sprite, moved by the frame's offsets.
+void Orders::stepMark(Mark& m) {
+    const ProgramFile& program = g_.resources().program();
+    std::size_t at = m.next;
+    if (program.dataU8(at) == 0 && at != m.frames) {
+        at = m.frames;
+    }
+    const ClipRect old = m.rect;
+    m.sprite = program.dataU8(at);
+    const int dx = static_cast<std::int8_t>(program.dataU8(at + 1));
+    const int dy = static_cast<std::int8_t>(program.dataU8(at + 2));
+    m.next = at + 3;
+    m.rect = ClipRect{m.rect.left + dx, m.rect.top + dy, m.rect.right + dx, m.rect.bottom + dy};
+    redraw(ClipRect{std::min(old.left, m.rect.left), std::min(old.top, m.rect.top), std::max(old.right, m.rect.right),
+                    std::max(old.bottom, m.rect.bottom)});
+}
+
+// A part of the map comes back with its marks, on the screen too, except
+// under the chief's box.
+void Orders::redraw(const ClipRect& region) {
+    const ClipRect view = map_.view();
+    ClipRect r{std::max(region.left, view.left), std::max(region.top, view.top), std::min(region.right, view.right),
+               std::min(region.bottom, view.bottom)};
+    if (r.right <= r.left || r.bottom <= r.top) {
+        return;
+    }
+    // The parts of the region around the box.
+    std::vector<ClipRect> parts;
+    const ClipRect& b = box_;
+    if (r.right <= b.left || r.left >= b.right || r.bottom <= b.top || r.top >= b.bottom) {
+        parts.push_back(r);
+    } else {
+        if (r.top < b.top) {
+            parts.push_back(ClipRect{r.left, r.top, r.right, b.top});
+        }
+        if (r.bottom > b.bottom) {
+            parts.push_back(ClipRect{r.left, b.bottom, r.right, r.bottom});
+        }
+        const int top = std::max(r.top, b.top);
+        const int bottom = std::min(r.bottom, b.bottom);
+        if (r.left < b.left) {
+            parts.push_back(ClipRect{r.left, top, b.left, bottom});
+        }
+        if (r.right > b.right) {
+            parts.push_back(ClipRect{b.right, top, r.right, bottom});
+        }
+    }
+    Display& d = g_.display();
+    const int previous = g_.sheetResource();
+    g_.selectSheet(resource::kMapSprites);
+    for (const ClipRect& part : parts) {
+        d.copyRect(base_, d.back(), part);
+        for (const Mark& m : marks_) {
+            drawSpriteClipped(Canvas(d.back()), g_.sheet().sprite(static_cast<std::size_t>(m.sprite)), m.rect.left,
+                              m.rect.top, part);
+        }
+        d.copyRect(d.back(), d.screen(), part);
+    }
+    g_.selectSheet(previous);
+}
+
+void Orders::tick() {
+    if (!active() || g_.platform().ticks - lastStep_ < kMarkTicks) {
+        return;
+    }
+    lastStep_ = g_.platform().ticks;
+    ++steps_;
+    // The ring moves at each step, the other marks at every fourth.
+    for (Mark& m : marks_) {
+        if (m.animated && (m.chosen || (steps_ & 3) == 0)) {
+            stepMark(m);
+        }
+    }
 }
 
 // The box goes where it leaves the troop's mark on the map in sight.
