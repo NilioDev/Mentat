@@ -9,6 +9,7 @@
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/intro.hpp"
 #include "mentat/engine/map_screen.hpp"
+#include "mentat/engine/orders.hpp"
 #include "mentat/engine/panel.hpp"
 #include "mentat/engine/places.hpp"
 #include "mentat/engine/platform.hpp"
@@ -357,4 +358,65 @@ MTT_TEST("people: the Fremen of a sietch stand in its second room and agree to w
     MTT_CHECK(people.fremen == 0 && people.chiefs.size() == 1 && people.chiefs[0] == troop);
     MTT_CHECK((w.present() & (1u << 15)) != 0 && (w.present() & (1u << 14)) == 0);
     MTT_CHECK(panel.commands()[1].action == Talk::kGiveOrders && panel.commands()[1].phrase == 0x93);
+}
+
+MTT_TEST("orders: a troop's chief answers in a box over the map and takes up an occupation") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g, kEnglish);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    w.setU8(0x2A, 4);
+    const std::size_t sietch = World::placeRecord(12);
+    w.enterPlace(sietch);
+    w.goTo((w.room() & 0xFF00) | 2, w.place());
+    const int troop = w.u8(sietch + 9);
+    MTT_CHECK(troop != 0);
+    w.enlist(troop);
+    const std::size_t t = World::troopRecord(troop);
+    MTT_CHECK((w.u8(t + 3) & 0x0F) == 2);
+
+    FakeHost host;
+    Talk talk(g, w, panel, host, kEnglish);
+    Orders orders(g, w, panel, map, talk);
+    int finished = 0;
+    orders.finished = [&] { ++finished; };
+    auto run = [&](const std::function<void()>& f) {
+        Fiber fiber([&] {
+            g.display().targetBack();
+            f();
+        });
+        p.fiber = &fiber;
+        while (!fiber.finished()) {
+            fiber.resume();
+            ++p.ticks;
+        }
+        p.fiber = nullptr;
+    };
+    run([&] { orders.open(troop); });
+    MTT_CHECK(orders.active() && map.active() && talk.active() && talk.inBox());
+    // The chief says where his troop is, waiting; the commands are the
+    // orders, with only the occupation to choose and no more orders.
+    MTT_CHECK(talk.phrase() == 0x118);
+    const auto& c = panel.commands();
+    MTT_CHECK(c.size() == 5 && c[0].action == Orders::kInformation && c[1].phrase == 0x56 && (c[2].phrase & Command::kGrey) &&
+              (c[3].phrase & Command::kGrey) && c[4].action == Orders::kNoMoreOrders);
+    // The men and their keenness come next.
+    run([&] { orders.command(Orders::kInformation); });
+    MTT_CHECK(talk.phrase() == 0x121);
+    // The occupations: spice, army, and ecology greyed at first.
+    run([&] { orders.command(Orders::kOccupation); });
+    MTT_CHECK(panel.commands().size() == 4 && panel.commands()[0].action == Orders::kSpice &&
+              (panel.commands()[2].phrase & Command::kGrey));
+    run([&] { orders.command(Orders::kSpice); });
+    MTT_CHECK(w.u8(0x23) == 0x0A && talk.answer() == 0xFF && (w.u8(t + 3) & 0x0F) == 0);
+    MTT_CHECK((w.u16(t + 0x12) & 0x2000) != 0 && panel.commands()[1].phrase == 0x4F);
+    run([&] { orders.command(Orders::kNoMoreOrders); });
+    MTT_CHECK(!orders.active() && !talk.active() && finished == 1);
 }

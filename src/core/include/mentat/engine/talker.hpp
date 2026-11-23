@@ -28,6 +28,10 @@ public:
     // runs, in units of four frames. Draws on the target over the saved
     // background and starts the idle animation.
     void show(int character, int shiftRight, int variant, int mood);
+    // Shows the face in a small frame instead: clipped to `clip`, with the
+    // point (`focusX`, `focusY`) of the portrait at the frame's top left.
+    // Drawn straight on the screen over the saved background.
+    void showInBox(int character, int variant, int mood, const ClipRect& clip, int focusX, int focusY);
 
     // Speaks phrase `phrase`: plays the character's recording of it and
     // moves the mouth with it. False when there is no recording. `variant`
@@ -82,6 +86,9 @@ private:
     double ticksPerMouthShape();
 
     Game& game_;
+    ClipRect clipped(ClipRect r) const;
+
+    std::optional<ClipRect> box_; // the frame the face is shown in, if any
     int character_ = -1;
     int sheet_ = -1;
     int variant_ = 0;

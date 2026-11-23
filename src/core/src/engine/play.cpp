@@ -9,6 +9,7 @@
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/globe_screen.hpp"
 #include "mentat/engine/map_screen.hpp"
+#include "mentat/engine/orders.hpp"
 #include "mentat/engine/panel.hpp"
 #include "mentat/engine/places.hpp"
 #include "mentat/engine/saved_games.hpp"
@@ -70,7 +71,6 @@ constexpr std::uint16_t kFirstPersonPhrase = 0x78;
 constexpr int kCaptain = 12;
 constexpr int kSmuggler = 13;
 constexpr int kFremen = 14;
-constexpr int kFirstFremenLook = 0x0E; // three looks of Fremen, by the troop's name
 constexpr int kStoryEnd = 0xC8;
 constexpr int kGurney = 4;
 constexpr int kGurneyLyingFrom = 0x15;
@@ -89,6 +89,8 @@ constexpr std::uint8_t kComingIn = 5;
 constexpr std::size_t kGoingTo = 0x0C;
 constexpr std::size_t kEntries = 0x1A;
 constexpr std::size_t kCameFrom = 0x0D;
+// Negative while the map is shown.
+constexpr std::size_t kMapShown = 0xFB;
 constexpr int kChiefs = 15;
 constexpr int kProspectorsTroop = 3;
 constexpr int kProspectorsNamed = 5; // the story's step from which their chief is named
@@ -214,9 +216,11 @@ public:
           saves_(game.platform().saveFolder, game.resources().program(), world_, talk_.dialogue(),
                  [this]() -> std::vector<std::uint8_t>& { return map_.mapBytes(); }),
           globe_(game, world_, panel_, map_, language, &saves_), cockpit_(game, world_, panel_, map_),
-          flight_(game, world_, panel_, map_) {
+          flight_(game, world_, panel_, map_), orders_(game, world_, panel_, map_, talk_) {
         talk_.subtitles = subtitlesFor(language);
         talk_.enlisted = [this] { enlistFremen(); };
+        talk_.ordersAsked = [this] { openOrders(); };
+        orders_.finished = [this] { toggleMap(); };
         g_.places().personOf = [this](int c, int& down) { return personOf(c, down); };
     }
 
@@ -469,6 +473,9 @@ private:
         if (talk_.active()) {
             return;
         }
+        if (orders_.active()) {
+            return; // the map stays as it is while orders are given
+        }
         if (map_.active() || globe_.active()) {
             // The map's panel keeps its globe, which opens the globe.
             const Zone& globeZone = zones[0];
@@ -511,6 +518,12 @@ private:
 
     // A command: one of the talk menu's, or talking to a person.
     void choose(std::uint16_t action, std::uint16_t phrase = 0) {
+        if (orders_.command(action)) {
+            return;
+        }
+        if (orders_.active()) {
+            return; // the rest of the orders is not built yet
+        }
         if (talk_.command(action)) {
             return;
         }
@@ -605,15 +618,7 @@ private:
         if (troop == 0) {
             return c;
         }
-        // By the troop's name: one of three Fremen, and one of their sets.
-        const int name = world_.u8(World::troopRecord(troop));
-        int sets = name / 3;
-        const int limit = name % 3 == 0 ? 0x0F : 0x11;
-        while (sets >= limit) {
-            sets -= limit;
-        }
-        variant = sets + 1;
-        return kFirstFremenLook + name % 3;
+        return world_.troopFace(troop, variant);
     }
 
     // The persons' picture, which may also stand lower.
@@ -647,6 +652,19 @@ private:
             chief_ = std::min<std::size_t>(static_cast<std::size_t>(index), people_.chiefs.size() - 1);
             world_.learnTroop(people_.chiefs[chief_]);
         }
+    }
+
+    // "Give orders to troop": the map around the chief's troop, with him
+    // answering in a box.
+    void openOrders() {
+        if (people_.chiefs.empty()) {
+            return;
+        }
+        const int troop = people_.chiefs[std::min(chief_, people_.chiefs.size() - 1)];
+        world_.setU8(kMapShown, static_cast<std::uint8_t>(~world_.u8(kMapShown)));
+        orders_.open(troop);
+        chooseMusic();
+        lit_ = -1;
     }
 
     // The Fremen work for Paul now: their troop is his, and its chief
@@ -1136,6 +1154,8 @@ private:
     // "SEE DUNE MAP" opens the map; "EXIT MAPS" goes back to the room,
     // which dissolves in.
     void toggleMap() {
+        // The state's sign of the map being shown.
+        world_.setU8(kMapShown, static_cast<std::uint8_t>(-world_.u8(kMapShown)));
         if (!map_.active()) {
             map_.enter();
             chooseMusic();
@@ -1535,6 +1555,7 @@ private:
     GlobeScreen globe_;
     Cockpit cockpit_;
     Flight flight_;
+    Orders orders_;
     World::People people_;
     std::size_t chief_ = 0; // which of the chiefs here Paul talks to
     int walkingTo_ = 0;     // the room Paul went for when someone spoke up

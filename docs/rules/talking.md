@@ -42,7 +42,8 @@ The second line is decided in this order:
    overpowered (bit 4 of `0x10A7`): OVERPOWER THE PRISONER (`0x9C`,
    action `0x9584`; not built yet).
 2. For the chiefs of Paul's troops (character 15): GIVE ORDERS TO TROOP
-   (`0x93`, action `0x5A03`; the orders are not built yet).
+   (`0x93`, action `0x5A03`): the talk ends as STOP TALKING ends it, without
+   the room coming back, and the orders open (see [orders.md](orders.md)).
 3. For the Fremen of a troop not yet Paul's (character 14): WORK FOR ME
    (`0x96`, action `0x95C1`), or RALLY ME (`0x97`) once bit 4 of state
    byte `0x0A` is set.

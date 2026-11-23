@@ -49,10 +49,47 @@ std::string Talker::voiceName(int character, int phrase, bool inside, int varian
 
 void Talker::select() { game_.selectSheet(sheet_); }
 
+void Talker::showInBox(int character, int variant, int mood, const ClipRect& clip, int focusX, int focusY) {
+    shownPieces_.clear();
+    box_ = clip;
+    character_ = character;
+    variant_ = variant;
+    sheet_ = resource::kFirstPortrait + character;
+    select();
+    anim_ = PortraitAnimation::parse(game_.sheet());
+    area_ = anim_->area();
+    const int dx = clip.left - focusX;
+    const int dy = clip.top - focusY;
+    area_ = ClipRect{area_.left + dx, area_.top + dy, area_.right + dx, area_.bottom + dy};
+    shiftRight_ = 0;
+    mood_ = mood;
+    startSequence();
+    std::size_t at = next_;
+    drawFrame(anim_->readFrame(at), false);
+    Display& d = game_.display();
+    d.flush();
+    d.copyRect(d.back(), d.screen(), clip);
+}
+
+// A rectangle kept within the frame, when the face is in one.
+ClipRect Talker::clipped(ClipRect r) const {
+    if (box_) {
+        r.left = std::max(r.left, box_->left);
+        r.top = std::max(r.top, box_->top);
+        r.right = std::min(r.right, box_->right);
+        r.bottom = std::min(r.bottom, box_->bottom);
+        if (r.right <= r.left || r.bottom <= r.top) {
+            r.left = kNothing;
+        }
+    }
+    return r;
+}
+
 void Talker::show(int character, int shiftRight, int variant, int mood) {
-    if (character != character_) {
+    if (character != character_ || box_) {
         shownPieces_.clear();
     }
+    box_.reset();
     character_ = character;
     variant_ = variant;
     sheet_ = resource::kFirstPortrait + character;
@@ -154,6 +191,11 @@ void Talker::drawFrame(std::vector<PortraitPiece> frame, bool toScreen) {
         }
     }
     dirty.bottom = std::min(dirty.bottom, kSceneBottom);
+    dirty = clipped(dirty);
+    if (dirty.left == kNothing) {
+        shownPieces_ = std::move(frame);
+        return;
+    }
     Display& d = game_.display();
     d.copyRect(d.saved(), d.back(), dirty);
     shownPieces_ = std::move(frame);
@@ -233,6 +275,13 @@ void Talker::restart(int mood) {
         return;
     }
     shownPieces_.clear();
+    if (box_) {
+        mood_ = mood;
+        startSequence();
+        std::size_t at = next_;
+        drawFrame(anim_->readFrame(at), true);
+        return;
+    }
     show(character_, shiftRight_, variant_, mood);
 }
 
@@ -261,6 +310,7 @@ void Talker::halt() {
     }
     character_ = -1;
     shownPieces_.clear();
+    box_.reset();
 }
 
 bool Talker::speak(int phrase, int variant, int speaker) {
@@ -369,8 +419,11 @@ void Talker::showMouth(int shape) {
     select();
     const ProgramFile& program = game_.resources().program();
     const std::size_t at = kMouthAreas + 8 * static_cast<std::size_t>(character_);
-    const ClipRect rect{program.dataU16(at) + area_.left, program.dataU16(at + 2) + area_.top,
-                        program.dataU16(at + 4) + area_.left, program.dataU16(at + 6) + area_.top};
+    const ClipRect rect = clipped(ClipRect{program.dataU16(at) + area_.left, program.dataU16(at + 2) + area_.top,
+                                           program.dataU16(at + 4) + area_.left, program.dataU16(at + 6) + area_.top});
+    if (rect.left == kNothing) {
+        return;
+    }
     int index = shape;
     if (variant_ > 0) {
         index += 4 * (variant_ - 1);

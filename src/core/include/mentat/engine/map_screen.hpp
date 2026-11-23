@@ -76,6 +76,8 @@ public:
     // can see.
     std::uint16_t placeSprite(std::size_t record, std::uint16_t first);
 
+    // Where place `record` is drawn on the screen, if it is.
+    bool placeOnScreen(std::size_t record, int& x, int& y) const;
     // The map's point at the middle of the view.
     std::uint16_t longitude() const { return longitude_; }
     int latitude() const { return latitude_; }

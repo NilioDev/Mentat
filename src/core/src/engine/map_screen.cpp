@@ -306,6 +306,17 @@ std::uint16_t MapScreen::placeSprite(std::size_t record, std::uint16_t first) {
     return n;
 }
 
+bool MapScreen::placeOnScreen(std::size_t record, int& x, int& y) const {
+    for (const Shown& s : shown_) {
+        if (s.record == record) {
+            x = s.x;
+            y = s.y;
+            return true;
+        }
+    }
+    return false;
+}
+
 void MapScreen::playerPoint(std::uint16_t& longitude, int& latitude) const { world_.position(longitude, latitude); }
 
 void MapScreen::tick() {

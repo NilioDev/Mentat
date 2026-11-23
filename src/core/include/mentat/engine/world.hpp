@@ -120,6 +120,18 @@ public:
     // have rallied to him as the story waits for.
     bool enlist(int troop);
 
+    // The face the people of troop `troop` are shown with (a portrait
+    // number), and which of its sets in `variant`: by the troop's name.
+    int troopFace(int troop, int& variant) const;
+    // Troop `troop`'s occupation becomes `occupation` (its byte 3, from 0
+    // spice mining; bits 2 and 3 the speciality), its work starting now.
+    void setOccupation(int troop, int occupation);
+    // Whether the troop cannot do its occupation where it is; its byte 3
+    // keeps the answer.
+    bool cannotWork(int troop);
+    // The troop's work starts again from now.
+    void restartWork(int troop);
+
 
     // The places and their troops as the program sets them up when it
     // starts: each place moves onto the nearest point of the map, which is

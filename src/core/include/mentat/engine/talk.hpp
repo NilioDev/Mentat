@@ -86,6 +86,31 @@ public:
     // The Fremen agreed to work for Paul: the caller enlists their troop
     // and returns it; the menu becomes that of its chief.
     std::function<void()> enlisted;
+    // "Give orders to troop": the talk ends and the caller opens the
+    // orders' screen.
+    std::function<void()> ordersAsked;
+
+    // Talking in a box over the map, as a troop's chief does when given
+    // orders: the face in a small frame, the text beside it, no voice.
+    struct Box {
+        ClipRect face;      // where the face shows
+        int focusX = 0;     // the point of the portrait at the frame's corner
+        int focusY = 0;
+        ClipRect text;      // where the text is laid out
+        std::uint8_t fill = 0;
+        std::uint8_t colour = 0;
+    };
+    void startBox(int c, int face, int variant, const Box& box);
+    // The next line of list `list` of the character's group that may be
+    // said, going on from the last one and starting over at the end.
+    // False when there is none.
+    bool boxLine(int list);
+    // The answer to an order: the first line of list `list` that may be
+    // said, looked for from its start. The next boxLine() starts its list
+    // over.
+    bool boxAnswer(int list);
+    void endBox();
+    bool inBox() const { return box_.has_value(); }
 
     // Starts talking to character `c`, who says the first line there is.
     // `x` and `y` are where the room showed the character, or negative
@@ -155,6 +180,8 @@ private:
     void leaves(std::size_t record);
     void takeSlot(int number);
     void stop();
+    void end();
+    void showBoxText(const std::string& page);
     void chooseTake(std::uint8_t code, int named);
     void chooseTakeForNumber(std::uint8_t at, unsigned value);
     void expand(const std::string& in, std::string& out, std::vector<std::string>& pages, int depth, bool secondFile);
@@ -169,6 +196,7 @@ private:
     Dialogue dialogue_;
     Conditions conditions_;
     bool remark_ = false;
+    std::optional<Box> box_;
     std::array<std::optional<PhraseFile>, 2> phrases_;
     std::optional<Font> large_;
     std::optional<Font> small_;
