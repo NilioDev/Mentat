@@ -35,7 +35,6 @@ constexpr int kTurns = 30;
 constexpr int kHarkonnenTurns = 8;
 // Where a troop sent away goes.
 constexpr std::uint16_t kNowhere = 0xFBC;
-constexpr std::size_t kTroopsEnd = 0xFBB;
 
 // Steps: a troop arrives within this many points both ways.
 constexpr int kNear = 7;
@@ -161,13 +160,25 @@ void World::startMove(int troop, std::size_t place, FlatMap& map) {
         other = next;
     }
     unlinkTroop(troop);
-    if (u8(t + 3) == kFighting && u8(place + 8) < kFirstFort) {
-        // A troop leaving a fight for a sietch loses heart; for one held
-        // (byte 0x0A bit 1) it goes nowhere, out of any place's chain.
-        if (u8(place + 0x0A) & kHeld) {
-            return;
+    if (u8(t + 3) == kFighting) {
+        // A troop leaving a fight: when at most one of Paul's troops is
+        // left fighting the Harkonnens there, the place is lost.
+        if (u8(from + 0x0A) & kHeld) {
+            int harkonnens = 0;
+            int pauls = 0;
+            countFighters(from, harkonnens, pauls);
+            if (harkonnens != 0 && pauls - 1 <= 0) {
+                losePlace(from, map);
+            }
         }
-        lowerSpirits(t, 3);
+        // Leaving for a sietch it loses heart; for one held (byte 0x0A
+        // bit 1) it goes nowhere, out of any place's chain.
+        if (u8(place + 8) < kFirstFort) {
+            if (u8(place + 0x0A) & kHeld) {
+                return;
+            }
+            lowerSpirits(t, 3);
+        }
     }
     setU16(t + 4, static_cast<std::uint16_t>(place));
     setU8(t + 3, static_cast<std::uint8_t>(u8(t + 3) | kMoving));
@@ -225,22 +236,6 @@ bool World::stepTroop(int troop, int steps, FlatMap& map) {
     return false;
 }
 
-void World::moveTroops(int except, FlatMap& map) {
-    for (std::size_t t = kTroops; t < kTroopsEnd; t += kTroopSize) {
-        const int job = u8(t + 3);
-        if (!(job & kMoving) || u8(t) == except) {
-            continue;
-        }
-        if (!(u16(t + 0x12) & 0x430) && (job & (kNotPauls | kOwnFremen))) {
-            continue;
-        }
-        const int troop = static_cast<int>((t - kTroops) / kTroopSize) + 1;
-        if (!stepTroop(troop, (u8(t + 0x19) & 0x40) ? 8 : 4, map) && markMoved) {
-            markMoved(troop);
-        }
-    }
-}
-
 // The troop reaches its destination.
 void World::arrive(int troop, FlatMap& map) {
     const std::size_t t = troopRecord(troop);
@@ -266,7 +261,7 @@ void World::arrive(int troop, FlatMap& map) {
         return;
     }
     if (occupation != kAttacking && u8(place + 9) == troop) {
-        capture(troop, map); // alone there: the place is Paul's
+        capture(place, map); // alone there: the place is Paul's
         return;
     }
     // With others there, Paul's troops get ready to fight.

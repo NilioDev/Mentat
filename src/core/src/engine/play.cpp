@@ -229,6 +229,7 @@ public:
         world_.placeChanged = [this](std::size_t record) { map_.placeChanged(record); };
         world_.random = [this](int mask) { return g_.random(mask); };
         world_.random3 = [this](int most) { return g_.random3(most); };
+        world_.random2 = [this] { return g_.random2(); };
         // The troops' marks stay under the chief's box and the small map.
         map_.windows = [this] {
             return orders_.active() ? std::vector<ClipRect>{orders_.box()} : std::vector<ClipRect>{};
@@ -1373,11 +1374,15 @@ private:
 
     // A new part of the day: the clock on the panel and the sky follow.
     void newHour() {
-        // The troops on their way step on, but the one given orders. The
-        // original draws the state's word 0 afresh at every turn of its
-        // main loop; the steps turn it for their dice.
+        // The troops on their way step on, but the one given orders, and
+        // the others work. The original draws the state's word 0 afresh at
+        // every turn of its main loop; the steps turn it for their dice.
         world_.setU16(0, static_cast<std::uint16_t>(g_.random2()));
-        world_.moveTroops(orders_.troop(), map_.flatMap());
+        world_.hourPassed(orders_.troop(), map_.flatMap());
+        if (world_.mapRedraws > 0) {
+            world_.mapRedraws = 0;
+            map_.redraw();
+        }
         d_.targetScreen();
         panel_.drawZones(1, 1);
         panel_.drawClock(world_);

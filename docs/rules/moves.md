@@ -35,10 +35,13 @@ Otherwise:
    `0x12` has bit 4 have their occupation set again (see
    [orders.md](orders.md)), even though they have it.
 2. The troop leaves its place's chain.
-3. When its byte 3 is 6 (fighting) and the destination's kind (byte 8)
-   is below `0x28`: when the destination's byte `0x0A` has bit 1 nothing
-   more happens, the troop in no chain; otherwise its spirits go down by
-   3, not below 0. Spirits below 5 become 4, byte 3 gets bit 4 and word
+3. When its byte 3 is 6 (fighting): when the place it left has bit 1 of
+   byte `0x0A`, Harkonnen troops not fled are there and at most one of
+   Paul's troops still fights there (see [fights.md](fights.md)), that
+   place is lost. Then, when the destination's kind (byte 8) is below
+   `0x28`: when the destination's byte `0x0A` has bit 1 nothing more
+   happens, the troop in no chain; otherwise its spirits go down by 3,
+   not below 0. Spirits below 5 become 4, byte 3 gets bit 4 and word
    `0x12` bit 5.
 4. Word 4 takes the destination, byte 3 gets bit 6, byte 2 becomes 0.
 5. Each piece of equipment it holds (bits 7 to 1 of byte `0x19`, for
@@ -120,5 +123,6 @@ to go (see [spice_map.md](spice_map.md)), the troop's way is drawn in it.
 
 ## Not built yet
 
-Fighting troops leaving their fight, the second destination of a troop
-whose byte 3 has bits 0 and 1, the troop shown three sietches, and what the original does when a troop arrives where Paul is.
+The second destination of a troop whose byte 3 has bits 0 and 1, the
+troop shown three sietches, and what the original does when a troop
+arrives where Paul is.

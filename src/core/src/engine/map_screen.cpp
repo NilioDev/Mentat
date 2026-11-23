@@ -341,6 +341,12 @@ void MapScreen::tick() {
     stepMarks();
 }
 
+void MapScreen::redraw() {
+    if (active()) {
+        stale_ = true;
+    }
+}
+
 void MapScreen::placeChanged(std::size_t record) {
     if (!active_ || (world_.u8(record + 0x0A) & kPlaceHidden)) {
         return;

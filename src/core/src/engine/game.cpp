@@ -20,19 +20,30 @@ Game::Game(Platform& platform, DatArchive& archive, const ProgramFile& program, 
 
 Game::~Game() = default;
 
+namespace {
+
+// The number a generator gives: the middle two bytes of the product, its
+// low word counted after the 1 was added.
+int middle(std::uint32_t product) {
+    const std::uint32_t low = (product + 1) & 0xFFFF;
+    return static_cast<int>((low >> 8) | (((product >> 16) & 0xFF) << 8));
+}
+
+} // namespace
+
 // The original's generator: the seed goes through seed × 0xE56D + 1, and
 // the middle two bytes of the product are the number.
 int Game::random(int mask) {
     const std::uint32_t product = static_cast<std::uint32_t>(randomSeed_) * 0xE56Du;
     randomSeed_ = static_cast<std::uint16_t>(product + 1);
-    return static_cast<int>((product >> 8) & 0xFFFF) & mask;
+    return middle(product) & mask;
 }
 
 // The second generator: seed × 0xCBD1 + 1, again the middle two bytes.
 int Game::random2() {
     const std::uint32_t product = static_cast<std::uint32_t>(randomSeed2_) * 0xCBD1u;
     randomSeed2_ = static_cast<std::uint16_t>(product + 1);
-    return static_cast<int>((product >> 8) & 0xFFFF);
+    return middle(product);
 }
 
 // The third generator: as the second, from its own seed, the number
@@ -48,7 +59,7 @@ int Game::random3(int most) {
     for (;;) {
         const std::uint32_t product = static_cast<std::uint32_t>(randomSeed3_) * 0xCBD1u;
         randomSeed3_ = static_cast<std::uint16_t>(product + 1);
-        const int n = static_cast<int>((product >> 8) & 0xFFFF) & mask;
+        const int n = middle(product) & mask;
         if (n <= most) {
             return n;
         }

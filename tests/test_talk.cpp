@@ -526,7 +526,7 @@ MTT_TEST("orders: a troop shown a place on the small map sets off and walks ther
     // Hour by hour it walks on until it is there, and joins the place.
     for (int hour = 0; hour < 200 && (w.u8(t + 3) & 0x40); ++hour) {
         w.setU16(0, static_cast<std::uint16_t>(g.random2()));
-        w.moveTroops(0, map.flatMap());
+        w.troopsWork(0, map.flatMap());
     }
     MTT_CHECK(!(w.u8(t + 3) & 0x40));
     MTT_CHECK(w.u16(t + 6) == w.u16(to + 2) && w.u16(t + 8) == w.u16(to + 4) && w.u8(t + 2) >= 1);
