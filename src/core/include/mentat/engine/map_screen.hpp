@@ -76,6 +76,15 @@ public:
     // can see.
     std::uint16_t placeSprite(std::size_t record, std::uint16_t first);
 
+    // The places drawn on the map, with where, in the order of the state.
+    struct Shown {
+        std::size_t record;
+        int x;
+        int y;
+    };
+    const std::vector<Shown>& shownPlaces() const { return shown_; }
+    // Where place `record` is drawn on the screen, if it is.
+    bool placeOnScreen(std::size_t record, int& x, int& y) const;
     // The map's point at the middle of the view.
     std::uint16_t longitude() const { return longitude_; }
     int latitude() const { return latitude_; }
@@ -106,12 +115,6 @@ private:
     std::unique_ptr<FlatMap> map_;
     bool active_ = false;
     bool boxShown_ = false;
-    // The places drawn on the map, with where.
-    struct Shown {
-        std::size_t record;
-        int x;
-        int y;
-    };
     std::vector<Shown> shown_;
     std::size_t labelled_ = 0;
     ClipRect label_{};

@@ -287,7 +287,7 @@ void Talk::setMenuFor(int number) {
 }
 
 bool Talk::command(std::uint16_t action) {
-    if (!active()) {
+    if (!active() || box_) {
         return false;
     }
     if (remark_) {
@@ -302,7 +302,12 @@ bool Talk::command(std::uint16_t action) {
     case kTalkToMe: next(); return true;
     case kComeWithMe: comeWithMe(false); return true;
     case kWorkForMe: comeWithMe(true); return true;
-    case kGiveOrders: return true; // the orders' screen is not built yet
+    case kGiveOrders:
+        if (ordersAsked) {
+            end();
+            ordersAsked();
+        }
+        return true;
     case kOverpower: return true;  // not built yet
     case kStopFollowing: stopFollowing(); return true;
     case kWhat:
@@ -360,7 +365,9 @@ void Talk::sayLine(std::size_t at, bool events) {
     lineFlags_ = line.flags;
     take_ = 0;
     mode_ = subtitles;
-    if (!events && character_ < kNoFaceFrom) {
+    if (box_) {
+        mode_ = Subtitles::Below;
+    } else if (!events && character_ < kNoFaceFrom) {
         if (mode_ == Subtitles::None && (line.extra & DialogueLine::kTextOnly)) {
             mode_ = Subtitles::Balloons; // there is no recording of it
         }
@@ -402,7 +409,7 @@ void Talk::afterLine(std::size_t at) {
             ended = true;
         }
     }
-    if (character_ >= 0 && character_ < kNoFaceFrom) {
+    if (character_ >= 0 && character_ < kNoFaceFrom && !box_) {
         Talker& talker = game_.talker();
         talker.restart(words_);
         if (subtitle_.shown) {
@@ -648,6 +655,13 @@ void Talk::stop() {
     if (!active()) {
         return;
     }
+    end();
+    host_.backToRoom();
+}
+
+// The talk is over: the character was talked to and, going with Paul,
+// takes a slot.
+void Talk::end() {
     const std::size_t r = record();
     world_.setU8(r + kFlags, static_cast<std::uint8_t>((world_.u8(r + kFlags) | kTalkedTo) & ~kWaiting));
     if (world_.u8(r + kFlags) & kFollows) {
@@ -659,7 +673,91 @@ void Talk::stop() {
     subtitle_.shown = false;
     pages_.clear();
     character_ = -1;
-    host_.backToRoom();
+}
+
+// --- Talking in a box
+
+void Talk::startBox(int c, int face, int variant, const Box& box) {
+    character_ = c;
+    box_ = box;
+    remark_ = false;
+    Talker& talker = game_.talker();
+    talker.halt();
+    talker.overlay = nullptr;
+    subtitle_.shown = false;
+    talker.showInBox(face, variant, game_.textWords, box.face, box.focusX, box.focusY);
+    topic_ = c * Dialogue::kListsPerCharacter;
+    resume_.reset();
+    finished_ = false;
+    pages_.clear();
+    skipSaid_ = DialogueLine::kOnceMore;
+}
+
+bool Talk::boxLine(int list) {
+    if (!box_) {
+        return false;
+    }
+    if (!pages_.empty()) {
+        phrase_ += kPageStep;
+        const std::string page = pages_.front();
+        pages_.erase(pages_.begin());
+        showBoxText(page);
+        afterLine(pageLine_);
+        return true;
+    }
+    const auto first = dialogue_.list(static_cast<std::size_t>(character_ * Dialogue::kListsPerCharacter + list));
+    if (!first) {
+        return false;
+    }
+    prepareCondition();
+    auto found = resume_ ? dialogue_.find(*resume_, DialogueLine::kOnceMore, [this](int n) { return condition(n); })
+                         : std::nullopt;
+    if (!found) {
+        found = dialogue_.find(*first, DialogueLine::kOnceMore, [this](int n) { return condition(n); });
+    }
+    if (!found) {
+        resume_.reset();
+        return false;
+    }
+    sayLine(*found, false);
+    return true;
+}
+
+bool Talk::boxAnswer(int list) {
+    pages_.clear();
+    resume_.reset();
+    const bool said = boxLine(list);
+    resume_.reset();
+    return said;
+}
+
+void Talk::endBox() {
+    if (!box_) {
+        return;
+    }
+    Talker& talker = game_.talker();
+    talker.halt();
+    box_.reset();
+    pages_.clear();
+    resume_.reset();
+    character_ = -1;
+}
+
+// A page of a line in the box: the text area is cleared and the text laid
+// out in it, on the screen and the back buffer.
+void Talk::showBoxText(const std::string& page) {
+    if (!large_) {
+        const auto bytes = game_.resources().load(resource::kFont);
+        large_ = Font::parse(bytes, Font::Size::Large);
+        small_ = Font::parse(bytes, Font::Size::Small);
+    }
+    Display& d = game_.display();
+    for (Surface* to : {&d.screen(), &d.back()}) {
+        to->fillRect(box_->text.left, box_->text.top, box_->text.right - box_->text.left,
+                     box_->text.bottom - box_->text.top, box_->fill);
+        drawTextBox(*to, *large_, page, box_->text, box_->colour);
+    }
+    words_ = 0;
 }
 
 // --- The voice
@@ -833,6 +931,10 @@ void Talk::chooseTakeForNumber(std::uint8_t at, unsigned value) {
 // Shows a page of a line: the old text goes, and the new one is laid out
 // below the picture, unless only the voice is wanted.
 void Talk::showPage(const std::string& page) {
+    if (box_) {
+        showBoxText(page);
+        return;
+    }
     Display& d = game_.display();
     if (subtitle_.shown) {
         // The scene comes back whole, with the face, before the new text.

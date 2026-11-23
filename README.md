@@ -43,8 +43,10 @@ and touch controls.
 > Harkonnens' zone; fly on and they catch you, and the game ends with the
 > original's flashes, video and words, where you can start again, load a
 > game or stop. In a sietch you meet its Fremen, who can agree to work
-> for you; their chief then waits for your orders. Giving orders and the
-> rest of the game are not there yet.
+> for you. Their chief then takes your orders on the map, answering in a
+> box with his face: he tells you about his troop, and you can have it
+> specialize in spice or in the army. Moving troops, their equipment,
+> their daily work and the rest of the game are not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the
