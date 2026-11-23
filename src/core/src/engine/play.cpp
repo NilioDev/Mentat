@@ -63,6 +63,9 @@ constexpr std::size_t kRoomNumber = 0x0B;
 constexpr std::size_t kNewMessages = 0x21E8;
 constexpr std::size_t kOldMessages = 0x21EC;
 constexpr std::size_t kLookAtMirror = 0x21F0;
+// A line's window on the planet: where it shows on the screen.
+constexpr ClipRect kNamedPlaceWindow{0xA8, 0x17, 0x12A, 0x61};
+constexpr std::size_t kPaulsPlaceWord = 0x114E;
 // The mirror: its pictures (the room, its colours over it, the frame),
 // its commands, "look away", and the flag for Chani beside Paul.
 constexpr std::uint16_t kLookAtMirrorAction = 0x0EA6;
@@ -367,6 +370,7 @@ public:
         talk_.ordersAsked = [this] { openOrders(); };
         talk_.waterOfLife = [this] { drinkWaterOfLife(); };
         talk_.attackLaunched = [this] { world_.launchAttack(map_.flatMap()); };
+        talk_.showNamedPlace = [this] { showNamedPlace(); };
         orders_.finished = [this] { toggleMap(); };
         messageRoom_.drawRoom = [this] {
             d_.targetBack();
@@ -1448,6 +1452,7 @@ private:
         }
         world_.sendShipment(amount);
         panel_.drawSlots(world_);
+        messageRoom_.shipmentLeaves();
     }
 
     // The picture (persons and portraits) character `c` is shown with, and
@@ -2202,6 +2207,17 @@ private:
             return true;
         }
         return true;
+    }
+
+    // A line shows the place it speaks of in a window on the planet, as a
+    // vision does, unless that is Paul's own place or the map is shown.
+    void showNamedPlace() {
+        const std::size_t place = world_.namedPlace;
+        if (place == 0 || map_.active() || place == world_.u16(kPaulsPlaceWord)) {
+            return;
+        }
+        vision_.drawWindow(place);
+        d_.copyRect(d_.back(), d_.screen(), kNamedPlaceWindow);
     }
 
     // --- The mirror

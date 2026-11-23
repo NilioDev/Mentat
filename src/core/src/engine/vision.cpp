@@ -49,6 +49,11 @@ void Vision::draw(std::size_t place) {
     if (place == 0 || place == world_.u16(kPaulsPlace)) {
         return;
     }
+    drawWindow(place);
+}
+
+void Vision::drawWindow(std::size_t place) {
+    g_.display().targetBack();
     g_.selectSheet(kPlanet);
     g_.drawSprite(kWindowFrame, kFrameX, kFrameY);
     small_.view = kWindow;

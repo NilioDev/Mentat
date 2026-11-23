@@ -114,7 +114,14 @@ it starts.
 | 14 | When said the first time: one more at `0xC2` |
 | 15 | For Jessica: one more at `0xF5`. For Duncan: the Emperor's answer to the shipment comes (see [shipments.md](shipments.md)) |
 
-What action 13 does (the chiefs' places) Mentat does not have yet.
+Action 13 shows the place the talk speaks of: the place last named for
+the lines (its name and kind words, `0x11ED` and `0x11EF`; for the
+characters below 9 before step 100, the place in word `0x11DB`), unless
+it is Paul's own place (word `0x114E`) or the talk is on the map. On the
+back picture, the window on the planet of a vision is drawn around it
+(see [messages.md](messages.md)): the frame (picture 7 of resource
+`0x21` at (`0xA8`, `0x17`)), the map, the places and the place's mark.
+Then the part from (`0xA8`, `0x17`) to (`0x12A`, `0x61`) is shown.
 
 The program's code calls a line's action by its number less one from a
 table of routines; the numbers above are the lines' own.

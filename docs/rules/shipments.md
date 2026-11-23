@@ -75,8 +75,38 @@ sent:
    3; byte `0xCF` takes how many days that is from today.
 6. Word `0x1158` becomes 0.
 
-The original then shows the shipment leaving, in the message room's
-device; Mentat does not show that yet.
+Then the shipment leaves, shown in the message room's device. Times are
+in ticks; each wait counts from when the step before it began.
+
+1. The device lights up as for the news (see [news.md](news.md)): its
+   pictures, glow 2, 20 frames of sparks 9 ticks apart, then glow 1 once
+   any voice has ended; then the 13 frames of a hologram rising.
+2. Dune's hologram: on a copy of the screen, picture `0x1B` of the stars'
+   pictures (resource `0x2C`, STARS.HSQ) at (`0x8C`, `0x27`), with sound
+   `0x0A`, comes with the sparkle (transition 8). It stays 100 ticks.
+3. Space, at step n: the scene black, the three pictures of stars 0, 1
+   and 2 at x = −n²/2, −n²/2 + `0x130` and −n²/2 + `0x260` (y 0); then,
+   each placed by its middle, the sun (picture `0x24`) at
+   (`0x45` − 4 × (n²/2), `0x4E`), Kaitain (picture `0x25` + n/4) at
+   (4n + `0xF2`, `0x67`), or (`0x3E2` − n², `0x67`) when n is over `0x14`,
+   and Dune (picture 3 + n) at (`0x80` + (n²/2) / 16, `0x4F`). Halves and
+   sixteenths are rounded down, everything clipped to the scene.
+4. Step `0x18` comes with the mosaic (transition 6); then steps `0x17`
+   down to 0, one every 12 ticks, each shown at once: the view leaves
+   Dune behind for the sun and Kaitain.
+5. The computer (voice character `0x19`) says phrase `0x27`. The part
+   of the screen at data `0x15AA` (126, 76 to 320, 152) is kept, 200
+   ticks pass and the game waits for the voice to end. Sound 1 plays.
+6. The frigate: the list at data `0x15B2`, 6 bytes a frame until a byte
+   `0xFF`: a picture (none when negative) and its x and y (its top left).
+   Each frame, 12 ticks apart, puts back the kept part, draws the picture
+   and shows the part. At the frame at `0x161E` the sound stops. After
+   the last, the kept part is put back once more.
+7. Steps 1 to `0x18` of space, one every 12 ticks: back to Dune.
+8. The room as it is with Dune's hologram over it (and its sound) comes
+   with the mosaic, then the room alone with the sparkle.
+9. The device goes out as after a hologram: sound 9, frames 4 down to 0
+   9 ticks apart, then its pictures with glow 1.
 
 ## The Emperor's answer (action 15)
 

@@ -23,6 +23,8 @@ public:
     // Draws the vision on the back buffer: the clouds and, for a place
     // other than the one Paul is at, the window on the planet around it.
     void draw(std::size_t place);
+    // Only the window on the planet around `place`, on the back buffer.
+    void drawWindow(std::size_t place);
     // A turn of the clouds' colours and a ripple through the picture on
     // the screen, every 6 ticks while the vision lasts.
     void shimmer();

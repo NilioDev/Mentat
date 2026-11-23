@@ -214,6 +214,9 @@ public:
     void resetOccupation(int troop, int occupation);
     // The words a line can say for place `record`: its name and its kind.
     void namePlace(std::size_t record);
+    // The place last named so (the original keeps it outside the state):
+    // a line can show it in a window (see docs/rules/talking.md).
+    std::size_t namedPlace = 0;
 
     // --- Troops on the move (see docs/rules/moves.md)
     // Takes troop `troop` out of its place's chain, and puts it at the end

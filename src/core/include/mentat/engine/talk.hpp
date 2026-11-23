@@ -97,6 +97,8 @@ public:
     // Stilgar's water of life: called once his line is spoken, whatever
     // Paul answered (state byte 0x9F says it).
     std::function<void()> waterOfLife;
+    // A line shows the place last named in a window on the planet.
+    std::function<void()> showNamedPlace;
     // Stilgar sends the troops to the Harkonnens' palace.
     std::function<void()> attackLaunched;
 
