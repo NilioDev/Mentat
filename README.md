@@ -69,6 +69,8 @@ and touch controls.
 > scene plays: the family gathers in a room and each speaks in turn while
 > you click "Continue...". In the palace's message room you can view the
 news sent to you: the sender's hologram rises over the device and speaks.
+In the palace, the middle of the arrows shows a plan of its rooms and who
+is in them.
 The rest of the game is not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the

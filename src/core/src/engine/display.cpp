@@ -407,6 +407,75 @@ void Display::sparkle() {
     copy(0);
 }
 
+void Display::transitionIn(int type, const ClipRect& rect) {
+    const int w = Surface::kScreenWidth;
+    const int rows = screen_->height();
+    const int left = std::max(rect.left, 0);
+    const int width = std::min(rect.right, w) - left;
+    if (width <= 0) {
+        return;
+    }
+    auto copyRow = [&](const Surface& from, int fromRow, int toRow) {
+        if (fromRow < 0 || fromRow >= rows || toRow < 0 || toRow >= rows) {
+            return;
+        }
+        std::copy_n(from.data() + static_cast<std::size_t>(fromRow * w + left), width,
+                    screen_->data() + static_cast<std::size_t>(toRow * w + left));
+    };
+    const int top = rect.top + originRows_;
+    std::uint32_t due = platform_.ticks;
+    int steps = 0;
+    // The original goes as fast as it can; Mentat does a few steps a tick.
+    auto pace = [&](int perTick) {
+        if (++steps % perTick == 0) {
+            due = waitUntil(due + 1);
+        }
+    };
+    switch (type) {
+    case kUnroll: {
+        // The bottom rows of the picture first, at the top: two rows more
+        // each step, taken from two rows higher.
+        constexpr int kPerTick = 16;
+        int count = 2;
+        for (int from = rect.bottom - 2 + originRows_; from >= 0; from -= 2, count += 2) {
+            for (int r = 0; r < count; ++r) {
+                copyRow(*back_, from + r, top + r);
+            }
+            pace(kPerTick);
+        }
+        break;
+    }
+    case kRollUp: {
+        // The rows above move up by 6; the 6 under them come from the back
+        // picture.
+        constexpr int kShift = 6;
+        constexpr int kPerTick = 4;
+        int count = rect.bottom - rect.top - kShift;
+        for (;;) {
+            for (int r = 0; r < count; ++r) {
+                copyRow(*screen_, top + r + kShift, top + r);
+            }
+            for (int r = count; r < count + kShift; ++r) {
+                copyRow(*back_, top + r, top + r);
+            }
+            pace(kPerTick);
+            count -= kShift;
+            if (count >= 0) {
+                continue;
+            }
+            if (count == -kShift) {
+                break;
+            }
+            count = 0;
+        }
+        break;
+    }
+    default:
+        throw FormatError("display: unknown transition in a rectangle " + std::to_string(type));
+    }
+    copyRect(*back_, *screen_, rect);
+}
+
 void Display::spiral() {
     const int w = Surface::kScreenWidth;
     const int size = static_cast<int>(screen_->size());

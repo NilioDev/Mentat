@@ -188,6 +188,23 @@ constexpr std::size_t kSceneTalkMenu = 0x1FAE;
 constexpr int kSceneBlinkTimer = 0x176B;
 constexpr int kSceneBlinkTicks = 0x64;
 constexpr std::size_t kRoomByte = 0x04;
+// The palace's plan (the middle of the arrows): a panel over the room's
+// right part, its frame, the plan's sprites (a list in the state) and
+// marks for those in each room; "Done" closes it. See
+// docs/rules/palace_plan.md.
+constexpr std::uint16_t kShowPlan = 0x18EE;
+constexpr ClipRect kPlanArea{160, 0, 320, 116};
+constexpr std::uint8_t kPlanFill = 0xF1;
+constexpr ClipRect kPlanFrame{164, 4, 316, 112};
+constexpr std::uint8_t kPlanFrameColour = 0xF7;
+constexpr int kPlanSheet = 0x21;
+constexpr std::size_t kPlanList = 0x120B;
+constexpr std::size_t kPlanRooms = 0x1426; // (x, y) bytes for rooms 2 to 12
+constexpr int kPlanRoomCount = 11;
+constexpr std::uint16_t kPlanPerson = 2;
+constexpr std::uint16_t kPlanPaul = 1;
+constexpr int kPlanMostMarks = 5;
+constexpr std::size_t kPlanCommands = 0x2012;
 constexpr std::uint32_t kQuietStepWait = 0x3E8;
 constexpr std::uint32_t kQuietStepAgain = 0x3B6;
 constexpr std::uint32_t kMessageWait = 0x32;
@@ -391,7 +408,7 @@ private:
     // while his place is at war).
     void checkMessages() {
         if (over_ || talk_.active() || map_.active() || globe_.active() || cockpit_.active() || flight_.active() ||
-            orders_.active() || noticeShown_ || messageRoom_.active() || !world_.inside()) {
+            orders_.active() || noticeShown_ || messageRoom_.active() || planShown_ || !world_.inside()) {
             return;
         }
         if (world_.u8(kProgress) <= kMessagesFrom || world_.u8(World::kMessageQueue) == 0) {
@@ -420,11 +437,100 @@ private:
         showMessage();
     }
 
+    // --- The palace's plan
+
+    void showPlan() {
+        const int room = world_.room();
+        if ((room >> 8) != 0x20 || (room & 0xFF) == kEntrance) {
+            return;
+        }
+        d_.targetBack();
+        Surface& to = d_.back();
+        const int o = d_.originRows();
+        to.fillRect(kPlanArea.left, kPlanArea.top + o, kPlanArea.right - kPlanArea.left,
+                    kPlanArea.bottom - kPlanArea.top, kPlanFill);
+        // Four frames, each a pixel further out and two colours darker.
+        for (int k = 0; k < 4; ++k) {
+            const int l = kPlanFrame.left - 1 - k;
+            const int t = kPlanFrame.top - 1 - k + o;
+            const int r = kPlanFrame.right + k;
+            const int b = kPlanFrame.bottom + k + o;
+            const auto c = static_cast<std::uint8_t>(kPlanFrameColour - 2 * k);
+            to.fillRect(l, t, r - l + 1, 1, c);
+            to.fillRect(l, b, r - l + 1, 1, c);
+            to.fillRect(l, t, 1, b - t + 1, c);
+            to.fillRect(r, t, 1, b - t + 1, c);
+        }
+        g_.selectSheet(kPlanSheet);
+        for (std::size_t at = kPlanList; world_.u16(at) != 0xFFFF; at += 6) {
+            g_.drawSprite(world_.u16(at), world_.u16(at + 2), world_.u16(at + 4));
+        }
+        drawPlanPeople();
+        d_.transitionIn(Display::kUnroll, kPlanArea);
+        planShown_ = true;
+        setEndCommands(kPlanCommands);
+    }
+
+    // A mark for each one in a room of Paul's place (five at most), those
+    // going with him on a second row, and Paul's own mark.
+    void drawPlanPeople() {
+        std::array<int, 0x24> count{};
+        const int place = world_.u8(0x07);
+        for (int c = 0; c < 16; ++c) {
+            const std::size_t r = 0xFD8 + 0x10 * static_cast<std::size_t>(c);
+            if (world_.u8(r + 3) != place) {
+                continue;
+            }
+            const int step = world_.u8(kProgress);
+            if (world_.u8(r + 0x0E) == kGurney && step >= kGurneyLyingFrom && step < kGurneyLyingTo) {
+                continue;
+            }
+            int at = (world_.u8(r) - 1) & 0xFF;
+            if (world_.u8(r + 0x0F) & 0x40) {
+                at += 0x0C;
+            }
+            if (at < static_cast<int>(count.size())) {
+                ++count[static_cast<std::size_t>(at)];
+            }
+        }
+        const int paulsRoom = world_.room() & 0xFF;
+        if (paulsRoom <= 0x0C) {
+            ++count[static_cast<std::size_t>(paulsRoom + 0x17)];
+        }
+        const ProgramFile& program = g_.resources().program();
+        const int baseX = world_.u16(kPlanList + 2);
+        const int baseY = world_.u16(kPlanList + 4);
+        auto marks = [&](int n, int x, int y) {
+            for (int k = 0; k < std::min(n, kPlanMostMarks); ++k) {
+                g_.drawSprite(kPlanPerson, x + 4 * k, y);
+            }
+        };
+        for (int i = 0; i < kPlanRoomCount; ++i) {
+            const auto room = static_cast<std::size_t>(i + 1);
+            const int x = baseX + program.dataU8(kPlanRooms + 2 * static_cast<std::size_t>(i)) + 3;
+            const int y = baseY + program.dataU8(kPlanRooms + 2 * static_cast<std::size_t>(i) + 1) + 2;
+            marks(count[room], x, y);
+            marks(count[room + 0x0C], x, y + 7);
+            if (count[room + 0x18] != 0) {
+                g_.drawSprite(kPlanPaul, x + 9, y + 3);
+            }
+        }
+    }
+
+    void closePlan() {
+        planShown_ = false;
+        d_.targetBack();
+        drawView();
+        d_.transitionIn(Display::kRollUp, kPlanArea);
+        d_.copyRect(d_.back(), d_.screen(), ClipRect{0, kSceneBottom, 320, 200});
+        quietSince_ = g_.platform().ticks;
+    }
+
     // What the story changed that shows: ways between rooms opened. And at
     // step 0x14, a long quiet outside with nobody along moves it on.
     void checkStory() {
         if (scene_ || over_ || talk_.active() || map_.active() || globe_.active() || cockpit_.active() || flight_.active() ||
-            orders_.active() || noticeShown_ || messageRoom_.active()) {
+            orders_.active() || noticeShown_ || messageRoom_.active() || planShown_) {
             return;
         }
         if (world_.scene != 0 && !scene_) {
@@ -888,6 +994,15 @@ private:
         if (messageRoom_.active()) {
             return;
         }
+        if (planShown_) {
+            closePlan(); // a click anywhere closes the plan
+            return;
+        }
+        const Zone& middle = zones[static_cast<std::size_t>(Panel::kArrows + 5)];
+        if ((middle.flags & Zone::kActive) && middle.contains(x, y) && middle.action == kShowPlan) {
+            showPlan();
+            return;
+        }
         for (int i = 0; i < 4; ++i) {
             const Zone& z = zones[static_cast<std::size_t>(Panel::kArrows + 1 + i)];
             if ((z.flags & Zone::kActive) && z.contains(x, y)) {
@@ -906,6 +1021,10 @@ private:
             return; // the rest of the orders is not built yet
         }
         if (talk_.command(action)) {
+            return;
+        }
+        if (planShown_) {
+            closePlan(); // "Done", or any other command
             return;
         }
         if (messageRoom_.command(action, chosenLine_)) {
@@ -2038,6 +2157,7 @@ private:
     std::vector<int> sceneStanding_;
     std::size_t sceneMenu_ = 0;
     bool sceneBlink_ = false;
+    bool planShown_ = false;
     int chosenLine_ = -1; // the panel's line of the last command chosen
     std::uint32_t quietSince_ = 0;
     World::People people_;

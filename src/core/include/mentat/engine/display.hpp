@@ -131,6 +131,13 @@ public:
     // the rise uses it.
     void transition(int type, int direction);
 
+    // The transitions inside a rectangle (the original's second set):
+    // 0x10, the back picture unrolls downwards into it; 0x12, the picture
+    // in it rolls up and away, the back picture showing from below.
+    static constexpr int kUnroll = 0x10;
+    static constexpr int kRollUp = 0x12;
+    void transitionIn(int type, const ClipRect& rect);
+
     // Waits until `ticks` timer ticks have passed since `since`, and returns
     // the tick it stopped at.
     std::uint32_t waitTicks(std::uint32_t since, std::uint32_t ticks);

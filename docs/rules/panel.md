@@ -77,7 +77,8 @@ The six zones of the arrows are first set from data offset `0x1C76`, then:
   sprite `0x21`, or `0x22` in a place's first room. The middle (zone 17) is
   shown only in the palace, and not in its first room. Each arrow can be
   used when the room has a way out in its direction (see
-  [places.md](places.md)), and is not drawn otherwise.
+  [places.md](places.md)), and is not drawn otherwise. The middle shows
+  the palace's plan (see [palace_plan.md](palace_plan.md)).
 - **Otherwise** the pad shows sprite `0x23` and the four arrows sprites
   `0x1D` to `0x20`, all usable.
 
