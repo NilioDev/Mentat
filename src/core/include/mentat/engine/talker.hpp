@@ -56,6 +56,9 @@ public:
     // to the screen, with the rectangle that changed; for what lies over
     // the face, such as subtitles.
     std::function<void(const ClipRect&)> overlay;
+    // Called once when the voice has said its recording to the end; not
+    // when it is stopped. Cleared before it is called.
+    std::function<void()> spoken;
 
     // Stops the voice, the animation and the timers, and the companion's.
     void stop();
@@ -89,6 +92,7 @@ private:
     void speechTick();
     void showMouth(int shape);
     void endSpeech();
+    void said();
     double ticksPerMouthShape();
 
     Game& game_;

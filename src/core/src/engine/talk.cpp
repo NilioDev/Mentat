@@ -140,6 +140,19 @@ constexpr std::uint16_t kWorkForMePhrase = 0x96; // and 0x97, "RALLY ME"
 
 constexpr int kEntranceHall = 1;
 
+// Duncan, who looks after the spice.
+constexpr int kDuncan = 3;
+constexpr std::size_t kAnswers = 0x1A; // how many questions Paul answered in this talk
+constexpr std::size_t kAnswer = 0x9F;  // the last answer: 1 accept, 2 refuse, 3 argue
+constexpr std::size_t kQuestionMenu = 0x1FFE;
+// The table of the lines that show a few words (data offset, 10 bytes an
+// entry: the line's phrase, a phrase of the command file, x, y, colours),
+// ordered by phrase. From kSpokenNumbers on, the second word names a
+// number the voice says instead.
+constexpr std::size_t kLabels = 0x1984;
+constexpr std::size_t kLabelSize = 10;
+constexpr int kSpokenNumbers = 0x38;
+
 std::uint16_t bit(int c) { return static_cast<std::uint16_t>(1u << (c & 15)); }
 
 std::string decimal(unsigned value) {
@@ -246,11 +259,7 @@ void Talk::begin(int c, int x, int y, int face, int variant) {
     host_.showPointer(false);
     Talker& talker = game_.talker();
     talker.halt();
-    talker.overlay = [this](const ClipRect& dirty) {
-        if (subtitle_.shown && dirty.bottom > subtitle_.top) {
-            drawSubtitle(&dirty);
-        }
-    };
+    talker.overlay = [this](const ClipRect& dirty) { overFace(dirty); };
     subtitle_.shown = false;
     drawBackground(x, y);
     talker.show(face_, 0, faceVariant_, game_.textWords);
@@ -310,6 +319,15 @@ bool Talk::command(std::uint16_t action) {
             return true;
         }
         return false;
+    }
+    if (asking_) {
+        switch (action) {
+        case kAccept: answerQuestion(1); return true;
+        case kRefuse: answerQuestion(2); return true;
+        case kArgue: answerQuestion(3); return true;
+        case kWhat: speak(); return true;
+        default: return false;
+        }
     }
     switch (action) {
     case kTalkToMe: next(); return true;
@@ -374,6 +392,9 @@ void Talk::next() {
 }
 
 void Talk::sayLine(std::size_t at, bool events) {
+    if (!events) {
+        forgetLabel();
+    }
     const DialogueLine line = dialogue_.line(at);
     lineFlags_ = line.flags;
     take_ = 0;
@@ -432,6 +453,13 @@ void Talk::afterLine(std::size_t at) {
         host_.showPointer(false);
         speak();
         host_.showPointer(true);
+        if (label_.waiting) {
+            if (talker.speaking()) {
+                talker.spoken = [this] { showLabel(); };
+            } else {
+                showLabel();
+            }
+        }
     }
     resume_ = next;
     finished_ = ended;
@@ -443,8 +471,30 @@ void Talk::runAction(const DialogueLine& line) {
     switch (line.action()) {
     case 1: answer_ = 0xFF; break; // yes
     case 2: answer_ = 0; break;    // no
+    case 3: {
+        // One of the story's scenes, by how far the story has come.
+        const int step = world_.u8(kProgress);
+        world_.scene = step < 0x14 ? 0x12F8 : step < 0x18 ? 0x134F : step < 0x30 ? 0x1370 : 0x12DB;
+        break;
+    }
+    case 4:
+    case 5:
+        ask(line.action() == 5);
+        findLabel(line.phrase);
+        break;
     case 6: endAfter_ = true; break;
     case 7: answer_ = 0x80; break;
+    case 8:
+        if (character_ == kDuncan) {
+            world_.prepareShipment();
+        }
+        break;
+    case 9:
+        if (character_ == kDuncan) {
+            world_.decideShipment(bill_);
+        }
+        break;
+    case 10: findLabel(line.phrase); break;
     case 11:
         if (!line.said()) {
             // One step on: the story's lines run, but no step's own changes.
@@ -461,12 +511,6 @@ void Talk::runAction(const DialogueLine& line) {
             raiseProgress((world_.u8(kProgress) & 0xFC) + 4);
         }
         break;
-    case 13: {
-        // One of the story's scenes, by how far the story has come.
-        const int step = world_.u8(kProgress);
-        world_.scene = step < 0x14 ? 0x12F8 : step < 0x18 ? 0x134F : step < 0x30 ? 0x1370 : 0x12DB;
-        break;
-    }
     case 14:
         if (!line.said()) {
             world_.setU8(kExploits, static_cast<std::uint8_t>(world_.u8(kExploits) + 1));
@@ -475,13 +519,141 @@ void Talk::runAction(const DialogueLine& line) {
     case 15:
         if (character_ == 1) {
             world_.setU8(kVisits, static_cast<std::uint8_t>(world_.u8(kVisits) + 1));
+        } else if (character_ == kDuncan && world_.emperorReplies()) {
+            endAfter_ = true;
         }
         break;
     default:
-        // The others start things this port does not have yet (messages,
-        // choices of troops, the story's own steps).
+        // The others start things this port does not have yet (the
+        // smuggler's trade, the water of life, the last attack, the
+        // chiefs' places).
         break;
     }
+}
+
+// A question: the menu becomes ACCEPT, REFUSE, ARGUE and " WHAT ? " until
+// Paul answers.
+void Talk::ask(bool bill) {
+    bill_ = bill;
+    asking_ = true;
+    world_.setU8(kAnswer, 0);
+    const ProgramFile& program = game_.resources().program();
+    std::vector<Command> list;
+    for (std::size_t at = kQuestionMenu + 2;; at += 4) {
+        const Command c{program.dataU16(at), program.dataU16(at + 2)};
+        if (c.phrase == 0) {
+            break;
+        }
+        list.push_back(c);
+    }
+    panel_.setCommands(list);
+    host_.menuChanged();
+    Display& d = game_.display();
+    d.targetScreen();
+    panel_.drawCommands();
+    d.targetBack();
+    panel_.drawCommands();
+}
+
+// Paul's answer (1 accept, 2 refuse, 3 argue) is kept, the talk menu comes
+// back and the character goes on as TALK TO ME has it.
+void Talk::answerQuestion(int answer) {
+    asking_ = false;
+    world_.setU8(kAnswer, static_cast<std::uint8_t>(answer));
+    world_.setU8(kAnswers, static_cast<std::uint8_t>(world_.u8(kAnswers) + 1));
+    setMenu();
+    next();
+}
+
+// Some lines show a few words once said: the program's table names the
+// line's phrase, a phrase of the command file and where it goes.
+void Talk::findLabel(int phrase) {
+    const ProgramFile& program = game_.resources().program();
+    const int key = phrase | kPhraseBit;
+    std::size_t at = kLabels;
+    for (int guard = 0; guard < 256; ++guard, at += kLabelSize) {
+        const int named = program.dataU16(at);
+        if (named < key) {
+            continue;
+        }
+        if (named != key) {
+            return;
+        }
+        break;
+    }
+    const int text = program.dataU16(at + 2);
+    if (text >= kSpokenNumbers) {
+        return; // a number the voice says: not in the text
+    }
+    std::string out;
+    std::vector<std::string> ignored;
+    expand(panel_.phrases().at(static_cast<std::size_t>(text - 1)), out, ignored, 1, false);
+    label_.text = out;
+    label_.x = program.dataU16(at + 4);
+    label_.y = program.dataU16(at + 6);
+    const std::uint16_t colours = program.dataU16(at + 8);
+    label_.background = static_cast<std::uint8_t>(colours >> 8);
+    label_.colour = static_cast<std::uint8_t>(colours & 0xFF);
+    label_.waiting = true;
+}
+
+// The label goes on the back buffer and the screen, a line every seven
+// rows; it stays until the next line.
+void Talk::showLabel() {
+    label_.waiting = false;
+    if (!active() || label_.text.empty()) {
+        return;
+    }
+    loadFonts();
+    label_.shown = true;
+    label_.area = ClipRect{label_.x, label_.y, label_.x, label_.y};
+    drawLabel();
+    Display& d = game_.display();
+    d.copyRect(d.back(), d.screen(), label_.area);
+}
+
+void Talk::drawLabel() {
+    Surface& back = game_.display().back();
+    int y = label_.y;
+    std::size_t from = 0;
+    for (;;) {
+        const std::size_t end = label_.text.find('\r', from);
+        const std::string line = label_.text.substr(from, end == std::string::npos ? std::string::npos : end - from);
+        const int right = small_->draw(back, label_.x, y, line, label_.colour, label_.background);
+        label_.area.right = std::max(label_.area.right, right);
+        y += small_->height();
+        label_.area.bottom = std::max(label_.area.bottom, y);
+        if (end == std::string::npos) {
+            break;
+        }
+        from = end + 1;
+    }
+}
+
+// What lies over the face, drawn again where a frame of it changed.
+void Talk::overFace(const ClipRect& dirty) {
+    if (subtitle_.shown && dirty.bottom > subtitle_.top) {
+        drawSubtitle(&dirty);
+    }
+    if (label_.shown && dirty.left < label_.area.right && dirty.right > label_.area.left &&
+        dirty.top < label_.area.bottom && dirty.bottom > label_.area.top) {
+        drawLabel();
+    }
+}
+
+// The label goes with the line that showed it.
+void Talk::forgetLabel() {
+    label_.waiting = false;
+    label_.text.clear();
+    game_.talker().spoken = nullptr;
+    if (!label_.shown) {
+        return;
+    }
+    label_.shown = false;
+    Display& d = game_.display();
+    d.copyRect(d.saved(), d.back(), label_.area);
+    game_.talker().redraw();
+    showScene();
 }
 
 // The story moves on: the new step, its lines run, and what the step
@@ -518,11 +690,7 @@ bool Talk::remark(int c) {
     host_.showPointer(false);
     Talker& talker = game_.talker();
     talker.halt();
-    talker.overlay = [this](const ClipRect& dirty) {
-        if (subtitle_.shown && dirty.bottom > subtitle_.top) {
-            drawSubtitle(&dirty);
-        }
-    };
+    talker.overlay = [this](const ClipRect& dirty) { overFace(dirty); };
     subtitle_.shown = false;
     drawBackground(-1, -1);
     talker.show(c, 0, 0, game_.textWords);
@@ -554,11 +722,7 @@ bool Talk::vision(int c, int face, int variant) {
     host_.showPointer(false);
     Talker& talker = game_.talker();
     talker.halt();
-    talker.overlay = [this](const ClipRect& dirty) {
-        if (subtitle_.shown && dirty.bottom > subtitle_.top) {
-            drawSubtitle(&dirty);
-        }
-    };
+    talker.overlay = [this](const ClipRect& dirty) { overFace(dirty); };
     subtitle_.shown = false;
     drawBackground(-1, -1);
     talker.show(face, 0, variant, game_.textWords);
@@ -602,11 +766,7 @@ bool Talk::sceneLine(int c, int x, int y, int face, int variant) {
     host_.showPointer(false);
     Talker& talker = game_.talker();
     talker.halt();
-    talker.overlay = [this](const ClipRect& dirty) {
-        if (subtitle_.shown && dirty.bottom > subtitle_.top) {
-            drawSubtitle(&dirty);
-        }
-    };
+    talker.overlay = [this](const ClipRect& dirty) { overFace(dirty); };
     subtitle_.shown = false;
     drawBackground(x, y);
     talker.show(face < 0 ? c : face, 0, variant, game_.textWords);
@@ -689,11 +849,7 @@ bool Talk::news(int c, int x, int y) {
     host_.showPointer(false);
     Talker& talker = game_.talker();
     talker.halt();
-    talker.overlay = [this](const ClipRect& dirty) {
-        if (subtitle_.shown && dirty.bottom > subtitle_.top) {
-            drawSubtitle(&dirty);
-        }
-    };
+    talker.overlay = [this](const ClipRect& dirty) { overFace(dirty); };
     subtitle_.shown = false;
     drawBackground(x, y);
     talker.show(c, 0, 0, game_.textWords);
@@ -728,6 +884,8 @@ void Talk::endRemark() {
     if (!remark_) {
         return;
     }
+    label_ = Label{};
+    game_.talker().spoken = nullptr;
     const std::size_t r = record();
     if (!sceneLine_) {
         world_.setU8(r + kFlags, static_cast<std::uint8_t>((world_.u8(r + kFlags) | kTalkedTo) & ~kWaiting));
@@ -866,6 +1024,9 @@ void Talk::leave() {
 }
 
 void Talk::end() {
+    label_ = Label{};
+    asking_ = false;
+    game_.talker().spoken = nullptr;
     const std::size_t r = record();
     world_.setU8(r + kFlags, static_cast<std::uint8_t>((world_.u8(r + kFlags) | kTalkedTo) & ~kWaiting));
     if (world_.u8(r + kFlags) & kFollows) {

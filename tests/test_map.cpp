@@ -969,3 +969,99 @@ MTT_TEST("messages: the queue gives its first message, and the vision shows the 
     MTT_CHECK(g.display().palette()[0x80].r == second.r && g.display().palette()[0x80].b == second.b);
     MTT_CHECK(g.display().palette()[0xBF].r == first.r && g.display().palette()[0xBF].g == first.g);
 }
+
+MTT_TEST("world: Duncan proposes amounts by the stock and the Emperor's demand") {
+    World w;
+    w.setU8(0x10D8, 0xFF); // no smugglers
+    w.setU16(0xBC, 400);
+    w.setU16(0xA0, 300);
+    w.prepareShipment();
+    MTT_CHECK(w.u8(0x9F) == 3 && w.u8(0x1A) == 0);
+    MTT_CHECK(w.u16(0xB4) == 300 && w.u16(0xB6) == 225 && w.u16(0xB8) == 150 && w.u16(0xBA) == 75);
+    MTT_CHECK((w.u8(0xBF) & 6) == 0);
+    w.setU16(0xA0, 700); // between one and a half and twice the demand
+    w.prepareShipment();
+    MTT_CHECK(w.u16(0xB4) == 400 && w.u16(0xB6) == 700 && w.u16(0xB8) == 525 && w.u16(0xBA) == 600);
+    MTT_CHECK((w.u8(0xBF) & 6) == 4);
+    w.setU16(0xA0, 900);
+    w.prepareShipment();
+    MTT_CHECK(w.u16(0xB8) == 600 && w.u16(0xBA) == 800 && (w.u8(0xBF) & 6) == 6);
+    w.setU16(0xA0, 0);
+    w.prepareShipment();
+    MTT_CHECK(w.u8(0x9F) == 0);
+}
+
+MTT_TEST("world: the second answer accepted picks the second amount") {
+    World w;
+    w.setU16(0xB4, 10);
+    w.setU16(0xB6, 20);
+    w.setU8(0x1A, 2);
+    w.setU8(0x9F, 2); // refused: nothing
+    w.decideShipment(false);
+    MTT_CHECK(w.u16(0x1158) == 0);
+    w.setU8(0x9F, 1);
+    w.decideShipment(false);
+    MTT_CHECK(w.u16(0xC0) == 20 && w.u16(0x1158) == 0xFFFF);
+}
+
+MTT_TEST("world: a smuggler's bill is paid from the stock, or waits") {
+    World w;
+    const std::size_t s = 0x10D8 + 0x11;
+    w.setU8(0x10D8, 1);
+    w.setU8(s, 2);
+    w.setU8(s + 0x11, 0xFF);
+    w.setU16(s + 0x0E, 40);
+    w.setU8(s + 0x10, 0);
+    w.setU16(2, 5 << 4); // day 5
+    w.setU16(0xA0, 100);
+    w.setU8(0x22, 1);
+    w.prepareShipment();
+    MTT_CHECK(w.u16(0x10B4) == s && w.u16(0x20) == 40 && w.u8(0x1F) == 5 && w.u16(0x11F7) == 2);
+    w.setU8(0x9F, 3);
+    w.decideShipment(true);
+    MTT_CHECK((w.u8(s + 2) & 0x60) == 0x20);
+    w.setU8(0x9F, 1);
+    w.decideShipment(true);
+    MTT_CHECK(w.u16(s + 0x0E) == 0 && w.u16(0xA0) == 60 && w.u16(0x1172) == 40 && w.u8(0x22) == 0);
+}
+
+MTT_TEST("world: a shipment sets the Emperor's mood and the day of his next demand") {
+    World w;
+    w.setU16(0xBC, 400);
+    w.setU16(0xA0, 2000);
+    w.setU16(0xC0, 500);
+    w.setU16(0x1158, 0xFFFF);
+    w.setU8(0xBF, 0x90);
+    w.setU8(0xFD8 + 0x30 + 0x0E, 3); // Duncan goes with Paul, first in the slots
+    w.setU8(0xFD8 + 0x30 + 0x0F, 0x42);
+    w.setU16(0x10, 8);
+    w.setU8(0x1152, 3);
+    w.setU8(0x1153, 1);
+    w.sendShipment(500); // as the original did in a test: mood 0xA0, six days
+    MTT_CHECK(w.u8(0xFD8 + 0x30 + 0x0F) == 0x02 && w.u16(0x10) == 0 && w.u8(0x1152) == 1 && w.u8(0x1153) == 0xFF);
+    MTT_CHECK(w.u16(0xA0) == 1500 && w.u16(0x1172) == 500);
+    MTT_CHECK(w.u8(0xBE) == 0xA0 && w.u8(0xBF) == 0xC0);
+    MTT_CHECK(w.u16(0x118D) == 6 && w.u8(0xCF) == 6 && w.u16(0x1158) == 0);
+    w.setU16(0x118D, 0);
+    w.sendShipment(100); // short: four days
+    MTT_CHECK(w.u8(0xBE) == 0x20 && w.u8(0xBF) == 0x88 && w.u16(0x118D) == 4);
+    w.setU16(0x118D, 0);
+    w.sendShipment(100); // short twice running: the mood falls to nothing
+    MTT_CHECK(w.u8(0xBE) == 0);
+}
+
+MTT_TEST("world: the Emperor's reply goes to the news by his mood") {
+    World w;
+    w.setU8(0x2A, 0x0F);
+    MTT_CHECK(!w.emperorReplies());
+    MTT_CHECK((w.u8(0xFF7) & 0x10) != 0);
+    w.setU8(0x2A, 0x10);
+    w.setU8(0xBE, 0x85);
+    w.setU16(0xC0, 5);
+    MTT_CHECK(w.emperorReplies());
+    MTT_CHECK(w.u16(0xC0) == 0 && (w.u8(0xBF) & 1) != 0);
+    MTT_CHECK(w.u8(0xC8) == 1 && w.u16(0x1179) == 0x090B);
+    w.setU8(0xBE, 0);
+    w.emperorReplies();
+    MTT_CHECK(w.u16(0x117B) == 0x0C0B && w.u8(0x11BB) == 1);
+}

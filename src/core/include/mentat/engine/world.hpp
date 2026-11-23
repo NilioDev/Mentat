@@ -127,6 +127,27 @@ public:
         int prospector = 0; // which of the chiefs, from 1, is the prospectors'
     };
     People meetPeople();
+
+    // The spice the Emperor asks for (see docs/rules/shipments.md).
+    // Duncan works out what can be sent, and finds a smuggler's bill.
+    void prepareShipment();
+    // Paul's answer to Duncan's question (state byte 0x9F) is taken: an
+    // amount to send, or, for a smuggler's bill (`bill`), paying it.
+    void decideShipment(bool bill);
+    // The Emperor's answer to the last shipment is in: it goes to the news.
+    // False before story step 0x10, when only a place is marked.
+    bool emperorReplies();
+    // The shipment goes from the message room: the stock goes down, and the
+    // Emperor's mood and his next demand follow from how much was sent.
+    void sendShipment(unsigned amount);
+    // Character `c` stops going with Paul and leaves the panel's slots.
+    void stopsFollowing(int c);
+    // How unhappy the Emperor is, from 0 to 5, by his mood (byte 0xBE).
+    int emperorsDispleasure() const;
+    // The smuggler of record `record` (from 0x10D8) is the one the state
+    // speaks of.
+    void smugglerNow(std::size_t record);
+
     // What the state keeps of place `record` while the player is in it.
     void learnPlace(std::size_t record);
     // What the state keeps of troop `troop` while Paul talks to its

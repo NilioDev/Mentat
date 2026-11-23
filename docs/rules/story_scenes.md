@@ -1,6 +1,6 @@
 # The story's scenes
 
-Some steps of the story, and a line's action 13, begin a scene: a short
+Some steps of the story, and a line's action 3, begin a scene: a short
 play in a room of the palace where chosen people stand and speak in turn
 while the player clicks on. The scene is a script of bytes in the
 program's code.
@@ -12,10 +12,10 @@ program's code.
 | Step `0x0C` (see [story_steps.md](story_steps.md)) | `0x1321`, the gathering in the communication room |
 | Step `0x48` | `0x1313` |
 | Step `0x58` | `0x12FB` |
-| Action 13, before step `0x14` | `0x12F8` |
-| Action 13, before step `0x18` | `0x134F` |
-| Action 13, before step `0x30` | `0x1370` |
-| Action 13, from step `0x30` | `0x12DB` |
+| Action 3, before step `0x14` | `0x12F8` |
+| Action 3, before step `0x18` | `0x134F` |
+| Action 3, before step `0x30` | `0x1370` |
+| Action 3, from step `0x30` | `0x12DB` |
 | Paul comes into room `0x3002` of a place (the Harkonnens' throne room) while no scene plays | `0x128F`, the end of the story; the story's step becomes `0xC8` |
 
 ## Playing it

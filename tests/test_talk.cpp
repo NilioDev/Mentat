@@ -626,3 +626,50 @@ MTT_TEST("talk: a scene's line comes from the character's list 7, said once") {
     talk.leave();
     MTT_CHECK(!talk.active() && host.ended == 0);
 }
+
+MTT_TEST("talk: Duncan proposes a shipment for the Emperor and shows the amount") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g, kEnglish);
+    FakeHost host;
+    Talk talk(g, w, panel, host, kEnglish);
+    talk.subtitles = Talk::Subtitles::Below;
+    w.setU8(0x2A, 0x10);
+    w.setU8(0xBF, 0xB0); // a demand waits, its news seen
+    w.setU16(0xBC, 400);
+    w.setU16(0xA0, 700);
+    talk.start(3, -1, -1);
+    // His prospecting news, then the stock with its amount beside the
+    // face, then the demand.
+    MTT_CHECK(talk.phrase() == 0xD9 && talk.label().empty());
+    MTT_CHECK(talk.command(Talk::kTalkToMe) && talk.phrase() == 0xE8 && talk.label() == "7000 kgs");
+    // In the small font, a line of seven rows filled with colour 0x46,
+    // the letters in 0x2C, at (113, 89).
+    const Surface& back = g.display().back();
+    MTT_CHECK(back.at(113, 89) == 0x46 && back.at(113, 95) == 0x46 && back.at(112, 92) != 0x46);
+    int letters = 0;
+    for (int x = 113; x < 160; ++x) {
+        letters += back.at(x, 91) == 0x2C;
+    }
+    MTT_CHECK(letters > 5);
+    MTT_CHECK(talk.command(Talk::kTalkToMe) && talk.phrase() == 0xEE && talk.label().empty());
+    MTT_CHECK(back.at(113, 89) != 0x46);
+    // What he asked for, as a question.
+    MTT_CHECK(talk.command(Talk::kTalkToMe) && talk.phrase() == 0xF5 && talk.label() == "4000 kgs");
+    const auto& menu = panel.commands();
+    MTT_CHECK(menu.size() == 4 && menu[0].action == Talk::kArgue && menu[1].action == Talk::kAccept &&
+              menu[2].action == Talk::kRefuse && menu[3].action == Talk::kWhat);
+    MTT_CHECK(!talk.command(Talk::kTalkToMe));
+    // Argued with, he proposes the whole stock; accepted, it is agreed.
+    MTT_CHECK(talk.command(Talk::kArgue) && talk.phrase() == 0xF6 && talk.label() == "7000 kgs");
+    MTT_CHECK(w.u8(0x1A) == 1 && w.u8(0x9F) == 0); // the next question waits for its answer
+    MTT_CHECK(talk.command(Talk::kAccept) && talk.phrase() == 0xFF);
+    MTT_CHECK(panel.commands()[0].action == Talk::kTalkToMe);
+    MTT_CHECK(w.u16(0xC0) == 700 && w.u16(0x1158) == 0xFFFF);
+}

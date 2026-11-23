@@ -23,7 +23,6 @@ constexpr std::size_t kPlaceRecordWord = 0x114E;
 constexpr std::size_t kHomeWord = 0x1150;
 constexpr std::size_t kSmugglers = 0x10D8; // records of 0x11 bytes, by the name of their village
 constexpr std::size_t kSmugglerSize = 0x11;
-constexpr std::size_t kSmugglerNow = 0x10B4;
 constexpr std::size_t kNameKinds = 0x1141; // a byte for each second word of a place's name
 constexpr std::size_t kLearned = 0x11CE;
 constexpr std::size_t kRallied = 0x28;
@@ -119,15 +118,8 @@ World::People World::meetPeople() {
             s += kSmugglerSize;
         }
         if (s + kSmugglerSize <= kSize) {
-            setU16(kSmugglerNow, static_cast<std::uint16_t>(s));
-            setU8(0x1C, u8(s + 2));
-            setU16(0x20, u16(s + 0x0E));
-            setU8(0x1F, 0);
+            smugglerNow(s);
             const int days = u16(kClockWord) >> 4;
-            if (u16(s + 0x0E) != 0) {
-                setU8(0x1F, static_cast<std::uint8_t>(days - u8(s + 0x10)));
-            }
-            setU8(0x1D, u8(s + 1));
             std::uint8_t since = static_cast<std::uint8_t>(days - u8(s + 3));
             if (!(u8(s + 2) & 0x08)) {
                 since = 1;
