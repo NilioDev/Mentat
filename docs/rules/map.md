@@ -93,6 +93,9 @@ latitude beyond is brought back to 75 first.
    file, 13 pixels left of the point, its bottom row just above it.
 5. **The ornament's head** (sprite `0x1A` at (150, 137)) again over the
    map.
+6. **The troops' marks**: those at the places drawn and those on the
+   move, see [orders.md](orders.md) and [moves.md](moves.md). They move
+   while the map is shown.
 
 All of these are clipped to the view.
 
@@ -180,7 +183,8 @@ The map's commands are kept at data offset `0x20F2`: two bytes, then
 - The second, giving orders: while the word at `0x1176` is below 2 it
   becomes phrase `0x93`, usable only when the player is in a place whose
   first troop has its byte 3 below `0x80`. Otherwise it keeps its phrase,
-  greyed while no troop moves on the map.
+  greyed while the map shows no troop's mark; giving orders from the map
+  is not built yet, so here it stays greyed.
 - The third, the spice density, is greyed until the story (state byte
   `0x2A`) reaches 5; until then there is no fifth command.
   The spice density opens the map of the regions, see

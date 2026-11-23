@@ -86,6 +86,13 @@ constexpr std::uint16_t kPlayerMark = 0x4C;
 constexpr int kPlayerMarkLeft = 13;
 constexpr std::uint16_t kTroopMark = 0x36;
 
+// The troop's way: dotted, in colour 0x0C; a line this wide or wider
+// goes round the planet, 400 pixels.
+constexpr std::uint8_t kRouteColour = 0x0C;
+constexpr std::uint16_t kRoutePattern = 0x5555;
+constexpr int kWrapAcross = 0x50;
+constexpr int kRingAcross = 0x190;
+
 // The end of the troops' records.
 constexpr std::size_t kTroopsEnd = 0xFBB;
 
@@ -103,10 +110,14 @@ ClipRect SpiceMap::view() const {
     return ClipRect{left_ + kViewX, top_ + kViewY, left_ + kViewX + kViewWidth, top_ + kViewY + kViewHeight};
 }
 
-void SpiceMap::open(int troop) {
+void SpiceMap::open() { openAt(0, s16(world_.u16(kWindowX)), s16(world_.u16(kWindowY))); }
+
+void SpiceMap::openFor(int troop, int left, int top) { openAt(troop, left, top); }
+
+void SpiceMap::openAt(int troop, int left, int top) {
     troop_ = troop;
-    left_ = s16(world_.u16(kWindowX));
-    top_ = s16(world_.u16(kWindowY));
+    left_ = left;
+    top_ = top;
     small_.longitude = map_.longitude();
     small_.latitude = map_.latitude();
     shown_ = true;
@@ -153,6 +164,12 @@ void SpiceMap::draw() {
     drawScale();
     drawMainView();
     drawMarker();
+    drawRoute();
+    // The panel's ornament stays in front.
+    const ClipRect f = frame();
+    const ClipRect m = map_.view();
+    map_.drawHead(ClipRect{std::max(f.left, m.left), std::max(f.top, m.top), std::min(f.right, m.right),
+                           std::min(f.bottom, m.bottom)});
     g_.selectSheet(previous);
     if (wasBack) {
         d.targetBack();
@@ -427,7 +444,123 @@ void dottedLine(Surface& to, int x0, int y0, int x1, int y1, std::uint8_t colour
         }
     }
 }
+
+// A line as the original draws it, through a pattern of 16 bits turned
+// one to the left for each pixel: a pixel is drawn when the bit that
+// comes round is set. Across or down it goes from the lower end; slanted
+// it starts at (x0, y0), which is not drawn.
+void patternLine(Surface& to, int x0, int y0, int x1, int y1, std::uint8_t colour, std::uint16_t pattern,
+                 const ClipRect& clip) {
+    auto next = [&pattern] {
+        const bool on = (pattern & 0x8000) != 0;
+        pattern = static_cast<std::uint16_t>((pattern << 1) | (on ? 1 : 0));
+        return on;
+    };
+    auto inClip = [&](int x, int y) { return x >= clip.left && x < clip.right && y >= clip.top && y < clip.bottom; };
+    const int dy = y1 - y0;
+    const int dx = x1 - x0;
+    if (dy == 0) {
+        if (y0 < clip.top || y0 >= clip.bottom) {
+            return;
+        }
+        for (int x = std::min(x0, x1); x <= std::max(x0, x1); ++x) {
+            if (next() && inClip(x, y0)) {
+                to.set(x, y0, colour);
+            }
+        }
+        return;
+    }
+    if (dx == 0) {
+        int y = std::min(y0, y1);
+        int count = std::abs(dy) + 1;
+        if (y >= 200) {
+            return;
+        }
+        if (y < 0) {
+            count += y;
+            y = 0;
+        }
+        if (x0 < clip.left || x0 >= clip.right) {
+            return;
+        }
+        for (; count > 0; --count, ++y) {
+            if (next() && inClip(x0, y)) {
+                to.set(x0, y, colour);
+            }
+        }
+        return;
+    }
+    const int sx = dx > 0 ? 1 : -1;
+    const int sy = dy > 0 ? 1 : -1;
+    int major = std::abs(dx);
+    int minor = std::abs(dy);
+    int straightX = sx;
+    int straightY = 0;
+    if (std::abs(dx) <= std::abs(dy)) {
+        std::swap(major, minor);
+        straightX = 0;
+        straightY = sy;
+    }
+    int x = x0;
+    int y = y0;
+    int error = major / 2;
+    for (int n = major; n > 0; --n) {
+        error += minor;
+        if (error >= major) {
+            error -= major;
+            x += sx;
+            y += sy;
+        } else {
+            x += straightX;
+            y += straightY;
+        }
+        if (next() && inClip(x, y)) {
+            to.set(x, y, colour);
+        }
+    }
+}
+
 } // namespace
+
+// The troop's way: a dotted line from where it is to its place, or to
+// where it goes. A line that would cross most of the window goes the
+// other way round the planet.
+void SpiceMap::drawRoute() {
+    if (troop_ == 0) {
+        return;
+    }
+    struct Point {
+        int x;
+        int y;
+        std::uint16_t lon;
+    };
+    std::vector<Point> points;
+    auto add = [&](std::uint16_t lon, int lat) {
+        Point p{0, 0, lon};
+        small_.toScreen(lon, lat, p.x, p.y);
+        points.push_back(p);
+    };
+    const std::size_t t = World::troopRecord(troop_);
+    add(world_.u16(t + 6), s16(world_.u16(t + 8)));
+    const std::size_t place = world_.u16(t + 4);
+    add(world_.u16(place + 2), s16(world_.u16(place + 4)));
+    const ClipRect v = view();
+    for (std::size_t i = 0; i + 1 < points.size(); ++i) {
+        Point a = points[i];
+        Point b = points[i + 1];
+        int across = a.x - b.x;
+        const auto turned = static_cast<std::int16_t>(static_cast<std::uint16_t>(a.lon - b.lon));
+        if ((turned < 0) != (across < 0) && std::abs(across) >= kWrapAcross) {
+            if (a.x >= v.left && a.x < v.right) {
+                std::swap(a, b);
+                across = -across;
+            }
+            a.x += across < 0 ? kRingAcross : -kRingAcross;
+        }
+        patternLine(g_.display().target(), a.x, a.y, b.x, b.y, kRouteColour, kRoutePattern, v);
+    }
+}
+
 
 void SpiceMap::drawMainView() {
     int x = 0;

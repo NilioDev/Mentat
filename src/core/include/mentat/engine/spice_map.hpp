@@ -35,8 +35,11 @@ public:
 
     // Opens the window where the state keeps it, its middle at the main
     // map's. It is drawn on the screen only: the back buffer keeps what is
-    // under it. With a troop, the window marks that troop instead of Paul.
-    void open(int troop = 0);
+    // under it.
+    void open();
+    // Opens it at (left, top) for troop `troop` to be given somewhere to
+    // go, marking the troop and its way instead of Paul.
+    void openFor(int troop, int left, int top);
     // Closes it: the screen under it comes back from the back buffer.
     void close();
     // The map has gone from the screen, and the window with it.
@@ -72,7 +75,9 @@ public:
     static constexpr int kHeight = 0x6C;
 
 private:
+    void openAt(int troop, int left, int top);
     void draw();
+    void drawRoute();
     void drawRegions();
     void drawPlaces();
     void drawBar();

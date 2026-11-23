@@ -5,7 +5,7 @@ window over the map of Dune: the planet a screen pixel to a map point,
 split into its regions, each region Paul knows coloured by its spice or
 by the work of his troops there. Choosing the command again closes it.
 Giving a troop somewhere to go uses the same window (see
-[orders.md](orders.md)).
+[orders.md](orders.md)), at another place on the screen.
 
 ## The window
 
@@ -88,6 +88,25 @@ Then, clipped to the view:
    window is open for a troop, that troop's mark instead: sprite `0x36`
    of the panel's file at the point of its place (or its own point while
    it moves), its bottom just above it.
+5. For a troop, its way: a line from its own point to its place's (or
+   destination's), in colour `0x0C`, dotted with the pattern `0x5555`
+   (below). When the two points' difference across and the difference of
+   their longitudes (as a signed 16-bit number) have different signs and
+   the first is `0x50` or more, the line goes round the planet: the point
+   that is outside the view across (the troop's, unless that one is
+   inside) moves 400 pixels towards the other.
+
+The panel's ornament head (see [map.md](map.md)) is drawn again over
+the window where the window covers the main map.
+
+A line is drawn with a 16-bit pattern that is turned one bit left for
+each pixel; the pixel is drawn, within the view, when the bit coming
+round is set. A line across or down goes from its left or top end to the other,
+both ends included. A slanted one starts at its first point, which is not
+drawn: along the longer way it moves one pixel each time, and with an
+error that starts at half the longer length and grows by the shorter
+one, it also moves along the shorter way each time the error reaches the
+longer length, which is then taken off it.
 
 ## The bar
 

@@ -59,6 +59,9 @@ bool World::cannotWork(int troop) {
     const bool was = (u8(t + 3) & kCannot) != 0;
     if (was != cannot) {
         setU8(t + 3, static_cast<std::uint8_t>(u8(t + 3) ^ kCannot));
+        if (markChanged) {
+            markChanged(troop);
+        }
         if (was) {
             restartWork(troop);
         }
@@ -74,10 +77,14 @@ void World::restartWork(int troop) {
 }
 
 void World::setOccupation(int troop, int occupation) {
-    const std::size_t t = troopRecord(troop);
-    if ((u8(t + 3) & kOccupation) == occupation) {
+    if ((u8(troopRecord(troop) + 3) & kOccupation) == occupation) {
         return;
     }
+    resetOccupation(troop, occupation);
+}
+
+void World::resetOccupation(int troop, int occupation) {
+    const std::size_t t = troopRecord(troop);
     const std::size_t place = u16(t + 4);
     if (occupation == kEcology && place == kEcologyPlace && u8(place + 0x1A) == 0) {
         occupation = kEcologyHere;
@@ -88,12 +95,21 @@ void World::setOccupation(int troop, int occupation) {
     if (!cannotWork(troop)) {
         setU16(t + 0x10, static_cast<std::uint16_t>(u16(t + 0x10) | 0x100));
     }
+    if (markChanged) {
+        markChanged(troop);
+    }
     restartWork(troop);
     if (u8(t + 3) != kWaiting) {
         // The troop has worked at this speciality.
         const int speciality = (u8(t + 3) & kOccupation) >> 2;
         setU16(t + 0x12, static_cast<std::uint16_t>(u16(t + 0x12) | ((0x2000u << speciality) & 0xFFFF)));
     }
+}
+
+void World::namePlace(std::size_t record) {
+    constexpr int kKindWords = 0x0C;
+    setU16(0x11ED, u8(record));
+    setU16(0x11EF, static_cast<std::uint16_t>(u8(record + 1) + kKindWords));
 }
 
 } // namespace mentat

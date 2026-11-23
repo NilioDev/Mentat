@@ -18,6 +18,7 @@ namespace mentat {
 class Game;
 class MapScreen;
 class Panel;
+class SpiceMap;
 class Talk;
 class World;
 
@@ -36,7 +37,7 @@ public:
     static constexpr std::uint16_t kEcology = 0x6A87;
     static constexpr std::uint16_t kCancel = 0xD2E2;
 
-    Orders(Game& game, World& world, Panel& panel, MapScreen& map, Talk& talk);
+    Orders(Game& game, World& world, Panel& panel, MapScreen& map, Talk& talk, SpiceMap& spice);
 
     bool active() const { return troop_ != 0; }
     int troop() const { return troop_; }
@@ -50,25 +51,19 @@ public:
     // Closes the orders; the caller shows the room again.
     void close();
 
-    // Runs every tick while the orders are shown: the troops' marks move.
-    void tick();
+    // Whether the small map is open for the troop to be shown where to go.
+    bool choosing() const { return choosing_; }
+    // A click on the screen while choosing, not on the commands.
+    void click(int x, int y);
+
+    // The chief's box, over the map.
+    ClipRect box() const { return box_; }
 
     // The orders are over and Paul is back in the room.
     std::function<void()> finished;
-
-    // A troop's mark on the map: its picture (frames of three bytes in
-    // the program, a sprite and how far it moves, ending at a sprite 0)
-    // and where it is now.
-    struct Mark {
-        int troop = 0;
-        std::size_t frames = 0; // the first frame
-        std::size_t next = 0;   // the frame shown at the next step
-        int sprite = 0;
-        ClipRect rect{};
-        bool animated = false;
-        bool chosen = false; // the ring around the troop given orders
-    };
-    const std::vector<Mark>& marks() const { return marks_; }
+    // The troop was sent somewhere: the orders are over and the map stays,
+    // with its own commands.
+    std::function<void()> sent;
 
 private:
     void drawBox();
@@ -76,25 +71,20 @@ private:
     void occupationMenu();
     void specialize(int occupation);
     void say(int list);
+    void chooseDestination();
+    void stopChoosing();
+    void confirmDestination(std::size_t place);
     std::array<int, 7> freeEquipment(std::size_t place) const;
-    std::size_t markFrames(int troop) const;
-    bool markPoint(int troop, int placeX, int placeY, int& x, int& y) const;
-    void addMark(int troop, std::size_t frames, int x, int y, bool chosen);
-    void drawMarks();
-    void stepMark(Mark& m);
-    void redraw(const ClipRect& region);
 
     Game& g_;
     World& world_;
     Panel& panel_;
     MapScreen& map_;
     Talk& talk_;
+    SpiceMap& spice_;
     int troop_ = 0;
+    bool choosing_ = false;
     ClipRect box_{};
-    std::vector<Mark> marks_;
-    Surface base_{320, 200}; // the map without the marks
-    std::uint32_t lastStep_ = 0;
-    int steps_ = 0;
 };
 
 } // namespace mentat

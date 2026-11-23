@@ -218,11 +218,21 @@ public:
                  [this]() -> std::vector<std::uint8_t>& { return map_.mapBytes(); }),
           globe_(game, world_, panel_, map_, language, &saves_), cockpit_(game, world_, panel_, map_),
           flight_(game, world_, panel_, map_), spice_(game, world_, panel_, map_),
-          orders_(game, world_, panel_, map_, talk_) {
+          orders_(game, world_, panel_, map_, talk_, spice_) {
         talk_.subtitles = subtitlesFor(language);
         talk_.enlisted = [this] { enlistFremen(); };
         talk_.ordersAsked = [this] { openOrders(); };
         orders_.finished = [this] { toggleMap(); };
+        orders_.sent = [this] { stayOnMap(); };
+        world_.markChanged = [this](int troop) { map_.markChanged(troop); };
+        world_.markMoved = [this](int troop) { map_.markMoved(troop); };
+        // The troops' marks stay under the chief's box and the small map.
+        map_.windows = [this] {
+            return orders_.active() ? std::vector<ClipRect>{orders_.box()} : std::vector<ClipRect>{};
+        };
+        map_.covers = [this] {
+            return spice_.shown() ? std::vector<ClipRect>{spice_.frame()} : std::vector<ClipRect>{};
+        };
         g_.places().personOf = [this](int c, int& down) { return personOf(c, down); };
     }
 
@@ -240,7 +250,6 @@ public:
             }
             if (map_.active()) {
                 map_.tick();
-                orders_.tick();
             }
             if (flight_.active()) {
                 flight_.tick();
@@ -444,11 +453,15 @@ private:
         const auto& zones = panel_.zones();
         const int line = commandUnder(x, y);
         if (orders_.active()) {
-            // Anything but an order that can be given ends the orders.
+            // Anything but an order that can be given ends the orders;
+            // while the troop is shown where to go, the small map takes the
+            // clicks.
             const auto& commands = panel_.commands();
             if (line >= 0 && static_cast<std::size_t>(line) < commands.size() &&
                 !(commands[static_cast<std::size_t>(line)].phrase & Command::kGrey)) {
                 choose(commands[static_cast<std::size_t>(line)].action, commands[static_cast<std::size_t>(line)].phrase);
+            } else if (orders_.choosing()) {
+                orders_.click(x, y);
             } else {
                 choose(Orders::kNoMoreOrders);
             }
@@ -684,6 +697,14 @@ private:
         world_.setU8(kMapShown, static_cast<std::uint8_t>(~world_.u8(kMapShown)));
         orders_.open(troop);
         chooseMusic();
+        lit_ = -1;
+    }
+
+    // A troop was sent somewhere: the chief's box goes and the map stays
+    // as it was, with its own commands.
+    void stayOnMap() {
+        map_.enter(map_.longitude(), map_.latitude());
+        d_.copyRect(d_.back(), d_.screen(), ClipRect{0, 0, 320, 200});
         lit_ = -1;
     }
 
@@ -1349,6 +1370,11 @@ private:
 
     // A new part of the day: the clock on the panel and the sky follow.
     void newHour() {
+        // The troops on their way step on, but the one given orders. The
+        // original draws the state's word 0 afresh at every turn of its
+        // main loop; the steps turn it for their dice.
+        world_.setU16(0, static_cast<std::uint16_t>(g_.random2()));
+        world_.moveTroops(orders_.troop(), map_.flatMap());
         d_.targetScreen();
         panel_.drawZones(1, 1);
         panel_.drawClock(world_);

@@ -8,8 +8,10 @@
 #include "mentat/engine/flat_map.hpp"
 #include "mentat/engine/panel.hpp"
 #include "mentat/gfx/scene.hpp"
+#include "mentat/gfx/surface.hpp"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -49,7 +51,7 @@ public:
     void leave();
 
     // Runs every tick while the map is shown: the box goes 1000 ticks
-    // after the last click.
+    // after the last click, and the troops' marks move.
     void tick();
     void clicked();
     // A click on the map at (x, y): the label of the place nearest to it,
@@ -70,6 +72,9 @@ public:
     // Takes the box that names the map, or a place's label, off the screen.
     void hideBox();
     void hideLabel();
+    // The head of the panel's ornament, which stands over the map's
+    // bottom, drawn within `clip`.
+    void drawHead(const ClipRect& clip);
 
     // The map's points as they are now (with the marks the game adds).
     std::vector<std::uint8_t>& mapBytes() { return map().bytes(); }
@@ -92,6 +97,35 @@ public:
     const std::vector<Shown>& shownPlaces() const { return shown_; }
     // Where place `record` is drawn on the screen, if it is.
     bool placeOnScreen(std::size_t record, int& x, int& y) const;
+    // --- The troops' marks (see docs/rules/orders.md)
+
+    // A troop's mark on the map: its picture (frames of three bytes in
+    // the program, a sprite and how far it moves, ending at a sprite 0)
+    // and where it is now.
+    struct Mark {
+        int troop = 0;
+        std::size_t frames = 0; // the first frame
+        std::size_t next = 0;   // the frame shown at the next step
+        int sprite = 0;
+        ClipRect rect{};
+        bool animated = false;
+        bool chosen = false; // the ring around the troop given orders
+    };
+    const std::vector<Mark>& marks() const { return marks_; }
+    // The troop given orders, ringed when the map is drawn; 0 for none.
+    void choose(int troop) { chosen_ = troop; }
+    // What stands over the map, which the marks stay under as they move:
+    // windows drawn on both buffers, and covers on the screen only
+    // (besides the map's own box and label).
+    std::function<std::vector<ClipRect>()> windows;
+    std::function<std::vector<ClipRect>()> covers;
+    // A troop's mark, after its occupation or its way changed: the mark
+    // it has goes, and comes back as it is now if it is in sight.
+    void markChanged(int troop);
+    // A troop on its way has moved: its mark follows it, comes into
+    // sight or goes.
+    void markMoved(int troop);
+
     // The map's point at the middle of the view.
     std::uint16_t longitude() const { return longitude_; }
     int latitude() const { return latitude_; }
@@ -113,6 +147,18 @@ private:
     // Where map point (longitude, latitude) is on the screen.
     void toScreen(std::uint16_t longitude, int latitude, int& x, int& y) const;
     bool inView(int x, int y) const;
+    ClipRect boxRect() const;
+    std::size_t markFrames(int troop) const;
+    std::size_t movingFrames(int troop) const;
+    bool markPoint(int troop, int& x, int& y) const;
+    bool movingPoint(int troop, int& x, int& y) const;
+    ClipRect markRect(int sprite, int x, int y) const;
+    void addMark(int troop, std::size_t frames, int x, int y, bool chosen);
+    void drawMarks();
+    void stepMarks();
+    void stepMark(Mark& m);
+    void redrawMarks(const ClipRect& region);
+    int findMark(int troop) const;
 
     Game& g_;
     World& world_;
@@ -126,6 +172,11 @@ private:
     std::uint32_t lastClick_ = 0;
     std::uint16_t longitude_ = 0;
     int latitude_ = 0;
+    int chosen_ = 0;
+    std::vector<Mark> marks_;
+    Surface base_{320, 200}; // the map without the marks
+    std::uint32_t lastStep_ = 0;
+    int steps_ = 0;
 };
 
 } // namespace mentat

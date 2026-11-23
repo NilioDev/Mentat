@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <span>
 #include <vector>
 
@@ -131,7 +132,30 @@ public:
     bool cannotWork(int troop);
     // The troop's work starts again from now.
     void restartWork(int troop);
+    // Its occupation is set again even when it has it, its work starting
+    // over.
+    void resetOccupation(int troop, int occupation);
+    // The words a line can say for place `record`: its name and its kind.
+    void namePlace(std::size_t record);
 
+    // --- Troops on the move (see docs/rules/moves.md)
+    // Takes troop `troop` out of its place's chain, and puts it at the end
+    // of the chain of `place`; returns its turn there.
+    void unlinkTroop(int troop);
+    int linkTroop(int troop, std::size_t place);
+    // The troop sets off for `place`, and makes its first steps.
+    void startMove(int troop, std::size_t place, const FlatMap& map);
+    // Up to `steps` steps towards its destination; true when it arrived.
+    bool stepTroop(int troop, int steps, const FlatMap& map);
+    // Each hour: the troops on the move step on, but troop `except`.
+    void moveTroops(int except, const FlatMap& map);
+    // Turns the state's word 0 one bit left; true for the bit that came
+    // round.
+    bool turnSeed();
+    // Told when a troop's mark on the map should change: what it does or
+    // where it heads changed, or it moved on its way.
+    std::function<void(int troop)> markChanged;
+    std::function<void(int troop)> markMoved;
 
     // The places and their troops as the program sets them up when it
     // starts: each place moves onto the nearest point of the map, which is
@@ -154,6 +178,10 @@ public:
 
 private:
     int harvest(std::size_t troop);
+    void arrive(int troop);
+    void settle(int troop);
+    void lowerSpirits(std::size_t troop, int by);
+    void heldEquipment(std::size_t troop, std::size_t place, int change);
 
     static constexpr std::size_t kClock = 0x02;
     static constexpr std::size_t kPlaceRecord = 0x114E;

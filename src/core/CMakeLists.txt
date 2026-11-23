@@ -15,6 +15,7 @@ add_library(mtt_core STATIC
     src/engine/game.cpp
     src/engine/flat_map.cpp
     src/engine/map_screen.cpp
+    src/engine/map_marks.cpp
     src/engine/globe.cpp
     src/engine/cockpit.cpp
     src/engine/flight.cpp
@@ -35,6 +36,7 @@ add_library(mtt_core STATIC
     src/engine/world.cpp
     src/engine/world_people.cpp
     src/engine/world_troops.cpp
+    src/engine/world_moves.cpp
     src/engine/orders.cpp
     src/engine/dialogue.cpp
     src/engine/saved_games.cpp
