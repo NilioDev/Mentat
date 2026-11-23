@@ -31,6 +31,7 @@ constexpr std::uint16_t kComeWithMePhrase = 0x91;
 constexpr std::uint16_t kStopFollowingPhrase = 0x92;
 constexpr std::uint16_t kWhatPhrase = 0x95;
 constexpr std::uint16_t kStopTalkingPhrase = 0x94;
+constexpr std::uint16_t kViewedPhrase = 0xD9;
 
 // The characters' records in the state: 16 bytes each.
 constexpr std::size_t kCharacters = 0xFD8;
@@ -622,6 +623,48 @@ bool Talk::sceneLine(int c, int x, int y, int face, int variant) {
     }
     prepareCondition();
     const auto found = dialogue_.find(*list, DialogueLine::kSaid, [this](int n) { return condition(n); });
+    if (!found) {
+        return false;
+    }
+    sayLine(*found, false);
+    return true;
+}
+
+bool Talk::news(int c, int x, int y) {
+    endRemark();
+    character_ = c;
+    remark_ = true;
+    host_.showPointer(false);
+    Talker& talker = game_.talker();
+    talker.halt();
+    talker.overlay = [this](const ClipRect& dirty) {
+        if (subtitle_.shown && dirty.bottom > subtitle_.top) {
+            drawSubtitle(&dirty);
+        }
+    };
+    subtitle_.shown = false;
+    drawBackground(x, y);
+    talker.show(c, 0, 0, game_.textWords);
+    host_.keepOrnamentBackground();
+    showScene();
+    host_.showPointer(true);
+    panel_.setCommands({Command{kViewedPhrase, kViewed}, Command{kWhatPhrase, kWhat}});
+    host_.menuChanged();
+    Display& d = game_.display();
+    d.targetScreen();
+    panel_.drawCommands();
+    d.targetBack();
+    panel_.drawCommands();
+
+    pages_.clear();
+    resume_.reset();
+    finished_ = false;
+    const auto list = dialogue_.list(static_cast<std::size_t>(c * Dialogue::kListsPerCharacter + kSpeakUpList));
+    if (!list) {
+        return false;
+    }
+    prepareCondition();
+    const auto found = dialogue_.find(*list, DialogueLine::kOnceMore, [this](int n) { return condition(n); });
     if (!found) {
         return false;
     }

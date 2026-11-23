@@ -9,6 +9,7 @@
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/globe_screen.hpp"
 #include "mentat/engine/map_screen.hpp"
+#include "mentat/engine/message_room.hpp"
 #include "mentat/engine/orders.hpp"
 #include "mentat/engine/panel.hpp"
 #include "mentat/engine/places.hpp"
@@ -254,11 +255,26 @@ public:
                  [this]() -> std::vector<std::uint8_t>& { return map_.mapBytes(); }),
           globe_(game, world_, panel_, map_, language, &saves_), cockpit_(game, world_, panel_, map_),
           flight_(game, world_, panel_, map_), spice_(game, world_, panel_, map_),
-          orders_(game, world_, panel_, map_, talk_, spice_), vision_(game, world_, map_) {
+          orders_(game, world_, panel_, map_, talk_, spice_), vision_(game, world_, map_),
+          messageRoom_(game, world_, panel_, talk_) {
         talk_.subtitles = subtitlesFor(language);
         talk_.enlisted = [this] { enlistFremen(); };
         talk_.ordersAsked = [this] { openOrders(); };
         orders_.finished = [this] { toggleMap(); };
+        messageRoom_.drawRoom = [this] {
+            d_.targetBack();
+            drawView();
+        };
+        messageRoom_.backToRoom = [this] {
+            // The room's commands come back; the scene on the screen stays
+            // as the device left it.
+            d_.targetBack();
+            drawView();
+            d_.copyRect(d_.back(), d_.screen(), ClipRect{0, kSceneBottom, 320, 200});
+            openOrnament();
+            quietSince_ = g_.platform().ticks;
+        };
+        messageRoom_.ended = [this](int reason) { gameOver(reason); };
         orders_.sent = [this] { stayOnMap(); };
         world_.markChanged = [this](int troop) { map_.markChanged(troop); };
         world_.markMoved = [this](int troop) { map_.markMoved(troop); };
@@ -375,7 +391,7 @@ private:
     // while his place is at war).
     void checkMessages() {
         if (over_ || talk_.active() || map_.active() || globe_.active() || cockpit_.active() || flight_.active() ||
-            orders_.active() || noticeShown_ || !world_.inside()) {
+            orders_.active() || noticeShown_ || messageRoom_.active() || !world_.inside()) {
             return;
         }
         if (world_.u8(kProgress) <= kMessagesFrom || world_.u8(World::kMessageQueue) == 0) {
@@ -408,7 +424,7 @@ private:
     // step 0x14, a long quiet outside with nobody along moves it on.
     void checkStory() {
         if (scene_ || over_ || talk_.active() || map_.active() || globe_.active() || cockpit_.active() || flight_.active() ||
-            orders_.active() || noticeShown_) {
+            orders_.active() || noticeShown_ || messageRoom_.active()) {
             return;
         }
         if (world_.scene != 0 && !scene_) {
@@ -800,6 +816,7 @@ private:
             if (static_cast<std::size_t>(line) < commands.size()) {
                 const Command c = commands[static_cast<std::size_t>(line)];
                 if (!(c.phrase & Command::kGrey)) {
+                    chosenLine_ = line;
                     choose(c.action, c.phrase);
                 }
             }
@@ -868,6 +885,9 @@ private:
             }
             return;
         }
+        if (messageRoom_.active()) {
+            return;
+        }
         for (int i = 0; i < 4; ++i) {
             const Zone& z = zones[static_cast<std::size_t>(Panel::kArrows + 1 + i)];
             if ((z.flags & Zone::kActive) && z.contains(x, y)) {
@@ -887,6 +907,12 @@ private:
         }
         if (talk_.command(action)) {
             return;
+        }
+        if (messageRoom_.command(action, chosenLine_)) {
+            return;
+        }
+        if (messageRoom_.active() && talk_.active()) {
+            return; // only "Viewed" ends the news
         }
         if (action == MapScreen::kToggle) {
             toggleMap();
@@ -1576,6 +1602,7 @@ private:
         // The state's sign of the map being shown.
         world_.setU8(kMapShown, static_cast<std::uint8_t>(-world_.u8(kMapShown)));
         if (!map_.active()) {
+            messageRoom_.leave();
             map_.enter();
             chooseMusic();
             map_.show();
@@ -2002,6 +2029,7 @@ private:
     SpiceMap spice_;
     Orders orders_;
     Vision vision_;
+    MessageRoom messageRoom_;
     // When the room was last shown: a message waits a while after it.
     bool scene_ = false;
     std::uint16_t sceneAt_ = 0;
@@ -2010,6 +2038,7 @@ private:
     std::vector<int> sceneStanding_;
     std::size_t sceneMenu_ = 0;
     bool sceneBlink_ = false;
+    int chosenLine_ = -1; // the panel's line of the last command chosen
     std::uint32_t quietSince_ = 0;
     World::People people_;
     std::size_t chief_ = 0; // which of the chiefs here Paul talks to

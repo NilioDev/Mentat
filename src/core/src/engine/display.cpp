@@ -369,6 +369,44 @@ void Display::rise() {
 
 // Blocks of 8 × 4 pixels of the new picture, in a square spiral out from
 // (156, 74): one side of the spiral a tick.
+// The back picture comes pixel by pixel in an order that looks random:
+// a 16-bit number from 1, shifted right with 0x4400 mixed in for each bit
+// shifted out, names the pixel, and the one 0x7FFE further on goes with
+// it; 150 steps a tick, until the number is 1 again. Pixel 0 comes last.
+void Display::sparkle() {
+    constexpr int kStepsPerTick = 0x96;
+    const std::size_t origin = static_cast<std::size_t>(originRows_) * Surface::kScreenWidth;
+    const std::size_t area = static_cast<std::size_t>(kSceneRows) * Surface::kScreenWidth;
+    const std::size_t size = screen_->size();
+    auto copy = [&](std::size_t at) {
+        if (origin + at < size) {
+            screen_->data()[origin + at] = back_->data()[origin + at];
+        }
+    };
+    std::uint32_t due = platform_.ticks;
+    unsigned n = 1;
+    int steps = kStepsPerTick;
+    for (;;) {
+        copy(n);
+        if (n + 0x7FFE < area) {
+            copy(n + 0x7FFE);
+        }
+        const bool out = (n & 1) != 0;
+        n >>= 1;
+        if (out) {
+            n ^= 0x4400;
+        }
+        if (n == 1) {
+            break;
+        }
+        if (--steps == 0) {
+            steps = kStepsPerTick;
+            due = waitUntil(due + 1);
+        }
+    }
+    copy(0);
+}
+
 void Display::spiral() {
     const int w = Surface::kScreenWidth;
     const int size = static_cast<int>(screen_->size());
@@ -417,6 +455,9 @@ void Display::transition(int type, int direction) {
         break;
     case kSpiral:
         spiral();
+        break;
+    case kSparkle:
+        sparkle();
         break;
     case kMosaic: {
         static constexpr std::array<int, 3> kOut{2, 4, 8};

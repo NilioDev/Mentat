@@ -118,6 +118,16 @@ MTT_TEST("display: the dissolve ends on the new picture") {
     MTT_CHECK_THROWS(d.transition(0x04));
 }
 
+MTT_TEST("display: the sparkle brings the picture 150 steps a tick") {
+    Platform p;
+    Display d(p, tables());
+    prepareChange(d);
+    const std::uint32_t ticks = runGame(p, [&] { d.transition(Display::kSparkle); });
+    // 32767 steps of the number, two pixels each.
+    MTT_CHECK(ticks >= 218 && ticks < 225);
+    MTT_CHECK(p.screen.at(0, 0) == 2 && p.screen.at(319, 151) == 2);
+}
+
 MTT_TEST("display: the rise moves the old picture up with a band under it") {
     Platform p;
     Display d(p, tables());
