@@ -1219,3 +1219,23 @@ MTT_TEST("world: a troop fetches equipment from the nearest place that has it fr
     MTT_CHECK(!(w.u8(t + 3) & 0x40) && (w.u8(t + 3) & 0x0F) == 0 && w.u8(home + 9) == 1);
     MTT_CHECK(w.u8(home + 0x15) == 1);
 }
+
+MTT_TEST("world: Jessica's powers let Paul reach his troops further off") {
+    World w;
+    w.setU16(0x1176, 1);
+    w.setU8(0x29, 0x10);
+    w.jessicaTeaches();
+    MTT_CHECK(w.u16(0x1176) == 0x1E && w.u8(0x29) == 0x1A && w.u8(0xD5) == 0x80 - 5);
+    w.jessicaTeaches();
+    MTT_CHECK(w.u16(0x1176) == 0x32 && w.u8(0x29) == 0x1A && w.u8(0xD5) == 0x80 - 8);
+    // After the water of life, everywhere.
+    w.setU8(0x0A, 0x02);
+    w.jessicaTeaches();
+    MTT_CHECK(w.u16(0x1176) == 0xFFE2 && w.u8(0x29) == 0x42 && w.u8(0xD5) == 0);
+    // The captain gives away the place last learnt.
+    const std::size_t place = World::placeRecord(9);
+    w.setU8(place + 0x0A, 0x81);
+    w.setU16(0x11CE, static_cast<std::uint16_t>(place));
+    w.revealLearnedPlace();
+    MTT_CHECK(w.u8(place + 0x0A) == 0x01);
+}

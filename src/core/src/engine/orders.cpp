@@ -27,6 +27,11 @@ namespace {
 // The program's lists of commands: the orders, and the occupations to
 // choose from by what the troop does now.
 constexpr std::size_t kOrdersList = 0x210A;
+constexpr std::size_t kFarOrders = 0x2122;    // NEXT TROOP, NO MORE ORDERS: a troop out of reach
+constexpr std::size_t kMovingOrders = 0x214A; // CHANGE DESTINATION, NEXT TROOP, Cancel
+constexpr std::uint16_t kNoMorePhrase = 0x52;
+constexpr std::uint16_t kCutContact = 0x53;   // the last order's phrase when given from the map
+constexpr std::size_t kReach = 0x1176;        // how far Paul reaches his troops
 constexpr std::size_t kFirstOccupations = 0x215A; // waiting for orders
 constexpr std::size_t kSpiceOccupations = 0x216E;
 constexpr std::size_t kArmyOccupations = 0x2182;
@@ -144,8 +149,10 @@ std::uint16_t grey(std::uint16_t phrase, bool greyed) {
 Orders::Orders(Game& game, World& world, Panel& panel, MapScreen& map, Talk& talk, SpiceMap& spice)
     : g_(game), world_(world), panel_(panel), map_(map), talk_(talk), spice_(spice) {}
 
-void Orders::open(int troop) {
+void Orders::open(int troop, bool fromRoom) {
     troop_ = troop;
+    fromRoom_ = fromRoom;
+    last_ = troop;
     Display& d = g_.display();
     d.targetBack();
     map_.choose(troop);
@@ -242,13 +249,21 @@ void Orders::say(int list) {
 
 // The orders, greyed by what the troop can be asked now.
 void Orders::setMenu() {
-    std::vector<Command> commands = readCommands(g_.resources().program(), kOrdersList);
-    if (commands.size() == 5) {
-        const std::size_t t = World::troopRecord(troop_);
-        const int occupation = world_.u8(t + 3) & 0x0F;
+    const std::size_t t = World::troopRecord(troop_);
+    const int job = world_.u8(t + 3);
+    list_ = kOrdersList;
+    if (world_.troopDistance(troop_, map_.flatMap()) > world_.u16(kReach) || ((job & 0x20) && job != 0x22)) {
+        list_ = kFarOrders;
+    } else if (job & 0x40) {
+        list_ = kMovingOrders;
+    }
+    std::vector<Command> commands = readCommands(g_.resources().program(), list_);
+    if (list_ == kOrdersList && commands.size() == 5) {
+        const int occupation = job & 0x0F;
         Command& change = commands[1];
         Command& equipment = commands[2];
         Command& move = commands[3];
+        commands[4].phrase = fromRoom_ ? kNoMorePhrase : kCutContact;
         change.phrase = grey(kChangeOccupation, true);
         equipment.phrase = grey(equipment.phrase, true);
         move.phrase = grey(move.phrase, true);
@@ -700,6 +715,48 @@ void Orders::answer(std::uint8_t situation) {
     }
 }
 
+void Orders::leave(bool leaveMap) {
+    close();
+    if (leaveMap) {
+        if (finished) {
+            finished();
+        }
+    } else if (sent) {
+        sent();
+    }
+}
+
+int Orders::nextMarkedTroop(int after) const {
+    int best = 0;
+    int bestStep = 0x100;
+    for (const MapScreen::Mark& m : map_.marks()) {
+        if (m.troop == 0 || world_.u8(World::troopRecord(m.troop) + 3) >= 0x80) {
+            continue;
+        }
+        const int step = (m.troop - after) & 0xFF;
+        if (step != 0 && step <= bestStep) {
+            bestStep = step;
+            best = m.troop;
+        }
+    }
+    return best;
+}
+
+// "NEXT TROOP": the orders go to the next troop the map marks; one at
+// Paul's place only, while he reaches no further.
+void Orders::nextTroop() {
+    const int next = nextMarkedTroop(troop_);
+    if (next == 0) {
+        return;
+    }
+    if (world_.u16(kReach) < 2 && world_.u16(World::troopRecord(next) + 4) != World::placeRecord(world_.place() >> 8)) {
+        return;
+    }
+    const bool fromRoom = fromRoom_;
+    close();
+    open(next, fromRoom);
+}
+
 void Orders::click(int x, int y) {
     if (equipping_) {
         clickEquipment(x, y);
@@ -731,19 +788,17 @@ bool Orders::command(std::uint16_t action) {
         }
         if (choosing_) {
             stopChoosing();
+        } else if (list_ == kMovingOrders) {
+            leave(false); // the troop on the move is left
+            return true;
         }
         setMenu();
         return true;
     case kMove: chooseDestination(); return true;
-    case kNoMoreOrders:
-    case kLeaveTroop:
-        close();
-        if (finished) {
-            finished();
-        }
-        return true;
+    case kNoMoreOrders: leave(fromRoom_); return true;
+    case kLeaveTroop: leave(false); return true;
     case kEquipment: openEquipment(); return true;
-    case kNextTroop: return true; // not built yet
+    case kNextTroop: nextTroop(); return true;
     default: return false;
     }
 }

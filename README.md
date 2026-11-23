@@ -53,7 +53,10 @@ and touch controls.
 > place on the small map of the regions, and if the chief agrees the troop
 > sets off and walks there hour by hour, its mark crossing the map. A
 > troop that reaches a Harkonnen fort, or a place being fought over,
-> where nobody else is takes it; taking a
+> where nobody else is takes it. As Jessica teaches Paul her powers he
+> reaches his troops from further off: "CONTACT FREMEN TROOPS" on the map
+> then gives orders to troops far away, and "NEXT TROOP" goes from one to
+> the next. Taking a
 > Harkonnen fort raises your charisma and your troops' spirits. Hour by
 > hour your troops work: they mine spice into your stock (and a harvester
 > may meet a worm), prospect places, train for the army, build wind-traps

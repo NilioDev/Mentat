@@ -49,6 +49,10 @@ constexpr int kOrnamentTicks = 8;
 
 // Commands the program keeps as (phrase, action) pairs.
 constexpr std::size_t kTakeOrnithopter = 0x21DC;
+constexpr std::uint16_t kContactTroops = 0x86CC; // the map's "contact Fremen troops"
+constexpr std::size_t kRallied = 0x28;           // how many troops work for Paul
+constexpr std::size_t kReach = 0x1176;           // how far Paul reaches his troops
+constexpr int kLastFremenTroop = 0x43;
 constexpr std::size_t kNewMessages = 0x21E8;
 constexpr std::size_t kOldMessages = 0x21EC;
 constexpr std::size_t kLookAtMirror = 0x21F0;
@@ -1585,7 +1589,41 @@ private:
             }
             return false;
         }
+        if (map_.active() && action == kContactTroops) {
+            contactTroops();
+            return true;
+        }
         return map_.command(action);
+    }
+
+    // "Contact Fremen troops" on the map: the orders of the troop at Paul's
+    // place while he reaches no further; otherwise of the troop last given
+    // orders, or the next one the map marks.
+    void contactTroops() {
+        if (world_.u8(kRallied) == 0) {
+            return;
+        }
+        int troop = 0;
+        if (world_.u16(kReach) < 2) {
+            if (world_.inside()) {
+                troop = world_.u8(World::placeRecord(world_.place() >> 8) + 9);
+            }
+        } else {
+            const int last = orders_.lastTroop();
+            bool marked = false;
+            for (const MapScreen::Mark& m : map_.marks()) {
+                marked = marked || (last != 0 && m.troop == last);
+            }
+            troop = marked ? last : orders_.nextMarkedTroop(0);
+        }
+        if (troop == 0 || troop > kLastFremenTroop) {
+            return;
+        }
+        map_.hideBox();
+        map_.hideLabel();
+        orders_.open(troop, false);
+        chooseMusic();
+        lit_ = -1;
     }
 
     // A click while the small map of the regions is shown; false when it

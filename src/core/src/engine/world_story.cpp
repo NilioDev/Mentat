@@ -235,4 +235,31 @@ void World::quietAtStep14() {
     }
 }
 
+// --- Jessica's powers (see docs/rules/jessica.md)
+
+void World::jessicaTeaches() {
+    constexpr std::size_t kReach = 0x1176;
+    constexpr std::size_t kStoryFlags = 0x0A;
+    constexpr std::size_t kCalling = 0xD5;
+    unsigned reach = u16(kReach);
+    if (u8(kStoryFlags) & 0x02) {
+        // After the water of life: everywhere.
+        raiseCharisma(0x28);
+        reach = 0xFFCE;
+    } else if (reach == 1) {
+        raiseCharisma(0x0A);
+        reach = 0x0A;
+    }
+    reach = (reach + 0x14) & 0xFFFF;
+    setU16(kReach, static_cast<std::uint16_t>(reach));
+    setU8(kCalling, static_cast<std::uint8_t>(reach >= 100 ? 0 : 0x80 - reach / 6));
+}
+
+void World::revealLearnedPlace() {
+    const std::size_t place = u16(0x11CE);
+    if (place >= kPlaces && place + kPlaceSize <= kTroops) {
+        setU8(place + 0x0A, static_cast<std::uint8_t>(u8(place + 0x0A) & 0x7F));
+    }
+}
+
 } // namespace mentat

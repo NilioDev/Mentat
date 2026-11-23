@@ -48,11 +48,16 @@ public:
 
     bool active() const { return troop_ != 0; }
     int troop() const { return troop_; }
+    // The troop last given orders, 0 at first.
+    int lastTroop() const { return last_; }
 
-    // Opens the orders for troop `troop` from a talk with its chief: the
-    // map around the place, dissolved onto the screen, and the chief's
-    // box over it.
-    void open(int troop);
+    // Opens the orders for troop `troop`, from a talk with its chief
+    // (`fromRoom`) or from the map: the map around the place, dissolved
+    // onto the screen, and the chief's box over it.
+    void open(int troop, bool fromRoom = true);
+    // The troop after `after` (by number, going round) of Paul's that the
+    // map marks; 0 when none.
+    int nextMarkedTroop(int after) const;
     // A command of the orders. False when it is not one.
     bool command(std::uint16_t action);
     // Closes the orders; the caller shows the room again.
@@ -73,13 +78,17 @@ public:
 
     // The orders are over and Paul is back in the room.
     std::function<void()> finished;
-    // The troop was sent somewhere: the orders are over and the map stays,
-    // with its own commands.
+    // The troop was sent somewhere, or left: the orders are over and the
+    // map stays, with its own commands.
     std::function<void()> sent;
 
 private:
     void drawBox();
     void setMenu();
+    void nextTroop();
+    // The orders end; the map stays, or with `leaveMap` (orders given in
+    // the room) Paul goes back to the room.
+    void leave(bool leaveMap);
     void occupationMenu();
     void specialize(int occupation);
     // An occupation of the troop's speciality: its bits 0 and 1.
@@ -115,6 +124,10 @@ private:
     Talk& talk_;
     SpiceMap& spice_;
     int troop_ = 0;
+    int last_ = 0;
+    bool fromRoom_ = true;
+    // Which list of orders is shown (its data offset).
+    std::size_t list_ = 0;
     bool choosing_ = false;
     ClipRect box_{};
     // The last line of news showed the troop's equipment.

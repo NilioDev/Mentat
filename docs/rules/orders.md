@@ -2,7 +2,9 @@
 
 Paul gives orders to a troop of his through its chief: "give orders to
 troop" in a talk with the chief (see [people.md](people.md)) ends the talk
-and opens the orders.
+and opens the orders. From the map, "contact Fremen troops" opens them
+too (see [map.md](map.md#the-commands)), and "next troop" goes from one
+troop to the next.
 
 ## Opening
 
@@ -48,8 +50,21 @@ box, as when modifying it (below).
 
 ## The commands
 
-The orders are the list at `0x210A`: ask for more information, change the
-troop's occupation, modify its equipment, move it, and no more orders.
+Which list of orders is shown depends on the troop. How far it is from
+Paul is the larger of the longitudes' difference (taken as a signed
+number, made positive) divided by the size of a point at Paul's latitude
+(see [map.md](map.md)) and the latitudes' difference.
+
+- Further than Paul reaches (word `0x1176`, see
+  [jessica.md](jessica.md)), or with bit 5 of byte 3 and byte 3 not
+  `0x22`: the list at `0x2122`, "next troop" and "no more orders" (which
+  leaves the troop, the map staying).
+- On the move (byte 3 bit 6): the list at `0x214A`, "change destination"
+  (as "move troop"), "next troop" and "cancel", which leaves the troop,
+  the map staying.
+- Otherwise the list at `0x210A`: ask for more information, change the
+  troop's occupation, modify its equipment, move it, and no more orders;
+  given from the map, the last is phrase `0x53`, "cut contact", instead.
 
 - The occupation, the equipment and the move start greyed, and stay so
   while the troop's word `0x12` has bit 10.
@@ -65,9 +80,19 @@ troop's occupation, modify its equipment, move it, and no more orders.
   counts from byte `0x14`, less one for each of its troops holding that
   piece: bit 7 of the troop's byte `0x19` is the first count.
 
-"No more orders" closes the orders and the map, back to the room. So
-does any click while the orders are shown that is not on a command that
-can be used: on a greyed one, the map, the arrows or the panel.
+In the list at `0x210A`, "no more orders" closes the orders and the map,
+back to the room, when they were given in the room; given from the map,
+"cut contact" closes the orders and the map stays with its commands. Any
+click while the orders are shown that is not on a command that can be
+used (on a greyed one, the map, the arrows or the panel) does the same.
+
+### Next troop
+
+"Next troop" looks through the troops the map marks, Paul's only (byte 3
+below `0x80`), for the one whose number comes next after the troop's,
+going round after 255. With none, nothing happens; while Paul reaches no
+further than 1, nor when that troop is not at Paul's place. Otherwise the
+troop is left as below and the orders open for the next one.
 
 When the orders end, by any way, the troop is left: when its word `0x12`
 has bit 11 and the story is at `0x60` to `0x63`, the story moves on to

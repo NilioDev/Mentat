@@ -144,6 +144,7 @@ constexpr int kEntranceHall = 1;
 constexpr int kDuncan = 3;
 constexpr int kStilgar = 5;
 constexpr int kSmuggler = 13;
+constexpr int kJessica = 1;
 constexpr int kSmugglerStep = 0x3C; // the story step a smuggler's offer brings
 constexpr std::size_t kBillWord = 0x20; // the bill of the smuggler spoken of
 constexpr std::size_t kPrice = 0x9D;    // the smuggler's price
@@ -497,7 +498,11 @@ void Talk::runAction(const DialogueLine& line) {
     case 6: endAfter_ = true; break;
     case 7: answer_ = 0x80; break;
     case 8:
-        if (character_ == kDuncan) {
+        if (character_ == kJessica) {
+            world_.jessicaTeaches();
+        } else if (character_ == kCaptain) {
+            world_.revealLearnedPlace();
+        } else if (character_ == kDuncan) {
             world_.prepareShipment();
         } else if (character_ == kStilgar) {
             afterSpeech_ = true;
@@ -543,8 +548,8 @@ void Talk::runAction(const DialogueLine& line) {
         }
         break;
     default:
-        // The others start things this port does not have yet (Jessica's
-        // powers, the chiefs' places).
+        // The others start things this port does not have yet (the
+        // chiefs' places).
         break;
     }
 }
