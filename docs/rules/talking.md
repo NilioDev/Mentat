@@ -134,6 +134,38 @@ When the talk ends and the character goes with Paul, it takes a slot of
 the panel (`0x1152`): the first free one, or else the second, the first
 character leaving Paul.
 
+## Speaking up in a room
+
+The characters' own list 4 holds what they say unasked. It is looked at
+when Paul goes for a door and when he has come into a room, for those in
+the room (the same room and place words), one after another in the order
+of the character table; the first with a line whose condition holds says
+it, and nobody after it is looked at. As with remarks, lines said before
+are passed over only when they have flag bit 5. The Fremen's troop is
+learned (see [people.md](people.md)) before the Fremen's list is looked
+at. When nobody has a line, nothing is shown.
+
+The line is chosen first; only then the face comes, with the zoom over
+where the room shows the character, as when Paul clicks it. The line is
+said, the talk menu is set up, and the talk goes on as any other, from
+the group's first list (the line's place in list 4 is not kept).
+
+The conditions read the situation at `0x23`:
+
+- Going for a door: `0x23` is 1, the room the door leads to is at `0x0C`
+  and the answer at `0x47A5` is set to yes (`0xFF`) first. `0x23` is 0
+  again once the line is chosen, whether one was. When someone spoke, Paul
+  goes through only when the answer is still yes when the talk ends; a
+  line that answers no (action 2), such as Leto's when Paul goes for the
+  door to room 4 before they have talked, keeps him there.
+- Coming into a room: `0x23` is 5 and stays 5 until something else sets
+  it; the count at `0x1A` is set to 1. On landing at a place the room is
+  looked at too, with `0x23` as the flight left it.
+
+Going through a door, the state keeps the room number left at `0x0D` and
+the new one at `0x0B`, and those following Paul (flag bit 6) come along
+into the new room.
+
 ## Remarks on the way
 
 A companion speaking up during a flight (see [flight.md](flight.md))

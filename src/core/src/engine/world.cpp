@@ -58,6 +58,10 @@ int World::day() const {
 }
 
 void World::goTo(int room, int place) {
+    // Those who follow Paul come along; the state keeps the room left.
+    takeFollowers(room, place);
+    setU8(kLastRoom, u8(kRoomNumber));
+    setU8(kRoomNumber, static_cast<std::uint8_t>(room));
     setU16(kRoom, static_cast<std::uint16_t>(room));
     setU16(kPlace, static_cast<std::uint16_t>(place));
     setU8(kPlaceKind, static_cast<std::uint8_t>(room >> 8));
@@ -122,7 +126,6 @@ void World::enterPlace(std::size_t record) {
     }
     const int room = (kind << 8) | 1;
     const int place = (n << 8) | 0x80;
-    takeFollowers(room, place);
     goTo(room, place);
     setU16(kHome, static_cast<std::uint16_t>(record));
     setU8(kPlaceNumber, static_cast<std::uint8_t>(n));

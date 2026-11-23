@@ -183,6 +183,67 @@ MTT_TEST("talk: Leto's first lines in a new game, then the talk ends") {
     MTT_CHECK(Talk::characterOf(0x92F2) == 0 && Talk::characterOf(0x92F7) == 1 && Talk::characterOf(0x9300) == -1);
 }
 
+MTT_TEST("talk: Leto stops Paul going for a door before they have talked") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g, kEnglish);
+    FakeHost host;
+    Talk talk(g, w, panel, host, kEnglish);
+    talk.subtitles = Talk::Subtitles::Below;
+    talk.runEvents();
+    talk.runEvents();
+    g.places().enter(w.room(), w.place());
+    g.display().targetBack();
+    g.places().present = w.present();
+    w.findPresent();
+    g.places().drawView();
+
+    // Coming into a room he has nothing to say; going for another door
+    // neither.
+    w.setU8(0x23, 5);
+    MTT_CHECK(!talk.speakUp(0, 186, 53) && !talk.active());
+    w.setU8(0x23, 1);
+    w.setU8(0x0C, 3);
+    talk.expectYes();
+    MTT_CHECK(!talk.speakUp(0, 186, 53) && !talk.active() && talk.answer() == 0xFF);
+    // Going for room 4 he stops Paul, and the talk starts there.
+    w.setU8(0x0C, 4);
+    MTT_CHECK(talk.speakUp(0, 186, 53));
+    MTT_CHECK(talk.active() && talk.phrase() == 0x1F && talk.answer() == 0);
+    MTT_CHECK((w.u16(0x0E) & 1) != 0);
+    MTT_CHECK(panel.commands().size() == 4 && panel.commands()[0].action == Talk::kTalkToMe);
+    // Then his first list, as when Paul talks to him.
+    MTT_CHECK(talk.command(Talk::kTalkToMe) && talk.phrase() == 1);
+    // Met now, he lets Paul go.
+    MTT_CHECK(talk.command(Talk::kStopTalking) && !talk.active());
+    talk.expectYes();
+    MTT_CHECK(!talk.speakUp(0, 186, 53) && talk.answer() == 0xFF);
+}
+
+MTT_TEST("world: those who follow Paul go with him from room to room") {
+    auto program = test::openProgram();
+    if (!program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    World w(*program);
+    w.goTo(0x2001, 0x0180);
+    const std::size_t gurney = 0xFD8 + 16 * 4;
+    w.setU16(gurney, 0x2001);
+    w.setU16(gurney + 2, 0x0180);
+    w.setU8(gurney + 0x0F, static_cast<std::uint8_t>(w.u8(gurney + 0x0F) | 0x40));
+    w.goTo(0x2003, 0x0180);
+    MTT_CHECK(w.u16(gurney) == 0x2003 && w.u8(0x0B) == 3 && w.u8(0x0D) == 1);
+    w.setU8(gurney + 0x0F, static_cast<std::uint8_t>(w.u8(gurney + 0x0F) & ~0x40));
+    w.goTo(0x2002, 0x0180);
+    MTT_CHECK(w.u16(gurney) == 0x2003 && w.u8(0x0B) == 2 && w.u8(0x0D) == 3);
+}
+
 MTT_TEST("talk: a companion's remark on the way, and what it answers to") {
     auto archive = test::openGameData();
     auto program = test::openProgram();

@@ -150,6 +150,9 @@ private:
     static constexpr std::size_t kRoom = 0x04;
     static constexpr std::size_t kPlace = 0x06;
     static constexpr std::size_t kPlaceKind = 0x08;
+    // The number of the room Paul is in, and of the one he came from.
+    static constexpr std::size_t kRoomNumber = 0x0B;
+    static constexpr std::size_t kLastRoom = 0x0D;
     static constexpr std::size_t kAway = 0x10;
     static constexpr std::size_t kPresent = 0x12;
 

@@ -104,6 +104,8 @@ constexpr int kZoomBottom = 0x71;
 constexpr std::size_t kEventList = 135;
 constexpr int kEventCharacter = 0x10;
 constexpr std::size_t kRemarkList = kEventCharacter * Dialogue::kListsPerCharacter + 4;
+// A character's list of what it says when Paul comes in.
+constexpr int kSpeakUpList = 4;
 // A remark waits this long after the face is shown, and its recordings are
 // numbered from here (counting the remarks' phrases from 1).
 constexpr int kRemarkDelay = 0x4B;
@@ -195,6 +197,35 @@ void Talk::prepareCondition() {
 bool Talk::condition(int n) { return conditions_.test(n, world_); }
 
 void Talk::start(int c, int x, int y, int face, int variant) {
+    begin(c, x, y, face, variant);
+    setMenu();
+    next();
+}
+
+bool Talk::speakUp(int c, int x, int y, int face, int variant) {
+    const auto list = dialogue_.list(static_cast<std::size_t>(c * Dialogue::kListsPerCharacter + kSpeakUpList));
+    if (!list) {
+        return false;
+    }
+    character_ = c;
+    prepareCondition();
+    // As with remarks, a line said before may be said again unless it has
+    // bit 5.
+    const auto found = dialogue_.find(*list, DialogueLine::kOnceMore, [this](int n) { return condition(n); });
+    if (!found) {
+        character_ = -1;
+        return false;
+    }
+    begin(c, x, y, face, variant);
+    setMenu();
+    sayLine(*found, false);
+    // The talk goes on from the group's first list.
+    resume_.reset();
+    finished_ = false;
+    return true;
+}
+
+void Talk::begin(int c, int x, int y, int face, int variant) {
     character_ = c;
     face_ = face < 0 ? c : face;
     faceVariant_ = variant;
@@ -222,8 +253,6 @@ void Talk::start(int c, int x, int y, int face, int variant) {
     pages_.clear();
     skipSaid_ = DialogueLine::kSaid;
     world_.setU8(kSaidSomething, 0);
-    setMenu();
-    next();
 }
 
 // The menu: what Paul can say. Whether "come with me" is on offer, or
