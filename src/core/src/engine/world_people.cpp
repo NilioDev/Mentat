@@ -281,7 +281,7 @@ void World::learnPlace(std::size_t record) {
             lean = std::min((big * 256 / small) >> 1, 0xFCu);
         }
         if (!ahead) {
-            lean = (-lean) & 0xFF;
+            lean = (0x100u - lean) & 0xFFu;
         }
         setU8(0x9C, static_cast<std::uint8_t>(lean));
     }
