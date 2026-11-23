@@ -81,6 +81,7 @@ offset `0x375C`:
 
 | Moment | When |
 | --- | --- |
+| 0 | a scene plays (see [story_scenes.md](story_scenes.md#the-music)), but `0x0A` at the story's step `0x48` |
 | 1 | the globe is shown (see [globe_screen.md](globe_screen.md)) |
 | 2 | the map is shown (see [map.md](map.md)) |
 | 5 | outside, or in a place's first room |
@@ -91,5 +92,5 @@ offset `0x375C`:
 | `0x0C` | in a village or the fortress |
 
 The table's byte is the track (see [music.md](music.md)); with bit 7 set
-the track waits until the next picture is shown, while other music fades
-out over `0x12C` ticks. In the palace the track is 9, `ARRAKIS`.
+the track waits while other music fades out over `0x12C` ticks: it starts
+with the next picture shown, or as soon as the music has stopped. In the palace the track is 9, `ARRAKIS`.

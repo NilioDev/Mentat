@@ -101,6 +101,9 @@ In the original, after step `0x0E` the colours stay those of the small
 map, so the room and the panel look odd behind the box of step `0x10`;
 Mentat keeps the room's colours.
 
-## Not built yet
+## The music
 
-The scene's music.
+When a scene begins, the music is chosen as for a room (see
+[game.md](game.md#music)), for the moment 0 (track 2), or the moment
+`0x0A` (track 6) while the story's step is `0x48`; both wait for the
+music before to fade out.

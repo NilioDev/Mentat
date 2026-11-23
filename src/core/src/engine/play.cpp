@@ -335,6 +335,10 @@ constexpr int kSkyRefadeSteps = 0x30;
 // track waits until the next picture is shown, while the old one fades
 // out.
 constexpr std::size_t kMusicForMoment = 0x375C;
+// During a scene the music is that of moment 0, or of moment 0x0A at the
+// story's step 0x48.
+constexpr int kSceneOwnMusicStep = 0x48;
+constexpr int kSceneOwnMusic = 0x0A;
 // The mouse pointer: the arrow.
 constexpr std::size_t kArrowPointer = 0x2584;
 // The pointer's other shapes: a hand over the map or the planet, and
@@ -679,6 +683,7 @@ private:
         sceneMenu_ = 0;
         sceneBlink_ = false;
         g_.addTimer(kSceneBlinkTimer, kSceneBlinkTicks, [this] { sceneBlink_ = !sceneBlink_; });
+        chooseMusic(); // the scene's own music
     }
 
     std::vector<Command> sceneCommands() const {
@@ -939,9 +944,7 @@ private:
                 endScene();
                 return;
             default:
-                // The other steps (night falling, the pictures of the later
-                // scenes and the ending) are not built yet.
-                break;
+                break; // no script holds another step
             }
         }
     }
@@ -2462,6 +2465,11 @@ private:
     // In the CD style a track that has ended is followed by the next one
     // after a short silence, unless a voice speaks or the place is at war.
     void cdTick() {
+        if ((g_.musicStyle & kCdStyleBit) == 0 && waitingTrack_ != 0 && !g_.musicPlaying()) {
+            // The music waiting for the last one to fade starts once it has.
+            startWaitingMusic();
+            return;
+        }
         if ((g_.musicStyle & kCdStyleBit) == 0 || g_.musicOff || !g_.hasMusic() || g_.musicPlaying()) {
             cdSilent_ = false;
             return;
@@ -3070,6 +3078,9 @@ private:
 
     // What kind of moment it is, for the music; see docs/rules/game.md.
     int musicMoment() const {
+        if (scene_) {
+            return world_.u8(kProgress) == kSceneOwnMusicStep ? kSceneOwnMusic : 0;
+        }
         if (globe_.active()) {
             return 1;
         }
