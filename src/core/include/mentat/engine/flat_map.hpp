@@ -7,6 +7,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <span>
 #include <vector>
 
@@ -61,6 +62,22 @@ public:
     // is first kept so that no row goes past latitude 86; the latitude
     // used is returned.
     int drawSmall(Surface& to, int left, int top, int right, int bottom, std::uint16_t longitude, int latitude) const;
+
+    // The same rows of another map laid out like MAP.HSQ (the regions of
+    // MAP2.HSQ): `rows` rows of `width` bytes, smallStride() apart, the
+    // middle row at `latitude` (kept as drawSmall keeps it, and returned).
+    // A ring narrower than the width is centred, with 0 around it; one row
+    // of 0 follows the last.
+    int gatherSmall(std::span<const std::uint8_t> source, int width, int rows, std::uint16_t longitude, int latitude,
+                    std::vector<std::uint8_t>& work) const;
+    static int smallStride();
+    // Paints rows gathered so, the first at latitude `firstLatitude`, with
+    // the planet's rim near the poles; each point's colour comes from
+    // `colour` (its row, the point in the work rows, whether it is the
+    // last one of its row). `order` -1 paints from the bottom row up.
+    using SmallColour = std::function<std::uint8_t(int row, const std::uint8_t* point, bool last)>;
+    void paintSmall(Surface& to, int left, int top, int width, int rows, int firstLatitude,
+                    const std::vector<std::uint8_t>& work, int order, const SmallColour& colour) const;
 
 private:
     struct Row {

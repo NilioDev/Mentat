@@ -16,6 +16,7 @@
 #include "mentat/engine/places.hpp"
 #include "mentat/engine/platform.hpp"
 #include "mentat/engine/saved_games.hpp"
+#include "mentat/engine/spice_map.hpp"
 #include "mentat/engine/world.hpp"
 #include "mentat/gfx/surface.hpp"
 
@@ -698,4 +699,56 @@ MTT_TEST("flight: a companion sees a hidden place ahead, and the Harkonnens' zon
         MTT_CHECK(f.caught && f.paused);
         MTT_CHECK(inZone == 7);
     }
+}
+
+MTT_TEST("spice map: the regions around the map's middle, its bar and its clicks") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g, kEnglish);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    const std::size_t sietch = World::placeRecord(12);
+    w.enterPlace(sietch);
+    g.display().targetBack();
+    map.enter();
+    SpiceMap spice(g, w, panel, map);
+    spice.open();
+    MTT_CHECK(spice.shown());
+    // Where the state keeps it, a window of 170 x 108 pixels.
+    const ClipRect f = spice.frame();
+    MTT_CHECK(f.left == static_cast<int>(w.u16(0x11C1)) && f.top == static_cast<int>(w.u16(0x11C3)));
+    MTT_CHECK(f.right - f.left == 0xAA && f.bottom - f.top == 0x6C);
+    // The screen shows it; the back buffer keeps the map.
+    const ClipRect v = spice.view();
+    const Surface& screen = g.display().screen();
+    int unknown = 0;
+    for (int y = v.top; y < v.bottom; ++y) {
+        for (int x = v.left; x < v.right; ++x) {
+            unknown += screen.at(x, y) == 0x70 ? 1 : 0;
+        }
+    }
+    MTT_CHECK(unknown > 1000);
+    MTT_CHECK(g.display().back().at(v.left + 1, v.top + 1) != screen.at(v.left + 1, v.top + 1) ||
+              screen.at(v.left + 1, v.top + 1) != 0x70);
+    // Paul's sietch is in the middle: pointing at it names it on the bar.
+    const int mx = v.left + 80;
+    const int my = v.top + 44;
+    spice.pointAt(mx, my);
+    MTT_CHECK(spice.pointed() == sietch);
+    std::size_t place = 0;
+    MTT_CHECK(spice.click(mx, my, place) == SpiceMap::Click::Map && place == sietch);
+    // The bar switches to the troops' work and back; the box at the top
+    // left closes the window.
+    MTT_CHECK(spice.click(f.left + 20, f.bottom - 4, place) == SpiceMap::Click::Toggle && spice.occupations);
+    MTT_CHECK(spice.click(f.left + 20, f.bottom - 4, place) == SpiceMap::Click::Toggle && !spice.occupations);
+    MTT_CHECK(spice.click(f.left + 30, f.top + 3, place) == SpiceMap::Click::Title);
+    MTT_CHECK(spice.click(f.left + 4, f.top + 3, place) == SpiceMap::Click::Close);
+    spice.close();
+    MTT_CHECK(!spice.shown() && screen.at(v.left + 1, v.top + 1) == g.display().back().at(v.left + 1, v.top + 1));
 }
