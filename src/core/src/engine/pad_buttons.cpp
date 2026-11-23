@@ -53,7 +53,7 @@ PadButtons::PadButtons() {
 }
 
 int PadButtons::buttonNamed(std::string_view name) {
-    static const std::pair<const char*, int> kNames[] = {
+    static const std::pair<const char*, std::size_t> kNames[] = {
         {"a", kSouth},
         {"south", kSouth},
         {"cross", kSouth},
@@ -88,7 +88,7 @@ int PadButtons::buttonNamed(std::string_view name) {
     const std::string n = plain(name);
     for (const auto& [text, button] : kNames) {
         if (n == text) {
-            return button;
+            return static_cast<int>(button);
         }
     }
     return -1;
