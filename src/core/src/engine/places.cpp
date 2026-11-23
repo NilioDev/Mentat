@@ -247,7 +247,12 @@ void Places::drawView(const std::function<void()>& background) {
     // (turned by spotTurn) names, or the first free one.
     const int spots = scene[0];
     std::vector<int> standing(kSpots, -1);
-    if (spots > 0) {
+    if (!standingList.empty()) {
+        // A scene says who stands where.
+        for (std::size_t i = 0; i < standingList.size() && i < standing.size(); ++i) {
+            standing[i] = standingList[i];
+        }
+    } else if (spots > 0) {
         unsigned mask = static_cast<unsigned>(present ^ absent);
         for (int character = 0; mask != 0; ++character, mask >>= 1) {
             if ((mask & 1) == 0) {

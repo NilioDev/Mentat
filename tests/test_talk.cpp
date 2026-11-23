@@ -601,3 +601,28 @@ MTT_TEST("orders: a troop takes equipment the sietch keeps and gives it back") {
     run([&] { orders.click(300, 120); });
     MTT_CHECK(!orders.equipping() && w.u8(t + 0x19) == 0 && w.u8(0x3D) == 0 && w.u8(0x3E) == 0x40);
 }
+
+MTT_TEST("talk: a scene's line comes from the character's list 7, said once") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g, kEnglish);
+    FakeHost host;
+    Talk talk(g, w, panel, host, kEnglish);
+    talk.subtitles = Talk::Subtitles::Below;
+    w.setU8(0x2A, 0x0C);
+    g.display().targetBack();
+    MTT_CHECK(talk.sceneLine(0, -1, -1, -1, 0));
+    const int first = talk.phrase();
+    MTT_CHECK(talk.active() && talk.subtitleShown());
+    MTT_CHECK(talk.command(Talk::kWhat) && talk.phrase() == first);
+    // The next time Leto says the following line of the list.
+    MTT_CHECK(talk.sceneLine(0, -1, -1, -1, 0) && talk.phrase() != first);
+    talk.leave();
+    MTT_CHECK(!talk.active() && host.ended == 0);
+}

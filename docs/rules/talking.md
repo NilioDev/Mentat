@@ -108,7 +108,8 @@ it starts.
 | 14 | When said the first time: one more at `0xC2` |
 | 15 | For Jessica: one more at `0xF5` |
 
-The others (3 to 5, 8 to 10, 13) open messages, choices and events that
+Action 13 begins one of the story's scenes (see [story_scenes.md](story_scenes.md)).
+The others (3 to 5, 8 to 10) open messages, choices and events that
 Mentat does not have yet.
 
 When the story moves on, `0xFF` is cleared and the story's own list (list

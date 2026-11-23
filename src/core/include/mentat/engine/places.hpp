@@ -47,6 +47,8 @@ public:
     // More chiefs of Paul's troops standing here besides the first; they
     // count as characters 16 on.
     int moreChiefs = 0;
+    // When not empty, who stands at each spot (-1 nobody) instead.
+    std::vector<int> standingList;
     // The person's picture each character is shown with (sprites 2n and
     // 2n + 1 of the persons sheet), and how far further down; character
     // n's own when not set.

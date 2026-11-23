@@ -93,7 +93,5 @@ story's lines run.
 
 ## Not built yet
 
-The scenes the steps begin (scripts in the program's code that take Paul
-through a room with chosen people, clicked on with "Continue..."), and the
-other ways of moving the story on listed above. Mentat has no ways out of
+Some of the scenes' steps (see [story_scenes.md](story_scenes.md)), and the other ways of moving the story on listed above. Mentat has no ways out of
 a place's rooms yet, so Paul is never outside but when flying.
