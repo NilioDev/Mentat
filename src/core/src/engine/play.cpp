@@ -4,6 +4,7 @@
 #include "mentat/data/program_file.hpp"
 #include "mentat/data/program_tables.hpp"
 #include "mentat/data/reader.hpp"
+#include "mentat/engine/attack_view.hpp"
 #include "mentat/engine/cockpit.hpp"
 #include "mentat/engine/flight.hpp"
 #include "mentat/engine/game.hpp"
@@ -86,6 +87,14 @@ constexpr int kDesertPictures = 0x42;
 constexpr int kDesertCount = 0x13;
 constexpr int kGreenPictures = 0x88;
 constexpr int kGreenCount = 10;
+// At war: the arrows give way to these zones (the second set while byte
+// 0x11CB is set); the horizon of the battle is a sprite list in the state.
+constexpr std::size_t kWarArrows = 0x1D72;
+constexpr std::size_t kWarArrowsSet = 0x11CB;
+constexpr std::size_t kWarHorizon = 0x11DD;
+constexpr int kMassiveRounds = 20;          // blasts after a massive attack
+constexpr int kBlastTicks = 0x28;           // between them, or 2 more
+constexpr std::uint16_t kMassiveAttackAction = 0x7317;
 // State the commands depend on.
 constexpr std::size_t kAtWar = 0x2B;
 constexpr std::size_t kProgress = 0x2A;
@@ -337,7 +346,7 @@ public:
           globe_(game, world_, panel_, map_, language, &saves_), cockpit_(game, world_, panel_, map_),
           flight_(game, world_, panel_, map_), spice_(game, world_, panel_, map_),
           orders_(game, world_, panel_, map_, talk_, spice_), vision_(game, world_, map_),
-          messageRoom_(game, world_, panel_, talk_) {
+          messageRoom_(game, world_, panel_, talk_), war_(game) {
         talk_.subtitles = subtitlesFor(language);
         talk_.enlisted = [this] { enlistFremen(); };
         talk_.ordersAsked = [this] { openOrders(); };
@@ -403,6 +412,7 @@ public:
                 g_.platform().keys.clear();
                 sceneNext();
             }
+            pauseWar();
             g_.waitTicks(1);
             runClock();
             if (endTalk_) {
@@ -1317,6 +1327,10 @@ private:
             openCockpit();
             return;
         }
+        if (action == kMassiveAttackAction && atWar() && !map_.active()) {
+            massiveAttack();
+            return;
+        }
         if ((action == kWaitEvening || action == kWaitMorning || action == kFightAllDay) && !map_.active()) {
             waitFor(action);
             return;
@@ -1958,6 +1972,7 @@ private:
     void gameOver(int reason) {
         over_ = true;
         overReason_ = reason;
+        war_.stop();
         flashSky();
         g_.closeVideo();
         flight_.stop();
@@ -2378,12 +2393,18 @@ private:
     // Hours go by at once, as they would have; false when the game ended
     // meanwhile.
     bool passHours(int hours) {
+        passingHours_ = true;
         for (int i = 0; i < hours; ++i) {
             world_.setClock(world_.clock() + 1);
             newHour();
             if (over_) {
+                passingHours_ = false;
                 return false;
             }
+        }
+        passingHours_ = false;
+        if (!atWar()) {
+            war_.stop();
         }
         return true;
     }
@@ -2490,6 +2511,7 @@ private:
 
     // A new part of the day: the clock on the panel and the sky follow.
     void newHour() {
+        const bool wasAtWar = atWar();
         // The troops on their way step on, but the one given orders, and
         // the others work. The original draws the state's word 0 afresh at
         // every turn of its main loop; the steps turn it for their dice.
@@ -2515,6 +2537,9 @@ private:
         d_.copyRect(d_.screen(), d_.back(), kClockArea);
         d_.targetBack();
         fadeSky();
+        if (atWar() != wasAtWar && !passingHours_) {
+            warChanged();
+        }
     }
 
     // --- The sky
@@ -2679,8 +2704,11 @@ private:
         places.enter(world_.room(), world_.place());
         people_ = world_.meetPeople();
         const std::vector<World::Character> here = world_.findPresent();
+        const bool war = atWar() && !scene_;
         if (scene_) {
             panel_.setArrowZones(kNoArrows);
+        } else if (war) {
+            panel_.setArrowZones(world_.u8(kWarArrowsSet) != 0 ? kWarArrows : kNoArrows);
         } else {
             panel_.setArrows(world_, places.exits());
         }
@@ -2717,7 +2745,10 @@ private:
         places.moreChiefs = people_.chiefs.empty() ? 0 : static_cast<int>(people_.chiefs.size()) - 1;
         places.standingList = scene_ ? sceneStanding_ : std::vector<int>{};
         const int room = world_.room();
-        if (!world_.inside()) {
+        if (war) {
+            places.forgetShown();
+            war_.start(warHorizon());
+        } else if (!world_.inside()) {
             places.drawDesert(desertPicture());
             setSky();
         } else if (world_.inside() && room == kSkyRoom) {
@@ -2732,6 +2763,69 @@ private:
             places.drawView();
         }
         panel_.drawOrnament();
+    }
+
+    // --- War at Paul's place (see docs/rules/fights.md)
+
+    bool atWar() const { return world_.inside() && world_.u8(kAtWar) != 0; }
+
+    std::vector<std::uint16_t> warHorizon() const {
+        std::vector<std::uint16_t> list;
+        for (std::size_t at = kWarHorizon; at + 6 <= World::kSize && list.size() < 60; at += 6) {
+            const std::uint16_t word = world_.u16(at);
+            if (word == 0xFFFF) {
+                break;
+            }
+            list.insert(list.end(), {word, world_.u16(at + 2), world_.u16(at + 4)});
+        }
+        list.push_back(0xFFFF);
+        return list;
+    }
+
+    // The battle goes on behind what is in front of it; only its flashes
+    // show then.
+    void pauseWar() {
+        war_.paused = talk_.active() || map_.active() || globe_.active() || cockpit_.active() ||
+                      flight_.active() || orders_.active() || messageRoom_.active() || over_;
+    }
+
+    // The fight at Paul's place began or ended with the hour: the view
+    // is drawn again, unless something else is shown.
+    void warChanged() {
+        if (!atWar()) {
+            war_.stop();
+        }
+        if (talk_.active() || map_.active() || globe_.active() || cockpit_.active() || flight_.active() ||
+            orders_.active() || messageRoom_.active() || over_ || scene_) {
+            return;
+        }
+        d_.targetBack();
+        drawView();
+        d_.showBack();
+        d_.flush();
+    }
+
+    // "Massive attack": the fight at once, then the blasts of it.
+    void massiveAttack() {
+        world_.massiveAttack(map_.flatMap());
+        for (int i = 0; i < kMassiveRounds; ++i) {
+            const int r = g_.random(0x0201);
+            war_.blast((r & 1) == 0 ? 0x0B : 0x11);
+            g_.waitTicks(kBlastTicks + ((r >> 8) & 2));
+        }
+        if (world_.lostWithPaul) {
+            world_.lostWithPaul = false;
+            world_.gameOverReason = kPlaceLost;
+        }
+        if (world_.gameOverReason != 0) {
+            const int reason = world_.gameOverReason;
+            world_.gameOverReason = 0;
+            gameOver(reason);
+            return;
+        }
+        if (!atWar()) {
+            warChanged();
+        }
     }
 
     // A place's first room looks outside, with the ornithopters kept there.
@@ -2814,6 +2908,7 @@ private:
     Orders orders_;
     Vision vision_;
     MessageRoom messageRoom_;
+    AttackView war_; // the battle seen from Paul's place at war
     // When the room was last shown: a message waits a while after it.
     bool scene_ = false;
     std::uint16_t sceneAt_ = 0;
@@ -2825,6 +2920,7 @@ private:
     bool planShown_ = false;
     int chosenLine_ = -1; // the panel's line of the last command chosen
     std::uint32_t quietSince_ = 0;
+    bool passingHours_ = false;
     World::People people_;
     std::size_t chief_ = 0; // which of the chiefs here Paul talks to
     int walkingTo_ = 0;     // the room Paul went for when someone spoke up

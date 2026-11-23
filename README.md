@@ -67,7 +67,9 @@ and touch controls.
 > they fight it out hour by hour: they may win it, flee, or lose a place
 > of yours. The Harkonnens grow stronger and attack your sietches, the
 > green you planted fades, and each day the spice and land accounts are
-> kept. The map shows your troops' marks, by what they do. Once the
+> kept. When the Harkonnens attack the place you are in, you see the
+> battle from there, and can launch a massive attack or fight on for a
+> whole day. The map shows your troops' marks, by what they do. Once the
 > story gets that far, "See spice density" on the map opens that small
 > map of the regions you know, coloured by their spice or, with a click on
 > its bar, by the work of your troops there; point at a place to see who

@@ -87,6 +87,8 @@ public:
     const std::vector<Shown>& shown() const { return shown_; }
     // The character under (x, y), or -1; the one drawn last wins.
     int characterAt(int x, int y) const;
+    // Nobody is shown any more (the room gave way to another view).
+    void forgetShown() { shown_.clear(); }
 
     // The room's scene number byte, as the room table has it.
     int roomByte() const;

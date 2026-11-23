@@ -107,3 +107,32 @@ game is lost (not built yet: the end shown). Otherwise:
 
 The Harkonnens attacking Paul's place, and the end of the game when the
 place Paul is at is lost.
+
+## At Paul's place: the view and "Massive attack"
+
+While Paul's place is at war (byte `0x2B`) and he is inside it, the view
+is the battle seen from the place (see [attack.md](attack.md#at-war)),
+the arrows give way to the zones at `0x1D72` (when byte `0x11CB` is set)
+or `0x1D1E`, and the first room offers "Massive attack" and "Fight for a
+whole day" (see [desert.md](desert.md#waiting)). When the fight starts or
+ends with the hour, the view is drawn again, unless hours are being
+passed at once.
+
+"Massive attack" fights at once:
+
+1. The forces are weighed; words `0x98` and `0x9A` keep the Harkonnens'
+   and Paul's worth.
+2. A number from the second generator, as a byte, against how the fight
+   leans: below it every blow of the attack is Paul's, otherwise every
+   blow is the Harkonnens'.
+3. Up to 16 rounds: the forces are weighed again, then each of Paul's
+   fighting troops there (byte 3 is 6) strikes (or takes the place when
+   no Harkonnen worth is left) or is struck, as in an hour's fight. The
+   rounds stop once either side's worth is 0.
+4. The forces are weighed; `0x98` and `0x9A` become what each side's
+   worth fell by, and the place is looked at as at the end of an hour
+   (see [days.md](days.md#pauls-place-at-war)).
+
+Then 20 blasts light the horizon, each 0x28 ticks (or 0x2A) after the
+one before: the battle's flash counter starts again from 0x0B, or 0x11,
+by the first generator's bits 0 and 9.

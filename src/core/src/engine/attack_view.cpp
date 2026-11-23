@@ -91,6 +91,20 @@ void AttackView::setColours(int sprite, bool spare) {
 
 void AttackView::start() {
     const ProgramFile& p = game_.resources().program();
+    std::vector<std::uint16_t> list;
+    for (std::size_t at = kHorizon;; at += 6) {
+        const std::uint16_t word = p.dataU16(at);
+        if (word == 0xFFFF || list.size() > 60) {
+            break;
+        }
+        list.insert(list.end(), {word, p.dataU16(at + 2), p.dataU16(at + 4)});
+    }
+    list.push_back(0xFFFF);
+    start(list);
+}
+
+void AttackView::start(const std::vector<std::uint16_t>& horizon) {
+    const ProgramFile& p = game_.resources().program();
     Display& d = game_.display();
     game_.selectSheet(kSheet);
     actors_.useSheet(kSheet);
@@ -115,15 +129,10 @@ void AttackView::start() {
     };
     tile(kSkyArea, kSkySprite);
     tile(kGroundArea, kGroundSprite);
-    std::vector<std::uint16_t> list;
-    for (std::size_t at = kHorizon;; at += 6) {
-        const std::uint16_t word = p.dataU16(at);
-        if (word == 0xFFFF || list.size() > 60) {
-            break;
-        }
-        list.insert(list.end(), {word, p.dataU16(at + 2), p.dataU16(at + 4)});
+    std::vector<std::uint16_t> list = horizon;
+    if (list.empty() || list.back() != 0xFFFF) {
+        list.push_back(0xFFFF);
     }
-    list.push_back(0xFFFF);
     game_.drawSpriteList(list);
     actors_.setClip(game_.sceneTables().lineClip);
 
@@ -224,6 +233,9 @@ void AttackView::tick() {
     flash_ = (flash_ - 1) & 0xFF;
     if (flash_ <= 0x10) {
         flash(flash_);
+    }
+    if (paused) {
+        return;
     }
 
     if (--pause_ < 0) {

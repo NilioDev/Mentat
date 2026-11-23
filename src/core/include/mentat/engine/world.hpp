@@ -82,6 +82,10 @@ public:
     // its ways outside, or, outside, one step; `way` 1 up, 2 right, 3 down,
     // 4 left, 5 none. True when the step brings him into a place.
     bool walkDesert(int way);
+    // "Massive attack": the fight at Paul's place, up to 16 rounds at
+    // once (see docs/rules/fights.md).
+    void massiveAttack(FlatMap& map);
+
     // The steps taken in the desert since Paul was last in a place (at
     // most 0x7F).
     int desertSteps() const { return desertSteps_; }
