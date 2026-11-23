@@ -6,6 +6,7 @@
 // See docs/formats/state.md.
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <span>
@@ -196,6 +197,11 @@ public:
     int linkTroop(int troop, std::size_t place);
     // The troop sets off for `place`, and makes its first steps.
     void startMove(int troop, std::size_t place, FlatMap& map);
+    // The equipment at `place` that none of the troops there holds, by kind.
+    std::array<int, 7> freeEquipment(std::size_t place) const;
+    // Where a troop at `from` would go to fetch a piece of kind `kind`
+    // (0 to 6); 0 when nowhere (see docs/rules/orders.md).
+    std::size_t equipmentSource(std::size_t from, int kind) const;
     // Up to `steps` steps towards its destination; true when it arrived.
     bool stepTroop(int troop, int steps, FlatMap& map);
     // Each hour (see docs/rules/work.md): the troops on the move step
@@ -278,6 +284,7 @@ private:
     int harvest(std::size_t troop);
     void arrive(int troop, FlatMap& map);
     void settle(int troop);
+    void searcherArrives(int troop);
     void capture(std::size_t place, FlatMap& map, bool told = true);
     void tell(std::uint16_t message, std::size_t place);
     void sendAway(int troop);

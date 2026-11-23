@@ -21,6 +21,7 @@ constexpr std::uint8_t kNotPauls = 0x80;
 constexpr int kProspecting = 1;
 constexpr int kAttacking = 5;
 constexpr int kFighting = 6;
+constexpr int kSearching = 3; // the low bits of an occupation searching for equipment
 // Its byte 0x10.
 constexpr std::uint8_t kHarkonnen = 0x80;
 constexpr std::uint8_t kStill = 0x10;
@@ -39,6 +40,8 @@ constexpr std::uint16_t kNowhere = 0xFBC;
 
 // Steps: a troop arrives within this many points both ways.
 constexpr int kNear = 7;
+constexpr std::size_t kHomeWord = 0x1150;  // Paul's home
+constexpr std::size_t kStoryStep = 0x2A;
 
 std::int16_t s16(std::uint16_t v) { return static_cast<std::int16_t>(v); }
 
@@ -245,13 +248,19 @@ void World::arrive(int troop, FlatMap& map) {
     setU16(t + 6, u16(place + 2));
     setU16(t + 8, u16(place + 4));
     const std::uint8_t flags = u8(place + 0x0A);
-    if (!(flags & kHeld) && u8(place + 8) >= kFirstFort && (flags & kGuarded)) {
-        // A guarded fort: no attacking there.
+    if (!(flags & kHeld) && (u8(place + 8) < kFirstFort || (flags & kGuarded))) {
+        // No fighting known there, and not a fort open to attack: troops
+        // that came to attack or spy go back to their speciality's work.
         if (occupation == kAttacking || occupation == kFighting) {
             const int keep = u8(t + 3) & 0xFC;
             if ((u8(t + 3) & kOccupation) != keep) {
                 resetOccupation(troop, keep);
             }
+            occupation = 0;
+        }
+        if ((occupation & kSearching) == kSearching) {
+            searcherArrives(troop);
+            return;
         }
         settle(troop);
         return;
@@ -309,6 +318,102 @@ void World::settle(int troop) {
     if (u8(t + 3) < kNotPauls) {
         resetOccupation(troop, u8(t + 3) & kOccupation);
     }
+}
+
+// A troop searching for equipment reaches a place: at home it settles and
+// takes up its speciality's work again; elsewhere it takes the piece it came
+// for if one is free there, and turns for home.
+void World::searcherArrives(int troop) {
+    const std::size_t t = troopRecord(troop);
+    const std::size_t place = u16(t + 4);
+    if (place == u16(t + 0x0C)) {
+        setU8(t + 3, static_cast<std::uint8_t>(u8(t + 3) & 0xFC));
+        settle(troop);
+        return;
+    }
+    const int kind = u8(t + 0x0E);
+    std::uint8_t piece = u8(t + 0x0F);
+    if (kind < 7 && freeEquipment(place)[static_cast<std::size_t>(kind)] != 0) {
+        setU8(place + 0x14 + static_cast<std::size_t>(kind),
+              static_cast<std::uint8_t>(u8(place + 0x14 + static_cast<std::size_t>(kind)) - 1));
+        setU8(t + 0x19, static_cast<std::uint8_t>(u8(t + 0x19) | piece));
+        piece = 0;
+    }
+    setU8(t + 0x0F, piece);
+    setU16(t + 4, u16(t + 0x0C));
+    if (markChanged) {
+        markChanged(troop);
+    }
+}
+
+std::array<int, 7> World::freeEquipment(std::size_t place) const {
+    std::array<int, 7> counts{};
+    for (std::size_t i = 0; i < counts.size(); ++i) {
+        counts[i] = u8(place + 0x14 + i);
+    }
+    for (int troop = u8(place + 9); troop != 0;) {
+        const std::size_t t = troopRecord(troop);
+        const int held = u8(t + 0x19);
+        for (std::size_t i = 0; i < counts.size(); ++i) {
+            if ((held & (0x80 >> i)) && counts[i] > 0) {
+                --counts[i];
+            }
+        }
+        troop = u8(t + 1);
+    }
+    return counts;
+}
+
+// The nearest place a troop at `from` can fetch a piece of kind `kind`
+// from: a place shown, not a fort, within 0x32 by the larger distance
+// (a quarter of it for villages and the like), with one free that no
+// troop on its way there for it will take. 0 when there is none.
+std::size_t World::equipmentSource(std::size_t from, int kind) const {
+    constexpr std::size_t kFirstSearched = kPlaces + 2 * kPlaceSize;
+    const auto lon = static_cast<std::int16_t>(u16(from + 2));
+    const auto lat = static_cast<std::int16_t>(u16(from + 4));
+    unsigned best = 0xFFFF;
+    std::size_t found = 0;
+    const auto k = static_cast<std::size_t>(kind);
+    for (std::size_t p = kFirstSearched; p + kPlaceSize <= kTroops && u16(p) != 0xFFFF; p += kPlaceSize) {
+        if ((u8(p + 0x0A) & kHidden) || u8(p + 8) >= kFirstFort || p == from) {
+            continue;
+        }
+        const unsigned across = static_cast<std::uint16_t>(std::abs(static_cast<std::int16_t>(u16(p + 2) - lon)));
+        const unsigned down = static_cast<std::uint16_t>(std::abs(static_cast<std::int16_t>(u16(p + 4) - lat)));
+        unsigned d = across >> 8;
+        if (d < (down & 0xFF)) {
+            d = down;
+        }
+        if ((d & 0xFF) >= 0x32) {
+            continue;
+        }
+        if (u8(p + 8) >= 0x21) {
+            d >>= 2;
+        }
+        if (d >= best) {
+            continue;
+        }
+        std::array<int, 7> counts = freeEquipment(p);
+        if (k >= counts.size() || counts[k] == 0) {
+            continue;
+        }
+        for (std::size_t t = kTroops; t + kTroopSize <= 0xFBB; t += kTroopSize) {
+            if ((u8(t + 3) & kMoving) && (u8(t + 3) & 3) == kSearching && u16(t + 4) == p && u16(t + 0x0C) != p &&
+                u8(t + 0x0E) == kind && counts[k] > 0) {
+                --counts[k];
+            }
+        }
+        if (p == u16(kHomeWord) && u8(kStoryStep) < 0x50 && counts[1] > 0) {
+            --counts[1]; // a harvester stays at home
+        }
+        if (counts[k] == 0) {
+            continue;
+        }
+        best = d;
+        found = p;
+    }
+    return found;
 }
 
 void World::launchAttack(FlatMap& map) {

@@ -1,7 +1,8 @@
 # Places taken
 
 A troop of Paul's that arrives at a place where no other troop is (the
-first of the place's chain, see [moves.md](moves.md)) takes it. The words
+first of the place's chain), a fort not guarded or a place where fighting
+is known (see [moves.md](moves.md#arriving)), takes it. The words
 of a place's record used here: byte 0 (its low four bits the place's
 name), byte 8 its kind (from `0x28` a fort, below that a sietch), byte 9
 its first troop, byte `0x0A` its flags, byte `0x0B` a day, byte `0x12`

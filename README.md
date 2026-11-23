@@ -48,10 +48,12 @@ and touch controls.
 > specialize in spice, the army or ecology, send an army troop to spy out
 > the nearest hidden Harkonnen fort and then attack it, have an ecology
 > troop build a wind-trap, give it equipment the sietch keeps
-> or take some back, or send it somewhere: point at a
+> or take some back, send it to fetch the equipment it lacks from the
+> nearest place that has it, or send it somewhere: point at a
 > place on the small map of the regions, and if the chief agrees the troop
 > sets off and walks there hour by hour, its mark crossing the map. A
-> troop that reaches a place where nobody else is takes it; taking a
+> troop that reaches a Harkonnen fort, or a place being fought over,
+> where nobody else is takes it; taking a
 > Harkonnen fort raises your charisma and your troops' spirits. Hour by
 > hour your troops work: they mine spice into your stock (and a harvester
 > may meet a worm), prospect places, train for the army, build wind-traps

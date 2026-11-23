@@ -78,10 +78,25 @@ mark follow it (below).
 ## Arriving
 
 The troop's point becomes the destination's. When the destination's
-byte `0x0A` lacks bit 1, its kind is from `0x28` and its byte `0x0A` has
-bit 3 (guarded), a troop attacking or fighting (occupation 5 or 6) has
-its occupation set to its byte 3 with bits 0 and 1 cleared, and it
-settles (below); nothing more happens.
+byte `0x0A` lacks bit 1 (no fighting known there) and its kind is below
+`0x28`, or it is a fort (kind from `0x28`) whose byte `0x0A` has bit 3
+(guarded):
+
+- a troop spying or attacking (occupation 5 or 6) has its occupation set
+  to its byte 3 with bits 0 and 1 cleared;
+- a troop searching for equipment (bits 0 and 1 of its occupation both
+  set, see [orders.md](orders.md#searching-for-equipment)) arrives as
+  below, and nothing more happens;
+- any other settles (below), and nothing more happens.
+
+A searching troop back at the place it set out from (its word `0x0C`)
+loses bits 0 and 1 of byte 3 and settles. At any other place, when one
+piece of the kind it came for (its byte `0x0E`) is free there (as for
+modifying the equipment), the place's count of that kind goes down by
+one and the troop takes it: its byte `0x19` gets the bit kept in its
+byte `0x0F`, which becomes 0. Either way word 4 takes word `0x0C`: the
+troop, still on the move and in no chain, walks home, and its mark is
+made again.
 
 Otherwise it settles, then:
 
@@ -123,6 +138,5 @@ to go (see [spice_map.md](spice_map.md)), the troop's way is drawn in it.
 
 ## Not built yet
 
-The second destination of a troop whose byte 3 has bits 0 and 1, the
-troop shown three sietches, and what the original does when a troop
+The troop shown three sietches, and what the original does when a troop
 arrives where Paul is.

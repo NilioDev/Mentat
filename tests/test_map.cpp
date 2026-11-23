@@ -1162,3 +1162,60 @@ MTT_TEST("world: Stilgar's attack sends the army troops with weapons to the pala
     MTT_CHECK(w.u16(one + 8) != 2 || w.u16(one + 6) != 0); // it has made steps
     MTT_CHECK(w.u16(World::troopRecord(2) + 4) == sietch && w.u8(World::troopRecord(2) + 3) == 4);
 }
+
+MTT_TEST("world: a troop fetches equipment from the nearest place that has it free, and comes home") {
+    std::vector<std::uint8_t> map(2 * kMiddle + 512, 0x05);
+    FlatMap m(smallLatitudes(), map, FlatMap::Edges{});
+    World w;
+    for (int n = 1; World::troopRecord(n) < 0xFBB; ++n) {
+        w.setU8(World::troopRecord(n) + 3, 0xA0); // nobody's
+    }
+    auto place = [&](int n, int kind, int lon, int harvesters) {
+        const std::size_t p = World::placeRecord(n);
+        w.setU8(p, static_cast<std::uint8_t>(n));
+        w.setU8(p + 8, static_cast<std::uint8_t>(kind));
+        w.setU16(p + 2, static_cast<std::uint16_t>(lon));
+        w.setU16(p + 4, 0x40);
+        w.setU8(p + 0x15, static_cast<std::uint8_t>(harvesters));
+        return p;
+    };
+    const std::size_t home = place(3, 0x01, 0x1000, 0);
+    const std::size_t sietch = place(4, 0x02, 0x1300, 1);
+    place(5, 0x03, 0x1100, 0);                               // none there
+    const std::size_t village = place(6, 0x21, 0x1800, 1);  // further, but counted a quarter
+    place(7, 0x30, 0x1000, 3);                               // a fort: not searched
+    w.setU16(World::placeRecord(8), 0xFFFF);
+    MTT_CHECK(w.equipmentSource(home, 1) == village);
+    MTT_CHECK(w.equipmentSource(home, 0) == 0);
+    // At Paul's home a harvester stays until step 0x50.
+    w.setU16(0x1150, static_cast<std::uint16_t>(village));
+    w.setU8(0x2A, 0x10);
+    MTT_CHECK(w.equipmentSource(home, 1) == sietch);
+    w.setU16(0x1150, 0);
+    // A troop already on its way there for one takes it.
+    const std::size_t other = World::troopRecord(5);
+    w.setU8(other + 3, 0x43);
+    w.setU16(other + 4, static_cast<std::uint16_t>(village));
+    w.setU16(other + 0x0C, static_cast<std::uint16_t>(home));
+    w.setU8(other + 0x0E, 1);
+    MTT_CHECK(w.equipmentSource(home, 1) == sietch);
+
+    // Troop 1 goes to the sietch (at its own point) for a harvester.
+    w.setU16(sietch + 2, 0x1000);
+    const std::size_t t = World::troopRecord(1);
+    w.setU8(t, 1);
+    w.setU8(t + 3, 0x03);
+    w.setU16(t + 4, static_cast<std::uint16_t>(home));
+    w.setU16(t + 6, 0x1000);
+    w.setU16(t + 8, 0x40);
+    w.setU8(home + 9, 1);
+    w.setU16(t + 0x0C, static_cast<std::uint16_t>(home));
+    w.setU16(t + 0x0E, 0x4001);
+    w.startMove(1, sietch, m);
+    MTT_CHECK(w.u8(sietch + 0x15) == 0 && w.u8(t + 0x19) == 0x40 && w.u8(t + 0x0F) == 0);
+    MTT_CHECK(w.u16(t + 4) == home && (w.u8(t + 3) & 0x40) && w.u8(sietch + 9) == 0);
+    // Home again, it settles with it and mines spice once more.
+    w.stepTroop(1, 4, m);
+    MTT_CHECK(!(w.u8(t + 3) & 0x40) && (w.u8(t + 3) & 0x0F) == 0 && w.u8(home + 9) == 1);
+    MTT_CHECK(w.u8(home + 0x15) == 1);
+}

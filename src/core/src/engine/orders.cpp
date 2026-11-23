@@ -98,6 +98,9 @@ constexpr std::size_t kHeldBefore = 0x3D;        // state: what the troop held, 
 constexpr std::size_t kLost = 0x3E;              // state: what it gave back
 constexpr std::size_t kHarvesterHome = 0x3F;     // state: 0x40 when it took a harvester at Paul's home
 constexpr int kEcologyWork = 8;
+constexpr std::uint8_t kNoneFound = 0x0E;        // the situation when no place has the equipment
+constexpr std::uint8_t kHasAll = 0x0F;           // and when the troop has all its speciality's
+constexpr std::size_t kEquipmentNamed = 0x1203;  // state: the kind of equipment spoken of, + 0xE8
 constexpr std::size_t kHome = 0x1150;         // state: Paul's home
 
 void drawFramed(Surface& to, const ClipRect& r, std::uint8_t border, std::uint8_t fill) {
@@ -129,24 +132,6 @@ std::vector<Command> readCommands(const ProgramFile& program, std::size_t list) 
 // The equipment kept at a place that none of its troops holds: the
 // place's seven counts (bytes 0x14 on), less one for each troop with
 // that bit of its byte 0x19 (bit 7 the first).
-std::array<int, 7> Orders::freeEquipment(std::size_t place) const {
-    std::array<int, 7> counts{};
-    for (std::size_t i = 0; i < counts.size(); ++i) {
-        counts[i] = world_.u8(place + 0x14 + i);
-    }
-    for (int troop = world_.u8(place + 9); troop != 0;) {
-        const std::size_t t = World::troopRecord(troop);
-        const int held = world_.u8(t + 0x19);
-        for (std::size_t i = 0; i < counts.size(); ++i) {
-            if ((held & (0x80 >> i)) && counts[i] > 0) {
-                --counts[i];
-            }
-        }
-        troop = world_.u8(t + 1);
-    }
-    return counts;
-}
-
 namespace {
 
 std::uint16_t grey(std::uint16_t phrase, bool greyed) {
@@ -282,7 +267,7 @@ void Orders::setMenu() {
                 if (progress >= 4 && !(world_.u16(t + 0x10) & 0x200) &&
                     ((world_.u8(place + 0x0A) & 8) || world_.u8(place + 8) < 0x28)) {
                     int any = world_.u8(t + 0x19);
-                    for (const int n : freeEquipment(place)) {
+                    for (const int n : world_.freeEquipment(place)) {
                         any |= n;
                     }
                     if (any != 0) {
@@ -499,7 +484,7 @@ void Orders::openEquipment() {
     for (std::size_t i = 0; i < held_.size(); ++i) {
         held_[i] = (bits >> (7 - i)) & 1;
     }
-    free_ = freeEquipment(world_.u16(t + 4));
+    free_ = world_.freeEquipment(world_.u16(t + 4));
     drawEquipment();
 }
 
@@ -632,6 +617,14 @@ void Orders::closeEquipment() {
         now = static_cast<std::uint8_t>(now | ((held_[i] & 1) << (7 - i)));
     }
     world_.setU8(t + 0x19, now);
+    equipped();
+}
+
+// The troop's equipment changed from what kHeldBefore keeps: the chief
+// answers, knowing what it gained and gave back, and the orders come back.
+void Orders::equipped() {
+    const std::size_t t = World::troopRecord(troop_);
+    const std::uint8_t now = world_.u8(t + 0x19);
     if (world_.markChanged) {
         world_.markChanged(troop_);
     }
@@ -652,6 +645,59 @@ void Orders::closeEquipment() {
         say(kInfoList);
     }
     setMenu();
+}
+
+// "Go & search for equipment": the first kind of the speciality's the troop
+// lacks. Taken from its own place when one is free there; otherwise the
+// chief is asked to fetch it from the nearest place that has one.
+void Orders::searchEquipment(int first, int last) {
+    const std::size_t t = World::troopRecord(troop_);
+    const int held = world_.u8(t + 0x19);
+    int kind = first;
+    while (kind <= last && (held & (0x80 >> kind))) {
+        ++kind;
+    }
+    if (kind > last) {
+        answer(kHasAll);
+        return;
+    }
+    const auto piece = static_cast<std::uint8_t>(0x80 >> kind);
+    world_.setU16(kEquipmentNamed, static_cast<std::uint16_t>(kind + 0xE8));
+    const std::size_t here = world_.u16(t + 4);
+    const int needed = kind == 1 && here == world_.u16(kHome) ? 2 : 1;
+    if (world_.freeEquipment(here)[static_cast<std::size_t>(kind)] >= needed) {
+        world_.setU8(kHeldBefore, static_cast<std::uint8_t>(held));
+        world_.setU8(t + 0x19, static_cast<std::uint8_t>(held | piece));
+        equipped();
+        return;
+    }
+    const std::size_t source = world_.equipmentSource(here, kind);
+    if (source == 0) {
+        answer(kNoneFound);
+        return;
+    }
+    specializeWithin(3);
+    if (talk_.answer() != 0xFF) {
+        return;
+    }
+    world_.setU16(t + 0x0E, static_cast<std::uint16_t>(kind | (piece << 8)));
+    world_.setU16(t + 0x0C, static_cast<std::uint16_t>(here));
+    world_.startMove(troop_, source, map_.flatMap());
+    close();
+    if (sent) {
+        sent();
+    }
+}
+
+// The chief answers in situation `situation`, and the orders come back.
+void Orders::answer(std::uint8_t situation) {
+    setMenu();
+    world_.learnTroop(troop_);
+    world_.setU8(kSituation, situation);
+    if (!talk_.boxAnswer(kAnswerList)) {
+        say(kInfoList);
+        say(kInfoList);
+    }
 }
 
 void Orders::click(int x, int y) {
@@ -675,6 +721,9 @@ bool Orders::command(std::uint16_t action) {
     case kWindTrap: specializeWithin(1); return true;
     case kAttack: specializeWithin(2); return true;
     case kEspionage: spy(); return true;
+    case kSearchSpice: searchEquipment(0, 1); return true;
+    case kSearchArmy: searchEquipment(2, 5); return true;
+    case kSearchEcology: searchEquipment(6, 6); return true;
     case kCancel:
         if (equipping_) {
             closeEquipment();
