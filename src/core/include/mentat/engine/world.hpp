@@ -144,6 +144,9 @@ public:
     // Stilgar launches the last attack: up to seven of Paul's army troops
     // with weapons (byte 0x19 bit 2) set off for the Harkonnens' palace.
     void launchAttack(FlatMap& map);
+    // How far troop `troop` is from Paul: the larger of the longitudes'
+    // difference in points at Paul's latitude and the latitudes'.
+    int troopDistance(int troop, const FlatMap& map) const;
     // Character `c` stops going with Paul and leaves the panel's slots.
     void stopsFollowing(int c);
     // How unhappy the Emperor is, from 0 to 5, by his mood (byte 0xBE).
@@ -154,6 +157,12 @@ public:
     // The smuggler offers his next kind of equipment in stock and names its
     // price (see docs/rules/smugglers.md).
     void smugglerOffers();
+    // Jessica teaches Paul more of her powers: he reaches his troops from
+    // further off (word 0x1176), see docs/rules/jessica.md.
+    void jessicaTeaches();
+    // The Harkonnens' captain gives away the place last learnt: it is
+    // hidden no more.
+    void revealLearnedPlace();
     // Paul's answer to the smuggler (1 accept, 2 refuse, 3 argue): accepting
     // buys the offer on the bill, refusing or arguing may bring a better
     // price. Returns the answer the talk goes on with.

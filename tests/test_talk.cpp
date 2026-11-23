@@ -588,6 +588,21 @@ MTT_TEST("orders: an army troop takes up espionage, sets off for the nearest for
     MTT_CHECK(sent == 1 && !orders.active());
     MTT_CHECK((w.u8(t + 3) & 0x0F) == 5 && (w.u8(t + 3) & 0x40) && w.u16(t + 4) == fort);
 
+    // On its way and out of Paul's reach, it can only be left.
+    run([&] { orders.open(troop); });
+    MTT_CHECK(panel.commands().size() == 2 && panel.commands()[0].action == Orders::kNextTroop);
+    // Within reach, its destination can be changed, or it is left.
+    w.setU16(0x1176, 0xFFE2);
+    run([&] { orders.command(Orders::kNextTroop); }); // the only one: nothing changes
+    MTT_CHECK(orders.troop() == troop);
+    run([&] { orders.command(Orders::kLeaveTroop); });
+    MTT_CHECK(sent == 2 && !orders.active());
+    run([&] { orders.open(troop, false); });
+    MTT_CHECK(panel.commands().size() == 3 && panel.commands()[0].action == Orders::kMove &&
+              panel.commands()[2].action == Orders::kCancel);
+    run([&] { orders.command(Orders::kCancel); });
+    MTT_CHECK(sent == 3 && !orders.active());
+
     // Spying, the only order left is to attack.
     run([&] { orders.open(troop); });
     run([&] { orders.command(Orders::kOccupation); });

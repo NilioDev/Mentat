@@ -397,7 +397,13 @@ std::vector<Command> MapScreen::commands() const {
                 }
             }
         } else {
-            list[1].phrase = static_cast<std::uint16_t>(list[1].phrase | Command::kGrey); // no troops move yet
+            bool marked = false;
+            for (const Mark& m : marks_) {
+                marked = marked || m.troop != 0;
+            }
+            if (!marked) {
+                list[1].phrase = static_cast<std::uint16_t>(list[1].phrase | Command::kGrey);
+            }
         }
     }
     // The spice density, and the fifth command, come with the story.

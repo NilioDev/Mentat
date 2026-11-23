@@ -416,6 +416,18 @@ std::size_t World::equipmentSource(std::size_t from, int kind) const {
     return found;
 }
 
+int World::troopDistance(int troop, const FlatMap& map) const {
+    const std::size_t t = troopRecord(troop);
+    std::uint16_t lon = 0;
+    int lat = 0;
+    position(lon, lat);
+    const int size = map.pointSize(std::min(std::abs(lat), FlatMap::kRows - 1));
+    const int across = std::abs(static_cast<std::int16_t>(u16(t + 6) - lon));
+    const int down = std::abs(static_cast<std::int16_t>(u16(t + 8)) - lat);
+    const int a = size > 0 ? across / size : across;
+    return std::max(a, down);
+}
+
 void World::launchAttack(FlatMap& map) {
     constexpr std::size_t kExploits = 0xC2;
     constexpr std::size_t kPalace = 0x11C;

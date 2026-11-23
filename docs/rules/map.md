@@ -183,14 +183,22 @@ The map's commands are kept at data offset `0x20F2`: two bytes, then
 - The second, giving orders: while the word at `0x1176` is below 2 it
   becomes phrase `0x93`, usable only when the player is in a place whose
   first troop has its byte 3 below `0x80`. Otherwise it keeps its phrase,
-  greyed while the map shows no troop's mark; giving orders from the map
-  is not built yet, so here it stays greyed.
+  greyed while the map shows no troop's mark.
 - The third, the spice density, is greyed until the story (state byte
   `0x2A`) reaches 5; until then there is no fifth command.
   The spice density opens the map of the regions, see
   [spice_map.md](spice_map.md).
 - The fourth, taking an ornithopter, is greyed (taking one from the map
   is not built yet).
+
+The second command, "contact Fremen troops" (action `0x86CC`), does
+nothing while no troop works for Paul (state byte `0x28` is 0). Otherwise
+it opens the orders (see [orders.md](orders.md)), given from the map, of:
+while Paul reaches no further than 1 (word `0x1176`, see
+[jessica.md](jessica.md)), the first troop of his place; otherwise the
+troop last given orders when the map marks it, else the troop the map
+marks that "next troop" would come to from none. Troops numbered above
+`0x43` are not given orders.
 
 "EXIT MAPS" has action `0x186B` again: it closes the map. The room is
 drawn as on entering it, with the panel's walking layout, and the screen
@@ -229,8 +237,7 @@ the place whose label is shown, or away from every place, takes the
 label away by copying its rectangle from the back buffer to the screen.
 Moving the view, its middle and leaving the map take it away too.
 
-Troops giving orders, and what a click on a place does while Paul is in
-a sietch, are not built yet.
+What a click on a place does while Paul is in a sietch is not built yet.
 
 ### Its size
 
