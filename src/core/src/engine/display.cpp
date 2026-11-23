@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <string>
+#include <span>
 #include <utility>
 
 namespace mentat {
@@ -289,6 +290,58 @@ void Display::dissolve(int rows) {
     }
 }
 
+// The old picture breaks up into blocks of the sizes `out` (2, 4 or 8
+// pixels wide), each block taking the colour of one of its pixels, the
+// pixel changing in a fixed order; then the new picture comes out of
+// blocks of the sizes `in`. Each size lasts 0x24 ticks.
+void Display::mosaic(std::span<const int> out, std::span<const int> in) {
+    struct Size {
+        int side;
+        std::vector<std::array<int, 2>> pixels;
+    };
+    static const std::array<Size, 3> sizes{{
+        {2, {{0, 0}, {1, 1}, {1, 0}, {0, 1}}},
+        {4, {{1, 1}, {0, 3}, {3, 2}, {2, 0}, {0, 1}, {2, 3}, {0, 0}, {1, 2},
+             {3, 0}, {1, 3}, {2, 1}, {3, 3}, {2, 2}, {1, 0}, {3, 1}, {0, 2}}},
+        {8, {{3, 3}, {0, 5}, {5, 4}, {4, 2}, {0, 3}, {4, 5}, {0, 2}, {3, 4},
+             {5, 2}, {3, 5}, {4, 3}, {5, 5}, {4, 4}, {3, 2}, {5, 3}, {2, 4}}},
+    }};
+    constexpr std::uint32_t kSizeTicks = 0x24;
+    const int w = Surface::kScreenWidth;
+    const std::size_t origin = static_cast<std::size_t>(originRows_ * w);
+    const std::size_t area = static_cast<std::size_t>(kSceneRows * w);
+    const std::vector<std::uint8_t> old(screen_->data() + origin, screen_->data() + origin + area);
+    std::uint8_t* to = screen_->data() + origin;
+    auto blocks = [&](const std::uint8_t* from, const Size& size) {
+        const std::uint32_t start = platform_.ticks;
+        std::uint32_t due = start;
+        for (std::size_t k = 0;; k = (k + 1) % size.pixels.size()) {
+            const int n = size.side;
+            for (int by = 0; by + n <= kSceneRows; by += n) {
+                for (int bx = 0; bx < w; bx += n) {
+                    const std::size_t at = static_cast<std::size_t>((by + size.pixels[k][1]) * w + bx + size.pixels[k][0]);
+                    const std::uint8_t c = from[std::min(at, area - 1)];
+                    for (int y = 0; y < n; ++y) {
+                        std::fill_n(to + (by + y) * w + bx, n, c);
+                    }
+                }
+            }
+            due = waitUntil(due + 1);
+            if (platform_.ticks - start >= kSizeTicks) {
+                break;
+            }
+        }
+    };
+    auto bySide = [&](int side) -> const Size& { return sizes[side == 2 ? 0 : side == 4 ? 1 : 2]; };
+    for (const int side : out) {
+        blocks(old.data(), bySide(side));
+    }
+    flush();
+    for (const int side : in) {
+        blocks(back_->data() + origin, bySide(side));
+    }
+}
+
 // The old picture moves up 8 rows a step with a band of colour 7 under it,
 // over the new one shown in place.
 void Display::rise() {
@@ -365,6 +418,24 @@ void Display::transition(int type, int direction) {
     case kSpiral:
         spiral();
         break;
+    case kMosaic: {
+        static constexpr std::array<int, 3> kOut{2, 4, 8};
+        static constexpr std::array<int, 3> kIn{8, 4, 2};
+        mosaic(kOut, kIn);
+        break;
+    }
+    case kMosaicShort: {
+        static constexpr std::array<int, 2> kOut{2, 4};
+        static constexpr std::array<int, 2> kIn{4, 2};
+        mosaic(kOut, kIn);
+        break;
+    }
+    case kMosaicFine: {
+        static constexpr std::array<int, 3> kOut{2, 2, 2};
+        static constexpr std::array<int, 1> kIn{2};
+        mosaic(kOut, kIn);
+        break;
+    }
     case kFadeThroughBlack:
         // Colours 1..254 of the new palette wait in the spare one while
         // the old picture fades out.

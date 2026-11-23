@@ -92,6 +92,8 @@ constexpr int kSubtitleTop = 1;
 constexpr int kSubtitleBottom = 0x92; // the rows end above here
 constexpr std::uint8_t kSubtitleColour = 0x0F;
 constexpr std::uint8_t kOutlineColour = 0xF0;
+constexpr std::uint8_t kVisionOutline = 0x08;   // while a message is shown
+constexpr std::size_t kMessageAbout = 0xEA;
 constexpr int kSceneBottom = 152;
 
 // The background: the room enlarged four times around the character.
@@ -529,6 +531,39 @@ bool Talk::remark(int c) {
     }
     prepareCondition();
     // A remark said before may be said again, unless it has bit 5.
+    const auto found = dialogue_.find(*list, DialogueLine::kOnceMore, [this](int n) { return condition(n); });
+    if (!found) {
+        return false;
+    }
+    sayLine(*found, false);
+    return true;
+}
+
+bool Talk::vision(int c, int face, int variant) {
+    character_ = c;
+    remark_ = true;
+    host_.showPointer(false);
+    Talker& talker = game_.talker();
+    talker.halt();
+    talker.overlay = [this](const ClipRect& dirty) {
+        if (subtitle_.shown && dirty.bottom > subtitle_.top) {
+            drawSubtitle(&dirty);
+        }
+    };
+    subtitle_.shown = false;
+    drawBackground(-1, -1);
+    talker.show(face, 0, variant, game_.textWords);
+    game_.display().transition(Display::kMosaic);
+    host_.showPointer(true);
+
+    pages_.clear();
+    resume_.reset();
+    finished_ = false;
+    const auto list = dialogue_.list(kRemarkList);
+    if (!list) {
+        return false;
+    }
+    prepareCondition();
     const auto found = dialogue_.find(*list, DialogueLine::kOnceMore, [this](int n) { return condition(n); });
     if (!found) {
         return false;
@@ -1009,9 +1044,11 @@ void Talk::layoutSubtitle(const std::string& text) {
     // Every pixel of the text gets a dark edge where it touches nothing.
     std::uint8_t* data = px.data();
     const std::size_t end = static_cast<std::size_t>(rows) * 320;
+    const std::uint8_t outline =
+        static_cast<std::int8_t>(world_.u8(kMessageAbout)) > 0 ? kVisionOutline : kOutlineColour;
     const auto edge = [&](std::ptrdiff_t at) {
         if (at >= 0 && static_cast<std::size_t>(at) < px.size() && data[at] == 0) {
-            data[at] = kOutlineColour;
+            data[at] = outline;
         }
     };
     for (std::size_t at = 0; at < end; ++at) {

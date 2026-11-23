@@ -251,11 +251,12 @@ Those left here: `0x0302` when the troops low in spirits stop working,
 one, `0x0F0E` when a troop able to work finishes prospecting and does not
 move on, `0x0F07` when a place is taken (see
 [places_taken.md](places_taken.md)) and `0x0F0A` when the Harkonnens'
-palace falls (see [fights.md](fights.md)).
+palace falls (see [fights.md](fights.md)). How they are shown is in
+[messages.md](messages.md).
 
 ## Not built yet
 
-Showing the chiefs' messages; what the original
+What the original
 does when a fort is taken in the middle of the green spreading (its walk
 then goes on as a looking over around the fort); the daily accounts, the
 Harkonnens' and the smugglers' hours.

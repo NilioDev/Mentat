@@ -185,7 +185,9 @@ The text is laid out as in [text.md](text.md) in a width of 288 pixels in
 the large font (byte 6 switches to the small font, byte 8 back), the lines
 stretched, 10 rows apart. It is drawn in colour `0x0F` from column 16 and
 row 1 of a clear picture; then every clear pixel left, right, above or
-below a pixel of the text becomes `0xF0`. The rows used (1 + 10 per line)
+below a pixel of the text becomes `0xF0` (`0x08` while byte `0xEA` is
+above 0 as a signed byte, which it is while a chief's message is shown, see
+[messages.md](messages.md)). The rows used (1 + 10 per line)
 are copied onto the back buffer so that they end at row `0x92`, clear
 pixels letting the picture through. When the face's animation changes a
 part of the picture that reaches below the subtitle's top, the subtitle is

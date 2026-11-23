@@ -113,6 +113,9 @@ public:
     // --- Transitions (the original's numbers; see docs/rules/display.md)
     static constexpr int kRise = 0x00;   // with direction -1: the old picture goes up
     static constexpr int kSpiral = 0x02;
+    static constexpr int kMosaic = 0x06;
+    static constexpr int kMosaicShort = 0x26;
+    static constexpr int kMosaicFine = 0x28;
     static constexpr int kDissolve = 0x10;
     static constexpr int kCut = 0x30;
     static constexpr int kDissolveScreen = 0x34;
@@ -138,6 +141,7 @@ private:
     void fadeUp(int chunk, int step, int rounds);
     void dissolve(int rows);
     void rise();
+    void mosaic(std::span<const int> out, std::span<const int> in);
     void spiral();
 
     Platform& platform_;
