@@ -61,4 +61,5 @@ horizon is the sprite list kept in the state from `0x11DD` (the
 skyline's sprite there is set by the hourly look at the place, see
 [days.md](days.md#pauls-place-at-war)). While something else is shown in
 front (a talk, the map, the globe), the flashes go on but nothing moves.
-The battle stops when the place is at peace again.
+The battle stops when the place is at peace again. The view at war
+chooses no music: the battle's sound plays over whatever music there was.

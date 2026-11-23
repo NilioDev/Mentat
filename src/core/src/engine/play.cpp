@@ -2899,7 +2899,9 @@ private:
         panel_.drawCommands();
 
         setSky();
-        chooseMusic();
+        if (!war) {
+            chooseMusic(); // at war the battle's sound goes on over the music there was
+        }
         places.present = world_.present();
         places.absent = world_.away();
         places.spotTurn = world_.u8(kSpotTurn);

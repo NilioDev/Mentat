@@ -201,7 +201,3 @@ no place.
 When the bit that comes round as the state's word 0 turns left is set,
 each Harkonnen troop (byte `0x10` bit 7, records below `0xFA0`) with
 from 1 to 199 men gets one more.
-
-## Not built yet
-
-The music of the battle.
