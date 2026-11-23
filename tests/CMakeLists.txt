@@ -7,6 +7,7 @@ add_executable(mtt_tests
     test_hnm.cpp
     test_text_sound.cpp
     test_engine.cpp
+    test_pointer.cpp
     test_music.cpp
     test_scene.cpp
     test_display.cpp
