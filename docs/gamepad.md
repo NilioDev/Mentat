@@ -23,9 +23,11 @@ same pointer, so everything works the same way.
   times as much. A target the pointer is already on is passed over, and
   when nothing lies that way the pointer stays where it is
   (`jumpTarget`, `src/core/.../pointer_jump.hpp`).
-- The bottom button (A on most pads) is the left mouse button, and the
-  right button (B) is the right mouse button; both are held for as long as
-  they are pressed. Back closes Mentat. Every other button acts as a key
+- Works out of the box, no setup needed. The bottom and left buttons (A
+  and X on most pads) are the left mouse button, and the right and top
+  buttons (B and Y) the right mouse button; both are held for as long as
+  they are pressed. Back does nothing, so Mentat never closes by accident
+  (EXIT GAME on the mixer panel ends it). Every other button acts as a key
   press, which skips a video or a pause.
 - The gamepad takes over the pointer when it moves it or clicks, starting
   from where the mouse pointer was. The mouse takes it back as soon as it
@@ -33,7 +35,7 @@ same pointer, so everything works the same way.
 
 ## Choosing the buttons
 
-A text file `gamepad.txt` in Mentat's own folder (beside the `saves`
+Only for players who want another layout: a text file `gamepad.txt` in Mentat's own folder (beside the `saves`
 folder) can say what each button does, one `button = action` a line.
 Case, spaces, dashes and underscores do not matter, and `#` starts a
 comment. Buttons not named keep what they do; lines that cannot be read
@@ -46,12 +48,13 @@ are left out (Mentat logs how many).
 - Actions: `click`, `right click`, `key` (or `skip`), `jump up`,
   `jump down`, `jump left`, `jump right`, `quit`, `none`.
 
-For example, to click with B and keep Back from closing Mentat:
+For example, to click with B, right-click with A and close Mentat with
+Back:
 
 ```
 b = click
 a = right click
-back = none
+back = quit
 ```
 
 The pieces are in `src/core/.../pad_buttons.hpp`.

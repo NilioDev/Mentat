@@ -43,9 +43,14 @@ std::string plain(std::string_view s) {
 
 PadButtons::PadButtons() {
     actions_.fill(PadAction::Key);
+    // Both face buttons on each side do the same, so it does not matter
+    // which a player reaches for; Back does nothing, so Mentat never
+    // closes by accident (EXIT GAME on the mixer panel ends it).
     actions_[kSouth] = PadAction::Click;
+    actions_[kWest] = PadAction::Click;
     actions_[kEast] = PadAction::RightClick;
-    actions_[kBack] = PadAction::Quit;
+    actions_[kNorth] = PadAction::RightClick;
+    actions_[kBack] = PadAction::None;
     actions_[kDpadUp] = PadAction::Up;
     actions_[kDpadDown] = PadAction::Down;
     actions_[kDpadLeft] = PadAction::Left;

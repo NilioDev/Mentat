@@ -146,11 +146,12 @@ and the original can load the games you save in Mentat.
 With a gamepad, the left stick moves the pointer, and the direction pad
 jumps it to the next line of the list, arrow, button, person, place on
 the map, the small maps or the globe, or knob of the mixer panel that way.
-A clicks, B is the right mouse button, Back closes Mentat, and any other
-button acts as a key. To change that, put a file `gamepad.txt` in the
-folder that holds `saves` (above), with lines such as `b = click`,
-`a = right click` or `back = none`; [docs/gamepad.md](docs/gamepad.md)
-lists every button and action.
+It works as soon as you plug it in: A and X click, B and Y are the right
+mouse button, Back does nothing (so you never quit by accident), and any
+other button acts as a key. If you want another layout, put a file
+`gamepad.txt` in the folder that holds `saves` (above), with lines such as
+`b = click` or `back = quit`; [docs/gamepad.md](docs/gamepad.md) lists
+every button and action.
 
 | Action | Mouse | Keyboard | Gamepad |
 | --- | --- | --- | --- |
