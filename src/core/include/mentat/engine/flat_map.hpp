@@ -48,6 +48,12 @@ public:
     // The point of the map at `latitude` nearest to `longitude`.
     int pointAt(std::uint16_t longitude, int latitude) const;
 
+    // Each point of the disc of `radius` around (longitude, latitude), on
+    // rows within ±`limit` latitudes, as the original walks it (a point
+    // may come more than once).
+    void disc(std::uint16_t longitude, int latitude, int radius, int limit,
+              const std::function<void(std::uint8_t&)>& each);
+
     std::vector<std::uint8_t>& bytes() { return map_; }
     const std::vector<std::uint8_t>& bytes() const { return map_; }
 

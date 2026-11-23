@@ -35,6 +35,26 @@ int Game::random2() {
     return static_cast<int>((product >> 8) & 0xFFFF);
 }
 
+// The third generator: as the second, from its own seed, the number
+// masked to the bits that `most` needs and drawn again while above it.
+int Game::random3(int most) {
+    if (most <= 0) {
+        return 0;
+    }
+    int mask = 0;
+    while (mask < most) {
+        mask = mask * 2 + 1;
+    }
+    for (;;) {
+        const std::uint32_t product = static_cast<std::uint32_t>(randomSeed3_) * 0xCBD1u;
+        randomSeed3_ = static_cast<std::uint16_t>(product + 1);
+        const int n = static_cast<int>((product >> 8) & 0xFFFF) & mask;
+        if (n <= most) {
+            return n;
+        }
+    }
+}
+
 // --- Sprite sheets
 
 void Game::selectSheet(int resource) {

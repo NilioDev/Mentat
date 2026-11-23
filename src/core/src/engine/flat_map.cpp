@@ -85,6 +85,102 @@ int FlatMap::pointAt(std::uint16_t longitude, int latitude) const {
     return static_cast<int>((ring * longitude + 0x8000) >> 16);
 }
 
+namespace {
+
+std::int16_t w16(int v) { return static_cast<std::int16_t>(static_cast<std::uint16_t>(v)); }
+
+} // namespace
+
+// The disc is walked as rows of points, two at a time, mirrored about its
+// middle: a run from `left` to `right` points off the middle's point on
+// the rows `top` and `bottom` rows off its latitude.
+void FlatMap::disc(std::uint16_t longitude, int latitude, int radius, int limit,
+                   const std::function<void(std::uint8_t&)>& each) {
+    auto run = [&](int row, int left, int count) {
+        const int lat = latitude + row;
+        if (lat > limit || lat < -limit || std::abs(lat) >= kRows) {
+            return;
+        }
+        const int ring = 2 * width(std::abs(lat));
+        const int start = rowStart(lat);
+        int p = pointAt(longitude, lat) + left;
+        while (p < 0) {
+            p += ring;
+        }
+        for (int k = 0; k < count; ++k) {
+            const std::size_t at = static_cast<std::size_t>(start + p);
+            if (at < map_.size()) {
+                each(map_[at]);
+            }
+            if (++p >= ring) {
+                p -= ring;
+            }
+        }
+    };
+    int cx = radius;
+    int top = -cx;
+    int bottom = cx - 1;
+    int ax = cx;
+    int bp = 0;
+    int right = 0;
+    int left = 0;
+    auto span = [&] {
+        run(top, left, right - left + 1);
+        run(bottom, left, right - left + 1);
+    };
+    // The rows of the top and bottom caps, widening while the error
+    // allows, then the middle rows.
+    bool middle = false;
+    for (int guard = 0; guard < 4096 && !middle; ++guard) {
+        ax = w16(ax - bp);
+        while (ax >= 0) {
+            ++bp;
+            ++right;
+            --left;
+            ax = w16(ax - bp);
+        }
+        span();
+        ++top;
+        --bottom;
+        ax = w16(ax + cx);
+        if (ax < 0) {
+            middle = true;
+        } else {
+            cx = w16(cx - 1);
+            if (cx == 0) {
+                middle = true;
+            } else {
+                ++bp;
+                ++right;
+                --left;
+            }
+        }
+    }
+    ++bp;
+    cx = w16(cx - 1);
+    for (int guard = 0; guard < 4096; ++guard) {
+        span();
+        ++top;
+        --bottom;
+        const bool carry = static_cast<std::uint16_t>(ax) + static_cast<std::uint16_t>(cx) > 0xFFFF;
+        ax = w16(ax + cx);
+        if (!carry) {
+            cx = w16(cx - 1);
+            if (cx != 0) {
+                continue;
+            }
+        }
+        cx = w16(cx - 1);
+        if (cx < 0) {
+            return;
+        }
+        ++right;
+        --left;
+        ax = w16(ax - bp);
+        ++bp;
+    }
+}
+
 std::uint8_t FlatMap::value(int at) const {
     // Only the colour (the low four bits) counts, a sixteenth of the way
     // into its step.

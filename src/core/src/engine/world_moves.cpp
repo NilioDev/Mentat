@@ -136,7 +136,7 @@ void World::heldEquipment(std::size_t t, std::size_t place, int change) {
     }
 }
 
-void World::startMove(int troop, std::size_t place, const FlatMap& map) {
+void World::startMove(int troop, std::size_t place, FlatMap& map) {
     const std::size_t t = troopRecord(troop);
     if (u8(t + 3) & kMoving) {
         // Already on the way: only the destination changes.
@@ -181,7 +181,7 @@ void World::startMove(int troop, std::size_t place, const FlatMap& map) {
     }
 }
 
-bool World::stepTroop(int troop, int steps, const FlatMap& map) {
+bool World::stepTroop(int troop, int steps, FlatMap& map) {
     const std::size_t t = troopRecord(troop);
     for (int k = 0; k < steps; ++k) {
         const std::size_t place = u16(t + 4);
@@ -196,7 +196,7 @@ bool World::stepTroop(int troop, int steps, const FlatMap& map) {
         int dy = 0;
         if (acrossLon >= acrossLat) {
             if (acrossLon < kNear) {
-                arrive(troop);
+                arrive(troop, map);
                 return true;
             }
             dy = acrossLat == 0 ? 0 : sign;
@@ -206,7 +206,7 @@ bool World::stepTroop(int troop, int steps, const FlatMap& map) {
             }
         } else {
             if (acrossLat < kNear) {
-                arrive(troop);
+                arrive(troop, map);
                 return true;
             }
             dy = sign;
@@ -225,7 +225,7 @@ bool World::stepTroop(int troop, int steps, const FlatMap& map) {
     return false;
 }
 
-void World::moveTroops(int except, const FlatMap& map) {
+void World::moveTroops(int except, FlatMap& map) {
     for (std::size_t t = kTroops; t < kTroopsEnd; t += kTroopSize) {
         const int job = u8(t + 3);
         if (!(job & kMoving) || u8(t) == except) {
@@ -242,7 +242,7 @@ void World::moveTroops(int except, const FlatMap& map) {
 }
 
 // The troop reaches its destination.
-void World::arrive(int troop) {
+void World::arrive(int troop, FlatMap& map) {
     const std::size_t t = troopRecord(troop);
     int occupation = u8(t + 3) & kOccupation;
     const std::size_t place = u16(t + 4);
@@ -266,7 +266,8 @@ void World::arrive(int troop) {
         return;
     }
     if (occupation != kAttacking && u8(place + 9) == troop) {
-        return; // alone there: taking the place is not built yet
+        capture(troop, map); // alone there: the place is Paul's
+        return;
     }
     // With others there, Paul's troops get ready to fight.
     for (int other = u8(place + 9); other != 0;) {

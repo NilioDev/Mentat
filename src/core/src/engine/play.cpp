@@ -226,6 +226,9 @@ public:
         orders_.sent = [this] { stayOnMap(); };
         world_.markChanged = [this](int troop) { map_.markChanged(troop); };
         world_.markMoved = [this](int troop) { map_.markMoved(troop); };
+        world_.placeChanged = [this](std::size_t record) { map_.placeChanged(record); };
+        world_.random = [this](int mask) { return g_.random(mask); };
+        world_.random3 = [this](int most) { return g_.random3(most); };
         // The troops' marks stay under the chief's box and the small map.
         map_.windows = [this] {
             return orders_.active() ? std::vector<ClipRect>{orders_.box()} : std::vector<ClipRect>{};
@@ -715,7 +718,7 @@ private:
         if (troop == 0) {
             return;
         }
-        if (world_.enlist(troop)) {
+        if (world_.enlist(troop, &map_.flatMap())) {
             talk_.raiseProgress(kAllRallied);
         }
         people_ = world_.meetPeople();

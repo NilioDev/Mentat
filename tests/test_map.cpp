@@ -158,6 +158,67 @@ MTT_TEST("world: places settle onto the map's points when the program starts") {
     MTT_CHECK(w.u8(World::troopRecord(2) + 0x12) == (0x04 | 0x80));
 }
 
+MTT_TEST("flat map: a disc of radius 5 covers ten rows and wraps round the planet") {
+    std::vector<std::uint8_t> map(2 * kMiddle + 512, 0);
+    FlatMap m(smallLatitudes(), map, FlatMap::Edges{});
+    m.disc(0, 0, 5, 0x5D, [](std::uint8_t& b) { b = 1; });
+    // Points either side of the middle, from 5 rows above to 4 below.
+    const int half[] = {3, 5, 5, 6, 6, 6, 6, 5, 5, 3};
+    for (int row = -6; row <= 5; ++row) {
+        const int h = row < -5 || row > 4 ? -1 : half[row + 5];
+        for (int p = -8; p <= 8; ++p) {
+            const int at = m.rowStart(row) + (p + 200) % 200;
+            MTT_CHECK(m.bytes()[static_cast<std::size_t>(at)] == (std::abs(p) <= h ? 1 : 0));
+        }
+    }
+}
+
+MTT_TEST("world: a troop alone at a Harkonnen fort takes it") {
+    std::vector<std::uint8_t> map(2 * kMiddle + 512, 0x05);
+    FlatMap m(smallLatitudes(), map, FlatMap::Edges{});
+    m.bytes()[static_cast<std::size_t>(m.rowStart(2) + 51)] = 0x15; // a spice field found
+    World w;
+    const std::size_t fort = World::placeRecord(1);
+    w.setU8(fort, 0x01);
+    w.setU16(fort + 2, 16384); // point 50
+    w.setU16(fort + 4, 2);
+    w.setU8(fort + 8, 0x2D);
+    const std::size_t other = World::placeRecord(2);
+    w.setU8(other + 8, 0x2D);
+    w.setU8(other + 0x12, 0x40);
+    w.setU8(other + 0x19, 12);
+    w.setU8(World::placeRecord(3), 0xFF);
+    w.setU16(0x02, 0x35); // day 3
+    w.setU16(0x00, 2);    // no prisoner kept
+    w.setU8(0x29, 1);
+    const std::size_t t = World::troopRecord(2);
+    w.setU8(t, 2);
+    w.setU8(t + 3, 0x40); // on its way
+    w.setU16(t + 4, static_cast<std::uint16_t>(fort));
+    w.setU16(t + 6, 16384);
+    w.setU16(t + 8, 2);
+    w.setU16(t + 0x12, 0x2002);
+    w.setU8(t + 0x15, 0x1A);
+    w.setU8(t + 0x17, 0x3C);
+    w.moveTroops(0, m);
+    MTT_CHECK(w.u8(fort + 9) == 2);
+    MTT_CHECK(w.u8(fort + 0x0A) == 0x08 && w.u8(fort + 0x0B) == 5);
+    MTT_CHECK(w.u8(0x29) == 5);
+    MTT_CHECK(w.u16(0x115A) == 0x0001);
+    MTT_CHECK(w.u8(t + 3) == 4);
+    MTT_CHECK(w.u16(t + 0x10) == 0x0520);
+    MTT_CHECK(w.u16(t + 0x12) == 0x6002);
+    MTT_CHECK(w.u8(t + 0x15) == 0x20 && w.u8(t + 0x17) == 0x3F);
+    // One Harkonnen fort left: the story notes it, and the fort gets the
+    // equipment kept everywhere, less 10.
+    MTT_CHECK(w.u16(0xA8) == 8);
+    MTT_CHECK(w.u8(0xC2) == 1);
+    MTT_CHECK(w.u8(fort + 0x19) == 2);
+    MTT_CHECK(m.bytes()[static_cast<std::size_t>(m.rowStart(2) + 50)] == 0x25);
+    MTT_CHECK(m.bytes()[static_cast<std::size_t>(m.rowStart(2) + 51)] == 0x15);
+    MTT_CHECK(m.bytes()[static_cast<std::size_t>(m.rowStart(2) + 57)] == 0x05);
+}
+
 MTT_TEST("map screen: opens on the palace and the arrows move it") {
     auto archive = test::openGameData();
     auto program = test::openProgram();

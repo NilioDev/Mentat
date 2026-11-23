@@ -158,6 +158,7 @@ void MapScreen::show() {
 
 void MapScreen::leave() {
     active_ = false;
+    stale_ = false;
     chosen_ = 0;
     marks_.clear();
     boxShown_ = false;
@@ -331,7 +332,20 @@ void MapScreen::tick() {
     if (boxShown_ && g_.platform().ticks - lastClick_ >= kBoxTicks) {
         hideBox();
     }
+    if (stale_ && !(windows && !windows().empty()) && !(covers && !covers().empty())) {
+        stale_ = false;
+        hideBox();
+        drawView();
+        g_.display().copyRect(g_.display().back(), g_.display().screen(), view());
+    }
     stepMarks();
+}
+
+void MapScreen::placeChanged(std::size_t record) {
+    if (!active_ || (world_.u8(record + 0x0A) & kPlaceHidden)) {
+        return;
+    }
+    stale_ = true;
 }
 
 void MapScreen::clicked() { lastClick_ = g_.platform().ticks; }
