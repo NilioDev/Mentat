@@ -128,6 +128,21 @@ MTT_TEST("display: the sparkle brings the picture 150 steps a tick") {
     MTT_CHECK(p.screen.at(0, 0) == 2 && p.screen.at(319, 151) == 2);
 }
 
+MTT_TEST("display: the transitions in a rectangle end on the back picture there only") {
+    Platform p;
+    Display d(p, tables());
+    d.screen().fill(5);
+    d.back().fill(2);
+    const ClipRect r{160, 0, 320, 116};
+    runGame(p, [&] { d.transitionIn(Display::kUnroll, r); });
+    MTT_CHECK(d.screen().at(160, 0) == 2 && d.screen().at(319, 115) == 2);
+    MTT_CHECK(d.screen().at(159, 0) == 5 && d.screen().at(160, 116) == 5);
+    d.back().fill(7);
+    runGame(p, [&] { d.transitionIn(Display::kRollUp, r); });
+    MTT_CHECK(d.screen().at(200, 0) == 7 && d.screen().at(200, 115) == 7 && d.screen().at(100, 50) == 5);
+    MTT_CHECK_THROWS(d.transitionIn(0x04, r));
+}
+
 MTT_TEST("display: the rise moves the old picture up with a band under it") {
     Platform p;
     Display d(p, tables());
