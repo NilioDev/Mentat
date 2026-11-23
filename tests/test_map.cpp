@@ -1239,3 +1239,32 @@ MTT_TEST("world: Jessica's powers let Paul reach his troops further off") {
     w.revealLearnedPlace();
     MTT_CHECK(w.u8(place + 0x0A) == 0x01);
 }
+
+MTT_TEST("world: Harkonnen troops where character 4 is move the story on to 0x30") {
+    std::vector<std::uint8_t> map(2 * kMiddle + 512, 0x05);
+    FlatMap m(smallLatitudes(), map, FlatMap::Edges{});
+    World w;
+    for (int n = 1; World::troopRecord(n) < 0xFBB; ++n) {
+        w.setU8(World::troopRecord(n) + 3, 0xA0);
+    }
+    const std::size_t place = World::placeRecord(5);
+    w.setU8(place + 8, 0x30);
+    w.setU16(World::placeRecord(9), 0xFFFF); // the last place
+    w.setU16(0x101A, 0x0580); // character 4 in place 5
+    w.setU8(0x2A, 0x2D);
+    w.troopsWork(0, m);
+    MTT_CHECK(w.u8(0x2A) == 0x2D); // nobody there
+    // A Harkonnen army troop there.
+    const std::size_t t = World::troopRecord(7);
+    w.setU8(t, 7);
+    w.setU8(t + 3, 0x84);
+    w.setU8(t + 0x10, 0x80);
+    w.setU16(t + 4, static_cast<std::uint16_t>(place));
+    w.setU8(place + 9, 7);
+    w.setU16(0x10, 0x10); // he goes with Paul: nothing
+    w.troopsWork(0, m);
+    MTT_CHECK(w.u8(0x2A) == 0x2D);
+    w.setU16(0x10, 0);
+    w.troopsWork(0, m);
+    MTT_CHECK(w.u8(0x2A) == 0x30);
+}
