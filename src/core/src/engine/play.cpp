@@ -323,6 +323,8 @@ constexpr int kVisionShown = 0xBB8;
 constexpr int kMessageCharacters = 0x10;
 constexpr int kTroopShownSietches = 3;
 constexpr std::size_t kMessageAbout = 0xEA; // and 0xEB
+constexpr std::size_t kLearnedPlace = 0x11CE;
+constexpr std::size_t kFoundUnconscious = 0xE7;
 constexpr std::size_t kMessageAfter = 0xE8;
 constexpr std::uint8_t kMessageAfterValue = 0x0A;
 constexpr std::uint16_t kFirstPlace = 0x100;
@@ -535,6 +537,21 @@ private:
         const std::uint32_t quiet = g_.platform().ticks - quietSince_;
         if (quiet < kMessageWait) {
             return;
+        }
+        {
+            // When the one who speaks is with Paul, it tells the message
+            // itself (the chiefs only about Paul's place).
+            std::uint16_t message = 0;
+            std::uint16_t place = 0;
+            world_.firstMessage(message, place);
+            const int c = message >> 8;
+            if (c < 16 && (world_.present() & (1u << c)) != 0 &&
+                (c != kChiefs || place == world_.u16(kPaulsPlaceWord))) {
+                world_.setU8(kSituation, 0);
+                tellMessage(c, message, place);
+                spokeUp(c);
+                return;
+            }
         }
         if (world_.u8(kAtWar) == 0) {
             if (quiet < kFirstBlur) {
@@ -1461,9 +1478,16 @@ private:
         }
     }
 
+    enum class Opening { Asked, SpeakingUp, Message };
+
     // Starts talking to character `c` where the room shows it; or, with
     // `speakingUp`, only when it has something to say as Paul comes in.
     bool talkTo(int c, std::uint16_t phrase, bool speakingUp) {
+        return talkTo(c, phrase, speakingUp ? Opening::SpeakingUp : Opening::Asked);
+    }
+
+    bool talkTo(int c, std::uint16_t phrase, Opening opening) {
+        const bool speakingUp = opening != Opening::Asked;
         int x = -1;
         int y = -1;
         for (const Places::Shown& s : g_.places().shown()) {
@@ -1477,11 +1501,34 @@ private:
         }
         int variant = 0;
         const int face = look(c, variant);
+        if (opening == Opening::Message) {
+            talk_.sayMessage(c, x, y, face, variant);
+            return true;
+        }
         if (speakingUp) {
             return talk_.speakUp(c, x, y, face, variant);
         }
         talk_.start(c, x, y, face, variant);
         return true;
+    }
+
+    // A companion in the room tells its message itself (see
+    // docs/rules/messages.md): the talk starts with it.
+    void tellMessage(int c, std::uint16_t message, std::uint16_t place) {
+        const std::uint16_t learned = world_.u16(kLearnedPlace);
+        if (place != 0) {
+            world_.learnPlace(place);
+        }
+        world_.setU8(kMessageAbout, static_cast<std::uint8_t>(message & 0xFF));
+        talkTo(c, 0, Opening::Message);
+        world_.setU8(kMessageAbout, 0xFF);
+        world_.learnPlace(learned);
+    }
+
+    // Whoever spoke up has no more messages to tell.
+    void spokeUp(int c) {
+        world_.dropMessagesFrom(c);
+        world_.setU8(kFoundUnconscious, 0);
     }
 
     // Paul comes into a room or goes for a door: the first of those
@@ -1494,7 +1541,18 @@ private:
         }
         std::sort(here.begin(), here.end());
         for (const int c : here) {
-            if (c <= kChiefs && talkTo(c, 0, true)) {
+            if (c > kChiefs) {
+                continue;
+            }
+            if (talkTo(c, 0, true)) {
+                spokeUp(c);
+                return true;
+            }
+            std::uint16_t message = 0;
+            std::uint16_t place = 0;
+            if (world_.messageFrom(c, message, place)) {
+                tellMessage(c, message, place);
+                spokeUp(c);
                 return true;
             }
         }

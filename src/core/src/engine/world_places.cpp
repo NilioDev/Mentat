@@ -86,6 +86,43 @@ void World::dropMessage() {
     }
 }
 
+bool World::messageFrom(int c, std::uint16_t& message, std::uint16_t& place) const {
+    constexpr int kChiefs = 0x0F;
+    for (int i = 0; i < u8(kMessageQueue); ++i) {
+        const std::size_t e = kMessageQueue + 1 + 4 * static_cast<std::size_t>(i);
+        if (u8(e + 1) == c && (c != kChiefs || u16(e + 2) == u16(kPlaceRecord))) {
+            message = u16(e);
+            place = u16(e + 2);
+            return true;
+        }
+    }
+    return false;
+}
+
+void World::dropMessagesFrom(int c) {
+    constexpr int kChiefs = 0x0F;
+    const int count = u8(kMessageQueue);
+    int kept = 0;
+    for (int i = 0; i < count; ++i) {
+        const std::size_t e = kMessageQueue + 1 + 4 * static_cast<std::size_t>(i);
+        const std::uint16_t message = u16(e);
+        const std::uint16_t place = u16(e + 2);
+        if ((message >> 8) == c && (c != kChiefs || place == u16(kPlaceRecord))) {
+            continue;
+        }
+        const std::size_t to = kMessageQueue + 1 + 4 * static_cast<std::size_t>(kept++);
+        setU16(to, message);
+        setU16(to + 2, place);
+    }
+    setU8(kMessageQueue, static_cast<std::uint8_t>(kept));
+    if (kept != count) {
+        // The original clears only the entry after those kept.
+        const std::size_t end = kMessageQueue + 1 + 4 * static_cast<std::size_t>(kept);
+        setU16(end, 0);
+        setU16(end + 2, 0);
+    }
+}
+
 void World::tell(std::uint16_t message, std::size_t place) {
     constexpr std::size_t kQueue = kMessageQueue;
     constexpr int kMost = 10;

@@ -267,6 +267,20 @@ bool Talk::speakUp(int c, int x, int y, int face, int variant) {
     return true;
 }
 
+void Talk::sayMessage(int c, int x, int y, int face, int variant) {
+    begin(c, x, y, face, variant);
+    setMenu();
+    prepareCondition();
+    if (const auto list = dialogue_.list(kRemarkList)) {
+        if (const auto found = dialogue_.find(*list, DialogueLine::kOnceMore, [this](int n) { return condition(n); })) {
+            eventLine_ = *found;
+            sayLine(*found, false);
+        }
+    }
+    resume_.reset();
+    finished_ = false;
+}
+
 void Talk::begin(int c, int x, int y, int face, int variant) {
     character_ = c;
     face_ = face < 0 ? c : face;

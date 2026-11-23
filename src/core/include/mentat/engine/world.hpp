@@ -271,6 +271,12 @@ public:
     static constexpr std::uint8_t kOutside = 0xFF;
     bool firstMessage(std::uint16_t& message, std::uint16_t& place) const;
     void dropMessage();
+    // The first message waiting that character `c` says (for the chiefs,
+    // 15, one about Paul's place). False when there is none.
+    bool messageFrom(int c, std::uint16_t& message, std::uint16_t& place) const;
+    // Every message waiting that character `c` says goes (for the chiefs,
+    // those about Paul's place), as when it speaks up.
+    void dropMessagesFrom(int c);
     // The messages that only say news waits (those whose word's low byte is
     // 1) go, as when the news is looked at.
     void dropNewsReminders();

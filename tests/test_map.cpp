@@ -963,6 +963,26 @@ MTT_TEST("messages: the queue gives its first message, and the vision shows the 
     w.dropMessage();
     MTT_CHECK(w.u8(q) == 0 && !w.firstMessage(message, at));
 
+    // A companion's messages: the chiefs' only about Paul's place.
+    w.setU8(q, 4);
+    w.setU16(q + 1, 0x0F0C);
+    w.setU16(q + 3, place);
+    w.setU16(q + 5, 0x0507);
+    w.setU16(q + 7, 0);
+    w.setU16(q + 9, 0x0F07);
+    w.setU16(q + 11, static_cast<std::uint16_t>(World::placeRecord(6)));
+    w.setU16(q + 13, 0x0508);
+    w.setU16(q + 15, place);
+    w.setU16(0x114E, static_cast<std::uint16_t>(World::placeRecord(6)));
+    MTT_CHECK(w.messageFrom(5, message, at) && message == 0x0507 && at == 0);
+    MTT_CHECK(w.messageFrom(0x0F, message, at) && message == 0x0F07);
+    MTT_CHECK(!w.messageFrom(4, message, at));
+    w.dropMessagesFrom(5);
+    MTT_CHECK(w.u8(q) == 2 && w.u16(q + 1) == 0x0F0C && w.u16(q + 5) == 0x0F07 && w.u16(q + 9) == 0);
+    w.dropMessagesFrom(0x0F);
+    MTT_CHECK(w.u8(q) == 1 && w.u16(q + 1) == 0x0F0C && w.u16(q + 3) == place);
+    w.setU8(q, 0);
+
     // The vision of a place away from Paul has the small map in its frame.
     Vision v(g, w, map);
     v.draw(place);

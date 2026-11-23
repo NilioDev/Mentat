@@ -826,3 +826,32 @@ MTT_TEST("talk: overpowering the Harkonnens' captain, a try for each") {
     w.setU16(0xEE, 0);
     MTT_CHECK(talk.command(Talk::kOverpower) && w.u8(0xED) == 0xDE && (w.u8(0x10A7) & 0x10) != 0);
 }
+
+MTT_TEST("talk: a companion in the room tells a chief's message itself, and the talk goes on") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g);
+    FakeHost host;
+    Talk talk(g, w, panel, host);
+    talk.subtitles = Talk::Subtitles::None;
+    talk.runEvents();
+    talk.runEvents();
+    g.places().enter(w.room(), w.place());
+    g.display().targetBack();
+    g.places().present = w.present();
+    w.findPresent();
+    g.places().drawView();
+    // The message is one of the story's remarks.
+    w.setU8(0xEA, 0x07);
+    talk.sayMessage(0, 186, 53);
+    const int said = talk.phrase();
+    MTT_CHECK(talk.active() && said == 0x1BD);
+    // Then Leto talks on as in any talk.
+    MTT_CHECK(talk.command(Talk::kTalkToMe) && talk.active() && talk.phrase() != said);
+}

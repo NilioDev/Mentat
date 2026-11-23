@@ -141,6 +141,10 @@ public:
     // group has a line that may be said now, and the talk starts with it.
     // False, with nothing shown, when there is none.
     bool speakUp(int c, int x, int y, int face = -1, int variant = 0);
+    // A companion in the room tells a chief's message itself: the talk
+    // starts with the first line of the story's remarks that may be said,
+    // recorded as the remarks are, and goes on from there.
+    void sayMessage(int c, int x, int y, int face = -1, int variant = 0);
     // The answer of the last line that gave one: 0xFF yes. Paul goes
     // through a door when nobody there said no.
     std::uint8_t answer() const { return answer_; }

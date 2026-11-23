@@ -83,7 +83,8 @@ and touch controls.
 > its bar, by the work of your troops there; point at a place to see who
 > is there, or click it to move the map to it. While you wait in a room,
 > news from your troops reaches you: the room blurs and a chief's face
-> appears in a shimmering vision, showing the place on a small map. As the
+> appears in a shimmering vision, showing the place on a small map; when
+> the one with news is in the room with you, they tell you themselves. As the
 > story moves on, doors in the palace open, people move to other rooms,
 > new places become known and news arrives. At moments of the story a
 > scene plays: the family gathers in a room and each speaks in turn while
