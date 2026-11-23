@@ -50,6 +50,11 @@ public:
     // it names; false when there is none.
     void showLoadList();
     bool loadSlot(std::uint16_t phrase);
+    // The same for saving: the list of saved games to save over, and
+    // saving in the one a line names; false when it was not saved (the
+    // list stays).
+    void showSaveList();
+    bool saveSlot(std::uint16_t phrase);
     bool showingResults() const { return results_; }
 
     // Draws the globe screen on the back buffer, the planet facing map
@@ -90,7 +95,7 @@ private:
     // Loading and saving.
     enum class List { Globe, Save, Load };
     void openList(List list);
-    void saveIn(int slot, int line);
+    bool saveIn(int slot, int line);
     void loadFrom(int slot);
     void writeSlot(int slot, std::uint16_t clock);
     void drawList();

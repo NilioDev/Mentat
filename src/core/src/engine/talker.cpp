@@ -498,7 +498,21 @@ void Talker::stop() {
     }
 }
 
-void showPaulAndChani(Game& game) {
+int paulsFace(int clock, int tiredness) {
+    const int age = std::min((clock & 0xFFFF) >> 6, 8);
+    return age * 2 + (tiredness >= 0x10 ? 1 : 0) + 1;
+}
+
+void showPaul(Game& game, int variant) {
+    constexpr int kPaul = 0x2D;
+    Talker& paul = game.talker();
+    paul.halt();
+    game.companion().halt();
+    game.display().saveBackground();
+    paul.show(kPaul, 0, variant, 1);
+}
+
+void showPaulAndChani(Game& game, int variant) {
     constexpr int kChani = 7;
     constexpr int kChaniDown = 15;
     constexpr int kPaul = 0x2D;
@@ -512,7 +526,7 @@ void showPaulAndChani(Game& game) {
     paul.setCompanion(&chani);
     chani.show(kChani, 0, 0, 0, kChaniDown);
     d.saveBackground();
-    paul.show(kPaul, kPaulRight, 1, 1);
+    paul.show(kPaul, kPaulRight, variant, 1);
 }
 
 } // namespace mentat

@@ -63,6 +63,15 @@ constexpr std::size_t kRoomNumber = 0x0B;
 constexpr std::size_t kNewMessages = 0x21E8;
 constexpr std::size_t kOldMessages = 0x21EC;
 constexpr std::size_t kLookAtMirror = 0x21F0;
+// The mirror: its pictures (the room, its colours over it, the frame),
+// its commands, "look away", and the flag for Chani beside Paul.
+constexpr std::uint16_t kLookAtMirrorAction = 0x0EA6;
+constexpr std::uint16_t kLookAway = 0x0EB9;
+constexpr std::size_t kMirrorCommands = 0x20C2;
+constexpr int kMirrorSheet = 0x3B;
+constexpr std::size_t kCouple = 0x10;
+constexpr int kCoupleBit = 0x80;
+constexpr std::size_t kTired = 0xF4;
 constexpr std::size_t kMixer = 0x21F4;
 constexpr std::size_t kSeeMap = 0x220C;
 constexpr std::size_t kCallWorm = 0x2214;
@@ -489,8 +498,9 @@ private:
     // twice the room blurs as it nears, then the vision shows (at once
     // while his place is at war).
     void checkMessages() {
-        if (over_ || talk_.active() || map_.active() || globe_.active() || cockpit_.active() || flight_.active() ||
-            orders_.active() || noticeShown_ || messageRoom_.active() || planShown_ || !world_.inside()) {
+        if (over_ || mirror_ || talk_.active() || map_.active() || globe_.active() || cockpit_.active() ||
+            flight_.active() || orders_.active() || noticeShown_ || messageRoom_.active() || planShown_ ||
+            !world_.inside()) {
             return;
         }
         if (world_.u8(kProgress) <= kMessagesFrom || world_.u8(World::kMessageQueue) == 0) {
@@ -611,8 +621,8 @@ private:
     // What the story changed that shows: ways between rooms opened. And at
     // step 0x14, a long quiet outside with nobody along moves it on.
     void checkStory() {
-        if (scene_ || over_ || talk_.active() || map_.active() || globe_.active() || cockpit_.active() || flight_.active() ||
-            orders_.active() || noticeShown_ || messageRoom_.active() || planShown_) {
+        if (scene_ || over_ || mirror_ || talk_.active() || map_.active() || globe_.active() || cockpit_.active() ||
+            flight_.active() || orders_.active() || noticeShown_ || messageRoom_.active() || planShown_) {
             return;
         }
         if (world_.scene != 0 && !scene_) {
@@ -1216,6 +1226,9 @@ private:
             }
             return;
         }
+        if (mirror_) {
+            return;
+        }
         if (cockpit_.active()) {
             const Cockpit::Destination to = cockpit_.destinationAt(x, y);
             if (to.chosen) {
@@ -1303,6 +1316,14 @@ private:
 
     // A command: one of the talk menu's, or talking to a person.
     void choose(std::uint16_t action, std::uint16_t phrase = 0) {
+        if (mirror_) {
+            endCommand(action, phrase);
+            return;
+        }
+        if (action == kLookAtMirrorAction && world_.inside() && !map_.active() && !talk_.active()) {
+            lookAtMirror();
+            return;
+        }
         if (orders_.command(action)) {
             return;
         }
@@ -2124,11 +2145,23 @@ private:
         lit_ = -1;
     }
 
+    // The list the end of the game or the mirror goes back to.
+    std::size_t mainEndCommands() const { return mirror_ ? kMirrorCommands : kEndCommands; }
+
     bool endCommand(std::uint16_t action, std::uint16_t phrase) {
         switch (endList_) {
         case EndList::Main:
             if (action == kRestart) {
+                if (mirror_) {
+                    leaveMirrorNow();
+                }
                 restart();
+            } else if (action == kLookAway && mirror_) {
+                leaveMirror();
+            } else if (action == GlobeScreen::kSave && mirror_) {
+                endList_ = EndList::Save;
+                globe_.showSaveList();
+                lit_ = -1;
             } else if (action == GlobeScreen::kLoad) {
                 endList_ = EndList::Load;
                 globe_.showLoadList();
@@ -2136,7 +2169,7 @@ private:
             } else if (action == kLeave) {
                 endList_ = EndList::Leave;
                 setEndCommands(kLeaveCommands);
-            } else if (action == Talk::kWhat) {
+            } else if (action == Talk::kWhat && !mirror_) {
                 endTake_ = !endTake_; // the same recording again
                 sayEnd();
             }
@@ -2146,19 +2179,80 @@ private:
                 quit_ = true;
             } else if (action == kLeaveNo) {
                 endList_ = EndList::Main;
-                setEndCommands(kEndCommands);
+                setEndCommands(mainEndCommands());
             }
             return true;
         case EndList::Load:
             if (action == GlobeScreen::kCancel) {
                 endList_ = EndList::Main;
-                setEndCommands(kEndCommands);
+                setEndCommands(mainEndCommands());
             } else if (action == GlobeScreen::kLoadSlot && globe_.loadSlot(phrase)) {
+                if (mirror_) {
+                    leaveMirrorNow();
+                }
                 resumeGame();
+            }
+            return true;
+        case EndList::Save:
+            if (action == GlobeScreen::kCancel ||
+                (action == GlobeScreen::kSaveSlot && globe_.saveSlot(phrase))) {
+                endList_ = EndList::Main;
+                setEndCommands(mainEndCommands());
             }
             return true;
         }
         return true;
+    }
+
+    // --- The mirror
+
+    // "LOOK AT MIRROR": Paul's face in the mirror of his room, Chani's
+    // beside it once she is with him; the clock stops meanwhile, and the
+    // commands are those of the game itself. See docs/rules/mirror.md.
+    void lookAtMirror() {
+        mirror_ = true;
+        clockRunning_ = false;
+        talk_.endRemark();
+        closeOrnament();
+        d_.beginPrepare();
+        d_.targetBack();
+        g_.selectSheet(kMirrorSheet);
+        g_.drawSprite(0, 0, 0);
+        g_.drawSprite(1, 0, 0);
+        const int face = paulsFace(world_.clock(), world_.u8(kTired));
+        if ((world_.u8(kCouple) & kCoupleBit) != 0) {
+            showPaulAndChani(g_, face);
+        } else {
+            showPaul(g_, face);
+        }
+        g_.selectSheet(kMirrorSheet);
+        g_.drawSprite(2, 0, 0);
+        panel_.setArrowZones(kNoArrows);
+        d_.endPrepare();
+        d_.transition(Display::kSquash);
+        endList_ = EndList::Main;
+        setEndCommands(kMirrorCommands);
+        showPointer(kArrowPointer);
+    }
+
+    // The mirror is left for something else: its faces go and the clock
+    // runs again.
+    void leaveMirrorNow() {
+        mirror_ = false;
+        g_.talker().stop();
+        clockRunning_ = true;
+        lastTick_ = g_.platform().ticks;
+    }
+
+    // "Look away from the mirror": the room comes back the same way.
+    void leaveMirror() {
+        leaveMirrorNow();
+        d_.targetBack();
+        drawView();
+        d_.transition(Display::kSquash);
+        openOrnament();
+        lit_ = -1;
+        quietSince_ = g_.platform().ticks;
     }
 
     // "RESTART GAME": another video, then a new game.
@@ -2984,7 +3078,8 @@ private:
     // the two recordings is said next.
     bool over_ = false;
     int overReason_ = 0;
-    enum class EndList { Main, Leave, Load };
+    enum class EndList { Main, Leave, Load, Save };
+    bool mirror_ = false;
     EndList endList_ = EndList::Main;
     bool endTake_ = false;
     bool quit_ = false;

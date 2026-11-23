@@ -34,7 +34,9 @@ and touch controls.
 > "See results" on the globe shows the day, your charisma,
 > the areas you hold, your spice and the men on each side, with the planet
 > coloured by who holds it, and "Save game" and "Load game" keep your
-> game, in the same files as the original. In the palace's entrance you
+> game, in the same files as the original. In Paul's room you can look in
+> the mirror, where Paul's face shows how long the game has gone on, and
+> start again, save, load or leave the game from there. In the palace's entrance you
 > can take an ornithopter and fly to a place you know: it takes off, the
 > desert goes by with a small map of your way in the corner, and you land
 > at the place, or skip straight there. A click on the desert flies off
@@ -161,7 +163,7 @@ button acts as a key.
 | Fly over the desert | In the cockpit, click the desert; the arrows turn; "BACK TO STARTING POINT" goes home | | |
 | While flying | "SKIP TO DESTINATION" lands at once; "CHANGE DESTINATION" opens the map again | | |
 | After the game ends | "RESTART GAME", "LOAD GAME" or "EXIT GAME"; " WHAT ? " says it again | | |
-| Save or load a game | On the globe, "SAVE GAME" or "LOAD GAME", then a log; "Cancel" goes back | | |
+| Save or load a game | On the globe, or in the mirror of Paul's room ("LOOK AT MIRROR"), "SAVE GAME" or "LOAD GAME", then a log; "Cancel" goes back | | |
 | Close Mentat | Window's close button | | Back |
 
 ## Build from source

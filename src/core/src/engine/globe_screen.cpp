@@ -334,13 +334,9 @@ bool GlobeScreen::command(std::uint16_t action, std::uint16_t phrase) {
         return true;
     case kSaveSlot:
         if (list_ == List::Save && slot >= 1) {
-            int line = 0;
-            const auto& lines = panel_.commands();
-            while (static_cast<std::size_t>(line) < lines.size() &&
-                   (lines[static_cast<std::size_t>(line)].phrase & Command::kPhrase) != (phrase & Command::kPhrase)) {
-                ++line;
+            if (saveSlot(phrase)) {
+                openList(List::Globe);
             }
-            saveIn(slot, line);
         }
         return true;
     case kLoadSlot:
@@ -576,9 +572,25 @@ void GlobeScreen::writeSlot(int slot, std::uint16_t clock) {
     }
 }
 
-void GlobeScreen::saveIn(int slot, int line) {
+void GlobeScreen::showSaveList() { openList(List::Save); }
+
+bool GlobeScreen::saveSlot(std::uint16_t phrase) {
+    const int slot = (phrase & Command::kPhrase) - kFirstSlotPhrase + 1;
+    if (slot < 1) {
+        return false;
+    }
+    int line = 0;
+    const auto& lines = panel_.commands();
+    while (static_cast<std::size_t>(line) < lines.size() &&
+           (lines[static_cast<std::size_t>(line)].phrase & Command::kPhrase) != (phrase & Command::kPhrase)) {
+        ++line;
+    }
+    return saveIn(slot, line);
+}
+
+bool GlobeScreen::saveIn(int slot, int line) {
     if (saves_ == nullptr) {
-        return;
+        return false;
     }
     // The line shows the game as it is now, then a word on how it went.
     writeSlot(slot, static_cast<std::uint16_t>(world_.clock()));
@@ -589,11 +601,10 @@ void GlobeScreen::saveIn(int slot, int line) {
     panel_.drawLine(kMessageLine, saved ? kSavedPhrase : kSaveErrorPhrase);
     d.targetBack();
     g_.waitTicks(kMessageTicks);
-    if (saved) {
-        openList(List::Globe);
-    } else {
+    if (!saved) {
         drawList();
     }
+    return saved;
 }
 
 void GlobeScreen::loadFrom(int slot) {

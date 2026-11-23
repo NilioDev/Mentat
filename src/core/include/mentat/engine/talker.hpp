@@ -129,7 +129,12 @@ private:
 // Paul and Chani side by side at the end, both moving: Chani's face 15
 // rows down, then Paul's moved right by 0x2D columns, each over the saved
 // background (Paul's over Chani's). Chani is the companion of the game's
-// talker.
-void showPaulAndChani(Game& game);
+// talker. `variant` is Paul's set of faces (see paulsFace()).
+void showPaulAndChani(Game& game, int variant = 1);
+// Paul alone in the mirror: his face where it stands, a little restless.
+void showPaul(Game& game, int variant);
+// Paul's set of faces as the days go by: one more every 4 days, up to
+// the 9th, each with a tired look when `tiredness` is 0x10 or more.
+int paulsFace(int clock, int tiredness);
 
 } // namespace mentat
