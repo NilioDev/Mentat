@@ -11,9 +11,13 @@
 #include "mentat/engine/spice_map.hpp"
 #include "mentat/engine/talk.hpp"
 #include "mentat/engine/world.hpp"
+#include "mentat/gfx/font.hpp"
+#include "mentat/data/string_table.hpp"
 
 #include <algorithm>
 #include <array>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace mentat {
@@ -77,6 +81,23 @@ constexpr int kMoveMapUnderBox = 0x1E;
 constexpr int kMoveMapOverBox = 0x0E;
 // The troop that is shown three sietches to go to in turn.
 constexpr int kThreeSietches = 3;
+
+// Modifying the equipment: the troop's in a box in the chief's, the
+// place's in a box under it.
+constexpr std::size_t kDoneList = 0x2012;
+constexpr std::size_t kHeldColours = 0x1936 + 8; // border, fill
+constexpr std::size_t kFreeColours = 0x1940 + 8; // border, fill: the text's colour and its ground
+constexpr std::size_t kEquipmentSprites = 0x192F;
+constexpr std::uint16_t kNonePhrase = 0x69;
+constexpr std::uint16_t kUnusedPhrase = 0x6F;
+constexpr std::uint16_t kHeldColour = 0xF0;
+constexpr std::uint8_t kMaybe = 0x80;            // the answer of a line that shows the equipment
+constexpr std::uint8_t kEquipped = 0x0C;         // the situation while the chief answers
+constexpr std::size_t kHeldBefore = 0x3D;        // state: what the troop held, then what it gained
+constexpr std::size_t kLost = 0x3E;              // state: what it gave back
+constexpr std::size_t kHarvesterHome = 0x3F;     // state: 0x40 when it took a harvester at Paul's home
+constexpr int kEcologyWork = 8;
+constexpr std::size_t kHome = 0x1150;         // state: Paul's home
 
 void drawFramed(Surface& to, const ClipRect& r, std::uint8_t border, std::uint8_t fill) {
     to.fillRect(r.left, r.top, r.right - r.left, r.bottom - r.top, fill);
@@ -150,6 +171,9 @@ void Orders::open(int troop) {
 }
 
 void Orders::close() {
+    equipping_ = false;
+    freeBox_ = ClipRect{};
+    heldShown_ = false;
     if (choosing_) {
         spice_.close();
         choosing_ = false;
@@ -213,6 +237,15 @@ void Orders::drawBox() {
 void Orders::say(int list) {
     world_.learnTroop(troop_);
     talk_.boxLine(list);
+    heldShown_ = false;
+    if (talk_.answer() == kMaybe) {
+        heldShown_ = true;
+        const int bits = world_.u8(World::troopRecord(troop_) + 0x19);
+        for (std::size_t i = 0; i < held_.size(); ++i) {
+            held_[i] = (bits >> (7 - i)) & 1;
+        }
+        drawHeld();
+    }
 }
 
 // The orders, greyed by what the troop can be asked now.
@@ -377,7 +410,7 @@ void Orders::confirmDestination(std::size_t place) {
     }
 }
 
-void Orders::click(int x, int y) {
+void Orders::clickSmallMap(int x, int y) {
     if (!choosing_) {
         return;
     }
@@ -397,6 +430,204 @@ void Orders::click(int x, int y) {
     }
 }
 
+// --- Modifying the equipment
+
+// "MODIFY EQUIPMENT": the chief tells his news until he shows what his
+// troop holds; the troop's equipment and the place's spare are shown, and
+// a click on a piece moves it from one to the other.
+void Orders::openEquipment() {
+    equipping_ = true;
+    panel_.setCommands(readCommands(g_.resources().program(), kDoneList));
+    Display& d = g_.display();
+    d.targetScreen();
+    panel_.drawCommands();
+    d.targetBack();
+    panel_.drawCommands();
+    for (int i = 0; i < 4 && !heldShown_; ++i) {
+        say(kInfoList);
+    }
+    // The two boxes, from the chief's.
+    freeBox_.left = box_.left + 0x30;
+    heldBox_.left = freeBox_.left + 0x4D;
+    heldBox_.right = box_.right;
+    freeBox_.right = box_.right;
+    heldBox_.top = box_.top + 0x2B;
+    heldBox_.bottom = box_.bottom;
+    freeBox_.top = box_.bottom + 1;
+    if (freeBox_.top >= 0x70) {
+        freeBox_.top -= 0x6D;
+    }
+    freeBox_.bottom = freeBox_.top + 0x28;
+
+    const std::size_t t = World::troopRecord(troop_);
+    const std::uint8_t bits = world_.u8(t + 0x19);
+    world_.setU8(kHeldBefore, bits);
+    for (std::size_t i = 0; i < held_.size(); ++i) {
+        held_[i] = (bits >> (7 - i)) & 1;
+    }
+    free_ = freeEquipment(world_.u16(t + 4));
+    drawEquipment();
+}
+
+// A list of equipment: each piece's sprite in a column of as many as
+// there are, the columns side by side; "none" when there is nothing.
+void Orders::drawEquipmentList(const std::array<int, 7>& counts, int x, int y, int bottom, std::uint16_t colour,
+                               Spans& spans) {
+    spans = Spans{};
+    Surface& to = g_.display().target();
+    if (std::all_of(counts.begin(), counts.end(), [](int n) { return n == 0; })) {
+        const Font large = Font::parse(g_.resources().load(resource::kFont), Font::Size::Large);
+        const std::string& text = panel_.phrases().at(kNonePhrase - 1u);
+        large.draw(to, x + 0x0C, y + 5, text, static_cast<std::uint8_t>(colour), static_cast<std::uint8_t>(colour >> 8));
+        return;
+    }
+    const ProgramFile& program = g_.resources().program();
+    const int previous = g_.sheetResource();
+    g_.selectSheet(resource::kMapSprites);
+    const SpriteSheet& sheet = g_.sheet();
+    for (std::size_t i = 0; i < counts.size(); ++i) {
+        int count = counts[i];
+        if (count == 0) {
+            continue;
+        }
+        const auto n = static_cast<std::uint16_t>(program.dataU8(kEquipmentSprites + i));
+        const SpriteHeader h = sheet.sprite(n).header;
+        const int room = bottom - y;
+        int step = h.height + 2;
+        if (room / count < step) {
+            const int rest = room - step;
+            step = rest / count;
+            if (step < 2) {
+                step = 2;
+                count = rest / 2;
+            }
+        }
+        spans[i][0] = x;
+        for (int k = 0, at = y; k < count; ++k, at += step) {
+            g_.drawSprite(n, x, at);
+        }
+        x += (h.widthAndFlags & 0x0FFF) + 1;
+        spans[i][1] = x;
+    }
+    g_.selectSheet(previous);
+}
+
+// What the troop holds, in the chief's box.
+void Orders::drawHeld() {
+    Display& d = g_.display();
+    d.targetScreen();
+    drawEquipmentList(held_, box_.left + 0x80, box_.top + 0x2D, box_.bottom, kHeldColour, heldAt_);
+    d.targetBack();
+}
+
+void Orders::drawEquipment() {
+    const ProgramFile& program = g_.resources().program();
+    Display& d = g_.display();
+    d.targetScreen();
+    Surface& to = d.target();
+    drawFramed(to, heldBox_, program.dataU8(kHeldColours), program.dataU8(kHeldColours + 1));
+    drawFramed(to, freeBox_, program.dataU8(kFreeColours), program.dataU8(kFreeColours + 1));
+    drawEquipmentList(held_, box_.left + 0x80, box_.top + 0x2D, box_.bottom, kHeldColour, heldAt_);
+    const std::uint16_t colours = program.dataU16(kFreeColours);
+    drawEquipmentList(free_, freeBox_.left + 0x50, freeBox_.top + 4, freeBox_.bottom, colours, freeAt_);
+    // The place's words, a line each.
+    const Font large = Font::parse(g_.resources().load(resource::kFont), Font::Size::Large);
+    const std::string& text = panel_.phrases().at(kUnusedPhrase - 1u);
+    int x = freeBox_.left + 8;
+    int y = freeBox_.top + 4 + (std::any_of(free_.begin(), free_.end(), [](int n) { return n != 0; }) ? 0 : 5);
+    for (const char c : text) {
+        if (c == '\r') {
+            x = freeBox_.left + 8;
+            y += 10;
+            continue;
+        }
+        x = large.draw(to, x, y, std::string_view(&c, 1), static_cast<std::uint8_t>(colours),
+                       static_cast<std::uint8_t>(colours >> 8));
+    }
+    d.targetBack();
+}
+
+// A click while equipping: on a piece the troop holds it goes back to the
+// place; on one the place keeps, the troop takes it when it holds none of
+// it; anywhere else but the chief's box the equipping is done.
+void Orders::clickEquipment(int x, int y) {
+    auto inside = [x, y](const ClipRect& r) { return x > r.left && x < r.right && y > r.top && y < r.bottom; };
+    auto pieceAt = [x](const Spans& spans) {
+        for (std::size_t i = 0; i < spans.size(); ++i) {
+            if (spans[i][0] != 0 && x >= spans[i][0] && x < spans[i][1]) {
+                return static_cast<int>(i);
+            }
+        }
+        return -1;
+    };
+    if (inside(box_)) {
+        if (inside(heldBox_)) {
+            const int i = pieceAt(heldAt_);
+            if (i >= 0) {
+                --held_[static_cast<std::size_t>(i)];
+                ++free_[static_cast<std::size_t>(i)];
+                drawEquipment();
+            }
+        }
+        return;
+    }
+    if (inside(freeBox_)) {
+        const int i = pieceAt(freeAt_);
+        if (i >= 0 && held_[static_cast<std::size_t>(i)] == 0) {
+            ++held_[static_cast<std::size_t>(i)];
+            --free_[static_cast<std::size_t>(i)];
+            drawEquipment();
+        }
+        return;
+    }
+    closeEquipment();
+}
+
+// "DONE": the place's box goes, the troop keeps what it holds now, and
+// the chief answers, knowing what it gained and gave back.
+void Orders::closeEquipment() {
+    equipping_ = false;
+    Display& d = g_.display();
+    for (const ClipRect& r : {freeBox_, heldBox_}) {
+        d.screen().blit(d.back(), r.left, r.top, r.right - r.left, r.bottom - r.top, r.left, r.top);
+    }
+    freeBox_ = ClipRect{};
+    const std::size_t t = World::troopRecord(troop_);
+    std::uint8_t now = 0;
+    for (std::size_t i = 0; i < held_.size(); ++i) {
+        now = static_cast<std::uint8_t>(now | ((held_[i] & 1) << (7 - i)));
+    }
+    world_.setU8(t + 0x19, now);
+    if (world_.markChanged) {
+        world_.markChanged(troop_);
+    }
+    const std::uint8_t before = world_.u8(kHeldBefore);
+    const auto changed = static_cast<std::uint8_t>(before ^ now);
+    const auto gained = static_cast<std::uint8_t>(now & changed);
+    world_.setU8(kHeldBefore, gained);
+    world_.setU8(kLost, static_cast<std::uint8_t>(before & changed));
+    world_.setU8(kHarvesterHome, (gained & 0x40) && world_.u16(t + 4) == world_.u16(kHome) ? 0x40 : 0);
+    if ((world_.u8(t + 3) & 0x0F) == kEcologyWork) {
+        world_.cannotWork(troop_);
+    }
+    world_.learnTroop(troop_);
+    world_.setU8(kSituation, kEquipped);
+    heldShown_ = false;
+    if (!talk_.boxAnswer(kAnswerList)) {
+        say(kInfoList);
+        say(kInfoList);
+    }
+    setMenu();
+}
+
+void Orders::click(int x, int y) {
+    if (equipping_) {
+        clickEquipment(x, y);
+    } else {
+        clickSmallMap(x, y);
+    }
+}
+
 bool Orders::command(std::uint16_t action) {
     if (!active()) {
         return false;
@@ -408,6 +639,10 @@ bool Orders::command(std::uint16_t action) {
     case kArmy: specialize(4); return true;
     case kEcology: specialize(8); return true;
     case kCancel:
+        if (equipping_) {
+            closeEquipment();
+            return true;
+        }
         if (choosing_) {
             stopChoosing();
         }
@@ -421,7 +656,7 @@ bool Orders::command(std::uint16_t action) {
             finished();
         }
         return true;
-    case kEquipment:
+    case kEquipment: openEquipment(); return true;
     case kNextTroop: return true; // not built yet
     default: return false;
     }

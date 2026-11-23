@@ -53,7 +53,12 @@ public:
 
     // Whether the small map is open for the troop to be shown where to go.
     bool choosing() const { return choosing_; }
-    // A click on the screen while choosing, not on the commands.
+    // Whether the troop's equipment is being changed.
+    bool equipping() const { return equipping_; }
+    // The box of the equipment the place keeps, while equipping.
+    ClipRect placeBox() const { return freeBox_; }
+    // A click on the screen while choosing or equipping, not on the
+    // commands.
     void click(int x, int y);
 
     // The chief's box, over the map.
@@ -75,6 +80,17 @@ private:
     void stopChoosing();
     void confirmDestination(std::size_t place);
     std::array<int, 7> freeEquipment(std::size_t place) const;
+    void openEquipment();
+    void drawEquipment();
+    void drawHeld();
+    void closeEquipment();
+    void clickEquipment(int x, int y);
+    void clickSmallMap(int x, int y);
+    // Where each piece of a list of equipment was drawn: its first column
+    // and the column after it, or 0 and 0 when none was.
+    using Spans = std::array<std::array<int, 2>, 7>;
+    void drawEquipmentList(const std::array<int, 7>& counts, int x, int y, int bottom, std::uint16_t colour,
+                           Spans& spans);
 
     Game& g_;
     World& world_;
@@ -85,6 +101,15 @@ private:
     int troop_ = 0;
     bool choosing_ = false;
     ClipRect box_{};
+    // The last line of news showed the troop's equipment.
+    bool heldShown_ = false;
+    bool equipping_ = false;
+    std::array<int, 7> held_{};
+    std::array<int, 7> free_{};
+    Spans heldAt_{};
+    Spans freeAt_{};
+    ClipRect heldBox_{};
+    ClipRect freeBox_{};
 };
 
 } // namespace mentat
