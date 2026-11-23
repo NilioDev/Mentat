@@ -12,8 +12,9 @@ same pointer, so everything works the same way.
   person standing in the room, on the map a place or a troop's mark, a
   place on the small maps (the cockpit's, and the small map of the regions
   for the spice and for a troop's orders, which then hides what lies under
-  it), or the knobs, the voice test and the rows of the lists on the mixer
-  panel. Each frame the game publishes these targets in
+  it), Paul's place and each place known where it shows on the turning
+  globe, or the knobs, the voice test and the rows of the lists on the
+  mixer panel. Each frame the game publishes these targets in
   `Platform::pointerTargets`.
 - Holding the bottom button while moving the stick drags, as the mouse
   does: the mixer panel's sliders and knobs turn that way.
@@ -30,4 +31,4 @@ same pointer, so everything works the same way.
   from where the mouse pointer was. The mouse takes it back as soon as it
   moves.
 
-Not yet: jumping between places on the globe, and changing the buttons.
+Not yet: changing the buttons.

@@ -1150,6 +1150,10 @@ private:
                 }
             }
         }
+        if (globe_.active()) {
+            const std::vector<ClipRect> places = globe_.targets();
+            targets.insert(targets.end(), places.begin(), places.end());
+        }
         if (cockpit_.active()) {
             for (const SmallMap::Shown& sh : cockpit_.smallMap().shown()) {
                 placeTarget(sh.x, sh.y);

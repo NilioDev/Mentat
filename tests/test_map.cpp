@@ -524,6 +524,13 @@ MTT_TEST("globe screen: opens on the map's middle, turns with the arrows and goe
     MTT_CHECK((panel.commands()[0].phrase & Command::kGrey) == 0 && (panel.commands()[2].phrase & Command::kGrey) != 0);
     MTT_CHECK(panel.zones()[Panel::kArrows].action == GlobeScreen::kExit);
     MTT_CHECK(panel.zones()[Panel::kArrows + 1].action == GlobeScreen::kUp);
+    // A gamepad's pointer can jump to Paul's place, facing us, and other
+    // places known on the planet.
+    const std::vector<ClipRect> places = globe.targets();
+    MTT_CHECK(!places.empty());
+    for (const ClipRect& r : places) {
+        MTT_CHECK(r.left >= 90 && r.right <= 240 && r.top >= 10 && r.bottom <= 140);
+    }
     // Over the planet the list offers the map of the area.
     MTT_CHECK(globe.pointAt(160, 80) && panel.commands().size() == 1);
     MTT_CHECK(!globe.pointAt(161, 80));

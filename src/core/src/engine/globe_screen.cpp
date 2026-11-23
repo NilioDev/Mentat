@@ -418,6 +418,31 @@ bool GlobeScreen::pointAt(int x, int y) {
     return true;
 }
 
+std::vector<ClipRect> GlobeScreen::targets() const {
+    std::vector<ClipRect> out;
+    if (!active_ || !globe_ || list_ != List::Globe) {
+        return out;
+    }
+    auto add = [&](std::uint16_t longitude, int latitude) {
+        int x = 0;
+        int y = 0;
+        if (globe_->screenPoint(longitude, latitude, x, y)) {
+            out.push_back(ClipRect{x - 2, y - 2, x + 3, y + 3});
+        }
+    };
+    std::uint16_t lon = 0;
+    int lat = 0;
+    playerPoint(lon, lat);
+    add(lon, lat);
+    constexpr std::uint8_t kHidden = 0x80;
+    for (std::size_t p = World::kPlaces; world_.u8(p) != 0xFF; p += World::kPlaceSize) {
+        if (!(world_.u8(p + 0x0A) & kHidden)) {
+            add(world_.u16(p + 2), static_cast<std::int16_t>(world_.u16(p + 4)));
+        }
+    }
+    return out;
+}
+
 void GlobeScreen::setCommands(bool overPlanet) {
     overPlanet_ = overPlanet;
     const ProgramFile& program = g_.resources().program();

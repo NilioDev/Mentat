@@ -7,6 +7,7 @@
 
 #include "mentat/engine/globe.hpp"
 #include "mentat/engine/panel.hpp"
+#include "mentat/gfx/scene.hpp"
 
 #include <array>
 #include <cstdint>
@@ -74,6 +75,9 @@ public:
     // The mouse moved: over the planet the list offers the map of the area.
     // True when the list changed.
     bool pointAt(int x, int y);
+    // What a gamepad's pointer can jump to on the planet: Paul's place and
+    // each place known, where they show on it now.
+    std::vector<ClipRect> targets() const;
 
     // After a command or click that leaves: where the map's middle goes.
     bool leaving = false;
