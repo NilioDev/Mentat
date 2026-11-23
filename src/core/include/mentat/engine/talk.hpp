@@ -93,6 +93,14 @@ public:
     // `face` is the portrait to show (the character's own when negative)
     // and `variant` which of its sets.
     void start(int c, int x, int y, int face = -1, int variant = 0);
+    // On coming into a room: character `c` speaks up when list 4 of its
+    // group has a line that may be said now, and the talk starts with it.
+    // False, with nothing shown, when there is none.
+    bool speakUp(int c, int x, int y, int face = -1, int variant = 0);
+    // The answer of the last line that gave one: 0xFF yes. Paul goes
+    // through a door when nobody there said no.
+    std::uint8_t answer() const { return answer_; }
+    void expectYes() { answer_ = 0xFF; }
     // A command of the talk menu. False when it is not one.
     bool command(std::uint16_t action);
 
@@ -124,6 +132,7 @@ private:
         bool shown = false;
     };
 
+    void begin(int c, int x, int y, int face, int variant);
     void prepareCondition();
     bool condition(int n);
     void next();

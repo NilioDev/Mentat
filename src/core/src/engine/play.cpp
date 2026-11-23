@@ -18,9 +18,11 @@
 #include "mentat/engine/world.hpp"
 #include "mentat/gfx/font.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace mentat {
@@ -78,6 +80,15 @@ constexpr int kLyingDown = 0x35;
 constexpr int kCaptainHeld = 0x12;
 constexpr std::size_t kCaptainFlags = 0x10A7;
 constexpr std::size_t kSpotTurn = 0xC5; // turns where the people stand
+// What is happening, for what the characters say: Paul goes for a door
+// (and the room it leads to), or has come into a room; and the count of
+// rooms come into, which starts again at each.
+constexpr std::size_t kSituation = 0x23;
+constexpr std::uint8_t kLeaving = 1;
+constexpr std::uint8_t kComingIn = 5;
+constexpr std::size_t kGoingTo = 0x0C;
+constexpr std::size_t kEntries = 0x1A;
+constexpr std::size_t kCameFrom = 0x0D;
 constexpr int kChiefs = 15;
 constexpr int kProspectorsTroop = 3;
 constexpr int kProspectorsNamed = 5; // the story's step from which their chief is named
@@ -250,7 +261,9 @@ private:
         if (newGame_.empty()) {
             newGame_ = saves_.contents();
         }
+        // Paul starts in his room; he has come from nowhere.
         world_.goTo(kStartRoom, kStartPlace);
+        world_.setU8(kCameFrom, 0);
         world_.setClock(kStartClock);
         world_.setU8(kPalaceOrnithopters, static_cast<std::uint8_t>(world_.u8(kPalaceOrnithopters) + 1));
         // The story's own lines run twice, and the dice start from the
@@ -514,19 +527,56 @@ private:
         }
         const int c = Talk::characterOf(action);
         if (c >= 0) {
-            int x = -1;
-            int y = -1;
-            for (const Places::Shown& s : g_.places().shown()) {
-                if (s.character == c) {
-                    x = s.rect.left;
-                    y = s.rect.top;
-                }
-            }
-            meetTroop(c, phrase);
-            int variant = 0;
-            const int face = look(c, variant);
-            talk_.start(c, x, y, face, variant);
+            talkTo(c, phrase, false);
         }
+    }
+
+    // Starts talking to character `c` where the room shows it; or, with
+    // `speakingUp`, only when it has something to say as Paul comes in.
+    bool talkTo(int c, std::uint16_t phrase, bool speakingUp) {
+        int x = -1;
+        int y = -1;
+        for (const Places::Shown& s : g_.places().shown()) {
+            if (s.character == c) {
+                x = s.rect.left;
+                y = s.rect.top;
+            }
+        }
+        if (!speakingUp || c == kFremen) {
+            meetTroop(c, phrase);
+        }
+        int variant = 0;
+        const int face = look(c, variant);
+        if (speakingUp) {
+            return talk_.speakUp(c, x, y, face, variant);
+        }
+        talk_.start(c, x, y, face, variant);
+        return true;
+    }
+
+    // Paul comes into a room or goes for a door: the first of those
+    // there, in the order of the characters, with something to say says it
+    // and the talk starts. False when nobody spoke.
+    bool speakUp() {
+        std::vector<int> here;
+        for (const World::Character& c : world_.findPresent()) {
+            here.push_back(c.number);
+        }
+        std::sort(here.begin(), here.end());
+        for (const int c : here) {
+            if (c <= kChiefs && talkTo(c, 0, true)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Paul is in a new room: those there may speak up. What is happening
+    // stays "come in" until something else happens.
+    void cameIn() {
+        world_.setU8(kSituation, kComingIn);
+        world_.setU8(kEntries, 1);
+        speakUp();
     }
 
     // The picture (persons and portraits) character `c` is shown with, and
@@ -1044,6 +1094,8 @@ private:
         d_.transition(Display::kDissolve);
         startWaitingMusic();
         lit_ = -1;
+        world_.setU8(kEntries, 1);
+        speakUp();
     }
 
     // A saved game came back: what was counting for the game before starts
@@ -1142,11 +1194,21 @@ private:
     void backToRoom() override { endTalk_ = true; }
 
     void leaveTalk() {
+        // Someone spoke up as Paul went for a door: he goes through it
+        // unless the talk ended on a no.
+        const int exit = std::exchange(walkingTo_, 0);
+        const bool walking = exit > 0 && talk_.answer() == 0xFF;
+        if (walking) {
+            world_.goTo((world_.room() & 0xFF00) | exit, world_.place());
+        }
         d_.targetBack();
         drawView();
         d_.showBack();
         d_.flush();
         openOrnament();
+        if (walking) {
+            cameIn();
+        }
     }
 
     // Through one of the room's ways out, to the next room of the place.
@@ -1156,11 +1218,22 @@ private:
         if (exit <= 0) {
             return; // the ways outside are not built yet
         }
+        // Those here may have something to say first, or stop him.
+        world_.setU8(kSituation, kLeaving);
+        world_.setU8(kGoingTo, static_cast<std::uint8_t>(exit));
+        talk_.expectYes();
+        const bool spoke = speakUp();
+        world_.setU8(kSituation, 0);
+        if (spoke) {
+            walkingTo_ = exit;
+            return;
+        }
         world_.goTo((world_.room() & 0xFF00) | exit, world_.place());
         d_.targetBack();
         drawView();
         d_.showBack();
         d_.flush();
+        cameIn();
     }
 
     // --- The clock
@@ -1464,6 +1537,7 @@ private:
     Flight flight_;
     World::People people_;
     std::size_t chief_ = 0; // which of the chiefs here Paul talks to
+    int walkingTo_ = 0;     // the room Paul went for when someone spoke up
     bool takingOff_ = false;
     bool endTalk_ = false;
     // A companion's remark or the cockpit's warning is shown.
