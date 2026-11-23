@@ -25,7 +25,9 @@ and touch controls.
 > meet: their face over the room and their own recorded voice, saying
 > what fits how far the story has come. People also speak up by
 > themselves when you come in or head for a door, and may stop you
-> going, and those who follow you walk with you from room to room. "See Dune map" opens the map of
+> going, and those who follow you walk with you from room to room. Where
+> a Harkonnen captain is held, each of them can try once to overpower the
+> prisoner. "See Dune map" opens the map of
 > the planet around you with the places you know, and you can move it
 > with the arrows; a click on a place shows its label, with what it is,
 > its name and, for places you know, the battle there or its equipment.
