@@ -69,6 +69,9 @@ public:
     void confirm();
 
     bool leaving = false;
+    // Calling a worm: the map over the view where Paul is, under a bar
+    // for its line, instead of the cockpit.
+    bool worm = false;
 
 private:
     // What the mouse points at.

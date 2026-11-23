@@ -17,6 +17,9 @@ namespace mentat {
 namespace {
 
 constexpr int kPanelSheet = 0;
+// The worm: its picture file (VER.HSQ) and its animation (VER.BIN).
+constexpr int kWormSheet = 0x39;
+constexpr int kWormScript = 0xBE;
 
 // A step every 768 ticks; every 16 steps a part of the day passes.
 constexpr std::uint32_t kStepTicks = 0x300;
@@ -273,9 +276,19 @@ void Flight::begin() {
     caught = false;
     hoursPassed = 0;
     steps_ = 0;
-    base_ = kFirstDunes;
+    base_ = worm ? kWormVideo : kFirstDunes;
     slot_ = 0;
-    next_ = kFirstDunes;
+    next_ = base_;
+    if (worm) {
+        if (wormScript_.empty()) {
+            wormScript_ = g_.resources().load(kWormScript);
+        }
+        // The frames start where the word at 8 points, at the word there.
+        auto w = [&](std::size_t o) { return static_cast<std::size_t>(wormScript_.at(o) | (wormScript_.at(o + 1) << 8)); };
+        const std::size_t list = 8 + w(8);
+        wormStart_ = list + w(list);
+        wormAt_ = wormStart_;
+    }
     trailUsed_.fill(false);
     trailNext_ = 0;
     // The first step leaves the place at once; the next follows at the
@@ -350,12 +363,50 @@ void Flight::tick() {
 // The corner over the frame just drawn, and the scene on the screen.
 void Flight::showFrame() {
     Display& d = g_.display();
+    if (worm) {
+        drawWorm();
+    }
     if (corner_ >= 0) {
         const ProgramFile& program = g_.resources().program();
         auto at = [&](std::size_t o) { return static_cast<int>(s16(program.dataU16(kCornerArea + o))); };
         d.copyRect(d.aux(), d.back(), ClipRect{at(0), at(2), at(4), at(6)});
     }
     d.copyRect(d.back(), d.screen(), g_.sceneTables().lineClip);
+}
+
+// The worm's next frame over the video: a list of parts, each a list of
+// sprites (see docs/rules/worms.md).
+void Flight::drawWorm() {
+    const std::vector<std::uint8_t>& s = wormScript_;
+    if (s.empty()) {
+        return;
+    }
+    auto w = [&](std::size_t o) { return static_cast<int>(s.at(o) | (s.at(o + 1) << 8)); };
+    const ClipRect clip{w(0), w(2), w(4), w(6)};
+    if (s.at(wormAt_) == 0xFF) {
+        wormAt_ = wormStart_;
+    }
+    const int previous = g_.sheetResource();
+    g_.selectSheet(kWormSheet);
+    const SpriteSheet& sheet = g_.sheet();
+    const Canvas canvas = g_.canvas();
+    for (;;) {
+        int part = s.at(wormAt_++);
+        if (part == 0) {
+            break;
+        }
+        if (part == 1) {
+            part = 0x100 + s.at(wormAt_++);
+        }
+        std::size_t at = 0x0A + static_cast<std::size_t>(w(0x0A + 2 * static_cast<std::size_t>(part - 2)));
+        for (; s.at(at) != 0; at += 3) {
+            drawSpriteClipped(canvas, sheet.sprite(static_cast<std::size_t>(s.at(at) - 1)), clip.left + s.at(at + 1),
+                              clip.top + s.at(at + 2), clip);
+        }
+    }
+    if (previous >= 0) {
+        g_.selectSheet(previous);
+    }
 }
 
 void Flight::nextVideo() {
@@ -554,6 +605,9 @@ void Flight::spotPlaces(std::uint16_t lon, int lat) {
 // The Harkonnens' zone: the first step into it warns; after 8 steps in a
 // row Paul is caught. Flying to a fortress so marked is safe.
 void Flight::checkZone(std::uint16_t lon, int lat) {
+    if (worm) {
+        return; // the Harkonnens do not watch for worms
+    }
     const bool safe = !free_ && world_.u8(destination_ + 8) >= kFirstFortress &&
                       (world_.u8(destination_ + 0x0A) & kSafeFortress);
     if (safe || (terrain(lon, lat) & kZoneBits) != kZoneBits) {
@@ -745,7 +799,10 @@ void Flight::land() {
     world_.setU8(kDice, static_cast<std::uint8_t>(g_.random2() & 0xFF));
     active_ = false;
     arrived = false;
-    world_.setU8(destination_ + kOrnithopters, static_cast<std::uint8_t>(world_.u8(destination_ + kOrnithopters) + 1));
+    if (!worm) {
+        world_.setU8(destination_ + kOrnithopters,
+                     static_cast<std::uint8_t>(world_.u8(destination_ + kOrnithopters) + 1));
+    }
     world_.enterPlace(destination_);
 }
 

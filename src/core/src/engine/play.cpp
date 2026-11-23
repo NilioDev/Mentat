@@ -66,6 +66,12 @@ constexpr std::size_t kLookAtMirror = 0x21F0;
 constexpr std::size_t kMixer = 0x21F4;
 constexpr std::size_t kSeeMap = 0x220C;
 constexpr std::size_t kCallWorm = 0x2214;
+constexpr std::uint16_t kCallWormAction = 0x42D1;
+// The worm comes (VER.HNM, with sound 8); the first ride moves the story
+// on to 0x50.
+constexpr int kWormComesVideo = 0x0E;
+constexpr int kWormSound = 8;
+constexpr int kRiddenStep = 0x50;
 constexpr std::size_t kMassiveAttack = 0x2218; // and "fight for a whole day" after it
 constexpr std::size_t kWaitForEvening = 0x21E0; // and "wait for morning" after it
 constexpr int kEveningFrom = 0x0B;              // the hour from which morning is waited for
@@ -1327,6 +1333,11 @@ private:
             openCockpit();
             return;
         }
+        if (action == kCallWormAction && !map_.active() && !flight_.active() && !cockpit_.active() &&
+            world_.u8(kProgress) >= kWormProgress) {
+            callWorm();
+            return;
+        }
         if (action == kMassiveAttackAction && atWar() && !map_.active()) {
             massiveAttack();
             return;
@@ -1794,6 +1805,18 @@ private:
     // "TAKE AN ORNITHOPTER": the cockpit, shown at once, its sky in the
     // colours of the hour.
     void openCockpit() {
+        if (!flight_.active()) {
+            cockpit_.worm = false;
+            flight_.worm = false;
+        }
+        if (cockpit_.worm) {
+            // On the way, the worm's map comes over the ride.
+            cockpit_.enter();
+            cockpit_.drawScene();
+            cockpit_.show();
+            lit_ = -1;
+            return;
+        }
         cockpit_.enter();
         // While flying the sky keeps the colours it had when the flight
         // began.
@@ -1803,6 +1826,26 @@ private:
         cockpit_.drawScene();
         cockpit_.show();
         lit_ = -1;
+    }
+
+    // "CALL A WORM": where to, on a map over the view.
+    void callWorm() {
+        cockpit_.worm = true;
+        flight_.worm = true;
+        d_.targetBack();
+        g_.forgetPalette();
+        drawView();
+        cockpit_.enter();
+        cockpit_.drawScene();
+        cockpit_.show();
+        lit_ = -1;
+    }
+
+    // The worm comes out of the sand and Paul climbs on.
+    void wormComes() {
+        world_.raiseStory(kRiddenStep);
+        g_.playSound(kWormSound);
+        flight_.playVideo(kWormComesVideo);
     }
 
     // "Cancel": the room comes back at once, or the flight goes on.
@@ -1837,7 +1880,14 @@ private:
         } else {
             flight_.setFree(to.longitude, to.latitude);
         }
-        if (!flight_.active()) {
+        if (!flight_.active() && flight_.worm) {
+            takingOff_ = true;
+            chooseMusic();
+            wormComes();
+            runClock();
+            flight_.begin();
+            takingOff_ = false;
+        } else if (!flight_.active()) {
             takingOff_ = true;
             chooseMusic();
             takeOff();
@@ -2145,7 +2195,8 @@ private:
     // The place is reached: the approach, or the ornithopter landing in
     // front of the place; then its first room.
     void arrive() {
-        const bool flewIn = flight_.approach;
+        // A worm leaves Paul at the place without more ado.
+        const bool flewIn = flight_.approach && !flight_.worm;
         if (!flewIn) {
             g_.closeVideo();
         }
@@ -2656,7 +2707,7 @@ private:
             return 2;
         }
         if (flight_.active() || takingOff_) {
-            return kFlyingMoment;
+            return flight_.worm ? kFlyingMoment + 1 : kFlyingMoment;
         }
         const int room = world_.room();
         const int kind = room >> 8;

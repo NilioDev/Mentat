@@ -52,6 +52,10 @@ constexpr int kBlinkTicks = 300;
 // cleared up to x 237.
 constexpr int kTextX = 0x55;
 constexpr int kTextY = 0x26;
+// Calling a worm: the line is higher, on a bar of its own.
+constexpr int kWormTextY = 0x22;
+constexpr std::size_t kWormBar = 0x14A4;
+constexpr std::uint8_t kWormBarColour = 0xF5;
 constexpr int kTextEnd = 0xED;
 constexpr std::uint8_t kTextBackground = 0x20;
 constexpr std::uint8_t kTitleColour = 0x61;
@@ -119,6 +123,34 @@ void Cockpit::enter() {
 void Cockpit::drawScene() {
     const ProgramFile& program = g_.resources().program();
     g_.display().targetBack();
+    if (worm) {
+        // Over the view on the back buffer: the bar, then the map.
+        Display& d = g_.display();
+        const int left = s16(program.dataU16(kWormBar));
+        const int top = s16(program.dataU16(kWormBar + 2));
+        d.target().fillRect(left, top + d.originRows(), s16(program.dataU16(kWormBar + 4)) - left,
+                            s16(program.dataU16(kWormBar + 6)) - top, kWormBarColour);
+        small_.drawMap();
+        // Four rings around the map, from the inside colours 0xFC, 0xFA,
+        // 0xF8 and 0xF6.
+        ClipRect ring = small_.view;
+        const int o = d.originRows();
+        for (const int c : {0xFC, 0xFA, 0xF8, 0xF6}) {
+            const auto colour = static_cast<std::uint8_t>(c);
+            --ring.left;
+            --ring.top;
+            d.target().fillRect(ring.left, ring.top + o, ring.right - ring.left + 1, 1, colour);
+            d.target().fillRect(ring.left, ring.bottom + o, ring.right - ring.left + 1, 1, colour);
+            d.target().fillRect(ring.left, ring.top + o, 1, ring.bottom - ring.top + 1, colour);
+            d.target().fillRect(ring.right, ring.top + o, 1, ring.bottom - ring.top + 1, colour);
+            ++ring.right;
+            ++ring.bottom;
+        }
+        g_.selectSheet(kPanelSheet);
+        small_.drawPlaces();
+        panel_.drawOrnament();
+        return;
+    }
     g_.places().drawSky();
     auto drawList = [&](std::size_t at) {
         for (; program.dataU16(at) != 0xFFFF; at += 6) {
@@ -231,7 +263,8 @@ int Cockpit::drawText(int x, const std::string& text, std::uint8_t colour) {
     }
     Display& d = g_.display();
     for (const char c : text) {
-        x = font_->draw(d.screen(), x, kTextY, std::string_view(&c, 1), colour, kTextBackground);
+        x = font_->draw(d.screen(), x, worm ? kWormTextY : kTextY, std::string_view(&c, 1), colour,
+                        worm ? kWormBarColour : kTextBackground);
     }
     return x;
 }

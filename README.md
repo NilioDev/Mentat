@@ -42,7 +42,10 @@ and touch controls.
 > hidden sietch you fly past, and you are warned when you enter the
 > Harkonnens' zone; fly on and they catch you, and the game ends with the
 > original's flashes, video and words, where you can start again, load a
-> game or stop. You can also walk out of a place into the desert, step by
+> game or stop. Later in the story you can also call a
+> worm, out in the desert or at a place under attack: choose a place on
+> the map over the view, the worm rises from the sand and you ride it
+> there, unseen by the Harkonnens. You can also walk out of a place into the desert, step by
 > step, and wait there for evening or morning; walk too far and the sun
 > gets the better of you, and you wake up back where you came from. In a
 > sietch you meet its Fremen, who can agree to work
@@ -154,6 +157,7 @@ button acts as a key.
 | See how you are doing | On the globe, "SEE RESULTS"; "STANDARD VISION" goes back | | |
 | Fly to a place | In the palace's entrance, "TAKE AN ORNITHOPTER", then click a place on the small map; "Cancel" goes back. On the map, from a sietch or near a place's entrance: click a place, then "GO THERE FLYING AN ORNI"; or "TAKE AN ORNITHOPTER" | | |
 | Give orders from afar | On the map, "CONTACT FREMEN TROOPS" (once Jessica has taught you), "NEXT TROOP" for the next one, "CUT CONTACT" to stop; "FIND PROSPECTORS" goes to the prospectors | | |
+| Ride a worm | Out in the desert or at a place under attack, "CALL A WORM", then click a place on the map | | |
 | Fly over the desert | In the cockpit, click the desert; the arrows turn; "BACK TO STARTING POINT" goes home | | |
 | While flying | "SKIP TO DESTINATION" lands at once; "CHANGE DESTINATION" opens the map again | | |
 | After the game ends | "RESTART GAME", "LOAD GAME" or "EXIT GAME"; " WHAT ? " says it again | | |
