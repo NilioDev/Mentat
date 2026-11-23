@@ -50,6 +50,18 @@ void World::loadDayTables(const ProgramFile& program) {
 }
 
 void World::hourPassed(int except, FlatMap& map) {
+    // Paul rests from walking in the desert; once rested, the count byte
+    // 0xF5 starts over too.
+    constexpr std::size_t kTiredness = 0xF4;
+    constexpr std::size_t kCount = 0xF5;
+    constexpr int kRested = 0x10;
+    const int tired = static_cast<std::int8_t>(u8(kTiredness) - 1);
+    if (tired >= kRested) {
+        setU8(kTiredness, static_cast<std::uint8_t>(tired));
+    } else {
+        setU8(kTiredness, 0);
+        setU8(kCount, 0);
+    }
     const std::uint16_t now = u16(kClockWord);
     const std::uint16_t last = u16(kLastClock);
     setU16(kLastClock, now);

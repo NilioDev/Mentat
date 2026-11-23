@@ -161,6 +161,15 @@ constexpr ClipRect kSceneArea{0, 0, 320, 152};
 } // namespace
 
 void Places::drawOutside(int kind, int firstName) {
+    const int picture = outsidePicture(kind, firstName, 0);
+    if (picture < 0) {
+        return;
+    }
+    game_.selectSheet(picture);
+    game_.drawSprite(0, 0, 0);
+}
+
+int Places::outsidePicture(int kind, int firstName, int step) const {
     const ProgramFile& program = game_.resources().program();
     std::size_t k = 4;
     for (std::size_t i = 0; i < 4; ++i) {
@@ -169,13 +178,20 @@ void Places::drawOutside(int kind, int firstName) {
             break;
         }
     }
-    if (program.dataU8(kOutsideCounts + k) == 0) {
-        return;
+    if (step >= program.dataU8(kOutsideCounts + k)) {
+        return -1;
     }
-    int picture = program.dataU8(kOutsidePictures + k);
+    int picture = program.dataU8(kOutsidePictures + k) + step;
     if (picture == kVillagePictures) {
         picture += (firstName >> 1) - 5;
     }
+    return picture;
+}
+
+void Places::drawDesert(int picture) {
+    shown_.clear();
+    Display& d = game_.display();
+    d.clearRect(d.target(), game_.sceneTables().lineClip);
     game_.selectSheet(picture);
     game_.drawSprite(0, 0, 0);
 }

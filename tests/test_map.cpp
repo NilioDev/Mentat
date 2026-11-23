@@ -1268,3 +1268,56 @@ MTT_TEST("world: Harkonnen troops where character 4 is move the story on to 0x30
     w.troopsWork(0, m);
     MTT_CHECK(w.u8(0x2A) == 0x30);
 }
+
+MTT_TEST("world: walking out into the desert and back in") {
+    World w;
+    const std::size_t place = World::placeRecord(3);
+    w.setU16(World::placeRecord(5), 0xFFFF); // the last place
+    w.setU16(place + 2, 0x2102);
+    w.setU16(place + 4, static_cast<std::uint16_t>(-19));
+    w.setU8(place + 8, 0x03); // a sietch
+    w.enterPlace(place);
+    MTT_CHECK(w.inside());
+    w.setU8(0xE7, 1);
+    // Out to the right: one step east of the sietch.
+    MTT_CHECK(!w.walkDesert(2));
+    MTT_CHECK(!w.inside());
+    MTT_CHECK(w.room() == 0x2103 && w.place() == 0x00ED);
+    MTT_CHECK(w.u8(0xE7) == 0 && w.u8(0x08) == 0xFF && w.placeHere() == 0);
+    MTT_CHECK(w.desertSteps() == 0);
+    // Up: a 256th of a latitude north.
+    MTT_CHECK(!w.walkDesert(1));
+    MTT_CHECK(w.room() == 0x2103 && w.place() == 0xFFEC);
+    MTT_CHECK(w.desertSteps() == 1 && w.u8(0xF4) == 1);
+    MTT_CHECK(!w.walkDesert(3));
+    MTT_CHECK(w.place() == 0x00ED);
+    // Left, onto the sietch's own point: in its first room again.
+    MTT_CHECK(w.walkDesert(4));
+    MTT_CHECK(w.inside() && w.room() == 0x0301 && (w.place() >> 8) == 3);
+    MTT_CHECK(w.desertSteps() == 0);
+}
+
+MTT_TEST("world: found unconscious, Paul is carried home") {
+    World w;
+    const std::size_t place = World::placeRecord(2);
+    w.setU16(World::placeRecord(5), 0xFFFF);
+    w.setU16(place + 2, 0x4000);
+    w.setU8(place + 8, 0x05);
+    w.enterPlace(place);
+    MTT_CHECK(!w.walkDesert(3));
+    MTT_CHECK(w.place() == 0x0100); // a 256th south of latitude 0
+    w.carriedHome();
+    MTT_CHECK(w.inside() && w.room() == 0x0502 && w.u8(0xE7) == 1);
+    // The tiredness of walking goes an hour at a time.
+    w.setU8(0xF4, 0x12);
+    w.setU8(0xF5, 3);
+    std::vector<std::uint8_t> map(2 * kMiddle + 512, 0x05);
+    FlatMap m(smallLatitudes(), map, FlatMap::Edges{});
+    w.setU8(0xC2, 7); // the story is over: only the hour's own
+    w.hourPassed(0, m);
+    MTT_CHECK(w.u8(0xF4) == 0x11 && w.u8(0xF5) == 3);
+    w.hourPassed(0, m);
+    MTT_CHECK(w.u8(0xF4) == 0x10 && w.u8(0xF5) == 3);
+    w.hourPassed(0, m);
+    MTT_CHECK(w.u8(0xF4) == 0 && w.u8(0xF5) == 0);
+}
