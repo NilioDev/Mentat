@@ -438,6 +438,17 @@ private:
     void click(int x, int y) {
         const auto& zones = panel_.zones();
         const int line = commandUnder(x, y);
+        if (orders_.active()) {
+            // Anything but an order that can be given ends the orders.
+            const auto& commands = panel_.commands();
+            if (line >= 0 && static_cast<std::size_t>(line) < commands.size() &&
+                !(commands[static_cast<std::size_t>(line)].phrase & Command::kGrey)) {
+                choose(commands[static_cast<std::size_t>(line)].action, commands[static_cast<std::size_t>(line)].phrase);
+            } else {
+                choose(Orders::kNoMoreOrders);
+            }
+            return;
+        }
         if (line >= 0) {
             const auto& commands = panel_.commands();
             if (static_cast<std::size_t>(line) < commands.size()) {

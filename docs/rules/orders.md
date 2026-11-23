@@ -62,7 +62,9 @@ troop's occupation, modify its equipment, move it, and no more orders.
   counts from byte `0x14`, less one for each of its troops holding that
   piece: bit 7 of the troop's byte `0x19` is the first count.
 
-"No more orders" closes the orders and the map, back to the room.
+"No more orders" closes the orders and the map, back to the room. So
+does any click while the orders are shown that is not on a command that
+can be used: on a greyed one, the map, the arrows or the panel.
 
 ## The occupations
 
