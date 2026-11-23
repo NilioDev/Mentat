@@ -151,7 +151,7 @@ World::People World::meetPeople() {
 namespace {
 
 // How keen a troop is, 0 to 100.
-int keenness(const World& w, std::size_t t) {
+int keenOf(const World& w, std::size_t t) {
     const int job = w.u8(t + 3) & 0x0F;
     int keen = w.u8(t + 0x15);
     if (w.u8(kBoost) != 0) {
@@ -182,8 +182,8 @@ int keenness(const World& w, std::size_t t) {
 }
 
 // What a troop is worth in a fight.
-int strength(const World& w, std::size_t t) {
-    int a = (2 * keenness(w, t)) & 0xFF;
+int strengthOf(const World& w, std::size_t t) {
+    int a = (2 * keenOf(w, t)) & 0xFF;
     a += w.u8(t + 0x17);
     if (a > 0xFF) {
         a = 0xFF;
@@ -236,20 +236,13 @@ int direction(int fromLongitude, int fromLatitude, int toLongitude, int toLatitu
 
 } // namespace
 
-void World::learnPlace(std::size_t record) {
-    setU16(kLearned, static_cast<std::uint16_t>(record));
-    setU8(0x4E, u8(record + 1));
-    setU8(0x4F, u8(record));
-    setU8(0x50, u8(kNameKinds + u8(record + 1)));
-    setU8(0x51, u8(record + 0x0A));
-    setU8(0x52, u8(record + 0x12));
-    setU8(0x54, u8(record + 0x1B));
-    setU8(0x4D, u8(record + 8));
-    for (std::size_t i = 0; i < 7; ++i) {
-        setU8(0x55 + i, u8(record + 0x14 + i));
-    }
+int World::keenness(std::size_t t) const { return keenOf(*this, t); }
 
-    // The fight: what each side's troops here are worth, and how it leans.
+int World::strength(std::size_t t) const { return strengthOf(*this, t); }
+
+// The fight at a place: what each side's troops there are worth, and how
+// it leans.
+void World::weighForces(std::size_t record) {
     unsigned theirs = 0;
     unsigned ours = 0;
     std::uint16_t ourJobs = 0;
@@ -257,7 +250,7 @@ void World::learnPlace(std::size_t record) {
     for (int troop = u8(record + 9); troop != 0;) {
         const std::size_t t = troopRecord(troop);
         if (!(u8(t + 3) & kMoving)) {
-            const int s = strength(*this, t);
+            const int s = strengthOf(*this, t);
             if (u8(t + 0x10) & kHarkonnen) {
                 theirs = (theirs + static_cast<unsigned>(s)) & 0xFFFF;
             } else {
@@ -285,6 +278,23 @@ void World::learnPlace(std::size_t record) {
         }
         setU8(0x9C, static_cast<std::uint8_t>(lean));
     }
+}
+
+
+void World::learnPlace(std::size_t record) {
+    setU16(kLearned, static_cast<std::uint16_t>(record));
+    setU8(0x4E, u8(record + 1));
+    setU8(0x4F, u8(record));
+    setU8(0x50, u8(kNameKinds + u8(record + 1)));
+    setU8(0x51, u8(record + 0x0A));
+    setU8(0x52, u8(record + 0x12));
+    setU8(0x54, u8(record + 0x1B));
+    setU8(0x4D, u8(record + 8));
+    for (std::size_t i = 0; i < 7; ++i) {
+        setU8(0x55 + i, u8(record + 0x14 + i));
+    }
+
+    weighForces(record);
 
     // The troops here and those on their way here, counted by side and job.
     for (std::size_t at = 0x60; at < 0x93; ++at) {
@@ -435,7 +445,7 @@ void World::learnPlace(std::size_t record) {
 // bits 2 and 3 of its word 0x10 tell whether that went down or up.
 int World::harvest(std::size_t t) {
     const std::size_t place = u16(t + 4);
-    int a = (keenness(*this, t) + (u8(t + 0x16) & 0xF0)) & 0xFF;
+    int a = (keenOf(*this, t) + (u8(t + 0x16) & 0xF0)) & 0xFF;
     unsigned product = static_cast<unsigned>(a * u8(t + 0x1A));
     if (!(u8(t + 0x19) & 0x80)) {
         product >>= 2;
@@ -492,7 +502,7 @@ void World::learnTroop(int troop) {
     setU16(0x34, u16(t + 0x12));
     setU8(0x31, static_cast<std::uint8_t>(u16(t + 0x12) & 0x0F));
     setU16(0x11FF, static_cast<std::uint16_t>(u16(t + 0x12) & 0x0F));
-    setU8(0x36, static_cast<std::uint8_t>(keenness(*this, t)));
+    setU8(0x36, static_cast<std::uint8_t>(keenOf(*this, t)));
     const std::size_t skills[] = {0x16, 0x17, 0x18};
     const std::size_t words[] = {0x11F7, 0x11F9, 0x11FB};
     for (int i = 0; i < 3; ++i) {

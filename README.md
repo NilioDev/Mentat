@@ -49,13 +49,17 @@ and touch controls.
 > place on the small map of the regions, and if the chief agrees the troop
 > sets off and walks there hour by hour, its mark crossing the map. A
 > troop that reaches a place where nobody else is takes it; taking a
-> Harkonnen fort raises your charisma and your troops' spirits. The map
-> shows your troops' marks, by what they do. Once the story gets that far,
-> "See spice density" on the map opens that small map of the regions you
-> know, coloured by their spice or, with a click on its bar, by the
-> work of your troops there; point at a place to see who is there, or
-> click it to move the map to it. Fighting, the troops' equipment, their
-> daily work and the rest of the game are not there yet.
+> Harkonnen fort raises your charisma and your troops' spirits. Hour by
+> hour your troops work: they mine spice into your stock (and a harvester
+> may meet a worm), prospect places, train for the army, build wind-traps
+> and make the desert green. Send them to attack a Harkonnen place and
+> they fight it out hour by hour: they may win it, flee, or lose a place
+> of yours. The map shows your troops' marks, by what they do. Once the
+> story gets that far, "See spice density" on the map opens that small
+> map of the regions you know, coloured by their spice or, with a click on
+> its bar, by the work of your troops there; point at a place to see who
+> is there, or click it to move the map to it. The troops' equipment, the
+> chiefs' messages and the rest of the game are not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the

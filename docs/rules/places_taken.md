@@ -8,6 +8,10 @@ its first troop, byte `0x0A` its flags, byte `0x0B` a day, byte `0x12`
 its spice and byte `0x19` its equipment kept. For troops see
 [moves.md](moves.md).
 
+Unless the place is the one Paul is at, the chief's message 7 is left
+for the place (see [work.md](work.md#the-chiefs-messages)); not when the
+place is taken by the green spreading (see [work.md](work.md)).
+
 ## A sietch
 
 Bit 1 of the place's byte `0x0A` (what is inside is known) is cleared,
@@ -122,5 +126,4 @@ radius 5.
 
 ## Not built yet
 
-What the chief says when the place is taken where Paul is not, and the
-regions of the small map changing with the word at `0x115A`.
+The regions of the small map changing with the word at `0x115A`.

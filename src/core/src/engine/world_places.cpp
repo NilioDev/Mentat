@@ -61,10 +61,45 @@ void World::troopsAt(std::size_t place, const std::function<void(int troop)>& ea
     }
 }
 
-void World::capture(int troop, FlatMap& map) {
-    const std::size_t place = u16(troopRecord(troop) + 4);
-    // (Unless Paul is there, the chief would send message 7; chief's
-    // messages are not built yet.)
+// The chief's messages wait at 0x1190: a count, then up to ten of a
+// message word and a place each.
+void World::tell(std::uint16_t message, std::size_t place) {
+    constexpr std::size_t kQueue = 0x1190;
+    constexpr int kMost = 10;
+    if (!(u8(0x0A) & 1)) {
+        return;
+    }
+    int count = u8(kQueue);
+    for (int i = 0; i < count; ++i) {
+        const std::size_t e = kQueue + 1 + 4 * static_cast<std::size_t>(i);
+        if (u16(e) == message && u16(e + 2) == place) {
+            return;
+        }
+    }
+    if (count >= kMost) {
+        // The oldest goes.
+        setU8(kQueue, static_cast<std::uint8_t>(u8(kQueue) - 1));
+        if (u8(kQueue) == 0) {
+            setU8(kQueue - 1, 0);
+        }
+        for (std::size_t i = 0; i < 0x24; ++i) {
+            setU8(kQueue + 1 + i, u8(kQueue + 5 + i));
+        }
+        for (std::size_t i = 0; i < 4; ++i) {
+            setU8(kQueue + 0x25 + i, 0);
+        }
+        count = kMost - 1;
+    }
+    setU8(kQueue, static_cast<std::uint8_t>(u8(kQueue) + 1));
+    const std::size_t e = kQueue + 1 + 4 * static_cast<std::size_t>(count);
+    setU16(e, message);
+    setU16(e + 2, static_cast<std::uint16_t>(place));
+}
+
+void World::capture(std::size_t place, FlatMap& map, bool told) {
+    if (told && place != u16(kPlaceRecord)) {
+        tell(0x0F07, place);
+    }
 
     // Paul's troops there are glad of it and turn to the army.
     auto glad = [&](int n) {

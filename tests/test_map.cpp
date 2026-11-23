@@ -191,8 +191,11 @@ MTT_TEST("world: a troop alone at a Harkonnen fort takes it") {
     w.setU16(0x02, 0x35); // day 3
     w.setU16(0x00, 2);    // no prisoner kept
     w.setU8(0x29, 1);
+    for (int n = 1; World::troopRecord(n) < 0xFBB; ++n) {
+        w.setU8(World::troopRecord(n), static_cast<std::uint8_t>(n));
+        w.setU8(World::troopRecord(n) + 3, 0xA0); // nobody's
+    }
     const std::size_t t = World::troopRecord(2);
-    w.setU8(t, 2);
     w.setU8(t + 3, 0x40); // on its way
     w.setU16(t + 4, static_cast<std::uint16_t>(fort));
     w.setU16(t + 6, 16384);
@@ -200,7 +203,7 @@ MTT_TEST("world: a troop alone at a Harkonnen fort takes it") {
     w.setU16(t + 0x12, 0x2002);
     w.setU8(t + 0x15, 0x1A);
     w.setU8(t + 0x17, 0x3C);
-    w.moveTroops(0, m);
+    w.troopsWork(0, m);
     MTT_CHECK(w.u8(fort + 9) == 2);
     MTT_CHECK(w.u8(fort + 0x0A) == 0x08 && w.u8(fort + 0x0B) == 5);
     MTT_CHECK(w.u8(0x29) == 5);
@@ -217,6 +220,74 @@ MTT_TEST("world: a troop alone at a Harkonnen fort takes it") {
     MTT_CHECK(m.bytes()[static_cast<std::size_t>(m.rowStart(2) + 50)] == 0x25);
     MTT_CHECK(m.bytes()[static_cast<std::size_t>(m.rowStart(2) + 51)] == 0x15);
     MTT_CHECK(m.bytes()[static_cast<std::size_t>(m.rowStart(2) + 57)] == 0x05);
+}
+
+MTT_TEST("world: a troop mining spice brings it in hour by hour") {
+    std::vector<std::uint8_t> map(2 * kMiddle + 512, 0x05);
+    FlatMap m(smallLatitudes(), map, FlatMap::Edges{});
+    World w;
+    const std::size_t place = World::placeRecord(1);
+    w.setU8(place + 8, 0x01);
+    w.setU8(place + 0x0A, 0x40); // prospected
+    w.setU8(place + 0x11, 28);
+    w.setU8(place + 0x12, 0x54);
+    w.setU8(World::placeRecord(2), 0xFF);
+    w.setU16(0x02, 0x05);
+    for (int n = 1; World::troopRecord(n) < 0xFBB; ++n) {
+        w.setU8(World::troopRecord(n), static_cast<std::uint8_t>(n));
+        w.setU8(World::troopRecord(n) + 3, 0xA0);
+    }
+    const std::size_t t = World::troopRecord(1);
+    w.setU8(t + 3, 0); // mining
+    w.setU16(t + 4, static_cast<std::uint16_t>(place));
+    w.setU8(t + 0x15, 50);
+    w.setU8(t + 0x16, 0x20);
+    w.setU8(t + 0x19, 0x80); // a harvester
+    w.setU8(t + 0x1A, 100);
+    // (50 + 0x20) × 100 men, its high byte 32, times 0x51, over 128: 20.
+    w.troopsWork(0, m);
+    MTT_CHECK(w.u16(t + 0x0C) == 20 && w.u16(t + 0x0E) == 20);
+    MTT_CHECK(w.u16(t + 0x10) == 0x0108);
+    MTT_CHECK(w.u16(0xA0) == 2);
+    MTT_CHECK(w.u8(place + 0x13) == 20 && w.u8(place + 0x12) == 0x54);
+    w.troopsWork(0, m);
+    MTT_CHECK(w.u16(t + 0x0E) == 40 && w.u16(0xA0) == 4);
+    MTT_CHECK(w.u8(place + 0x13) == 12 && w.u8(place + 0x12) == 0x53);
+}
+
+MTT_TEST("world: a strong troop fighting the last Harkonnens of a fort takes it") {
+    std::vector<std::uint8_t> map(2 * kMiddle + 512, 0x05);
+    FlatMap m(smallLatitudes(), map, FlatMap::Edges{});
+    World w;
+    const std::size_t fort = World::placeRecord(1);
+    w.setU8(fort + 8, 0x2D);
+    w.setU8(fort + 9, 1);
+    w.setU8(World::placeRecord(2), 0xFF);
+    for (int n = 1; World::troopRecord(n) < 0xFBB; ++n) {
+        w.setU8(World::troopRecord(n), static_cast<std::uint8_t>(n));
+        w.setU8(World::troopRecord(n) + 3, 0xA0);
+    }
+    const std::size_t ours = World::troopRecord(1);
+    w.setU8(ours + 1, 2);
+    w.setU8(ours + 3, 6); // fighting
+    w.setU16(ours + 4, static_cast<std::uint16_t>(fort));
+    w.setU8(ours + 0x15, 50);
+    w.setU8(ours + 0x17, 0x20);
+    w.setU8(ours + 0x1A, 100);
+    const std::size_t theirs = World::troopRecord(2);
+    w.setU8(theirs + 2, 9);
+    w.setU8(theirs + 3, 0x80);
+    w.setU16(theirs + 4, static_cast<std::uint16_t>(fort));
+    w.setU8(theirs + 0x10, 0x80);
+    w.setU8(theirs + 0x1A, 1);
+    w.random2 = [] { return 0; }; // below the lean: Paul's troop strikes
+    w.troopsWork(0, m);
+    // Worth 3 against 1: the blow kills the last man, and the fort falls;
+    // the Harkonnens there stay as Fremen.
+    MTT_CHECK(w.u8(0x9C) == 0xFC);
+    MTT_CHECK((w.u8(fort + 0x0A) & 0x08) != 0);
+    MTT_CHECK(w.u8(ours + 3) == 4);
+    MTT_CHECK(w.u8(theirs + 3) == 0xA0 && (w.u8(theirs + 0x10) & 0x80) == 0);
 }
 
 MTT_TEST("map screen: opens on the palace and the arrows move it") {

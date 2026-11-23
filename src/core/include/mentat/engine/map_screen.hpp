@@ -128,6 +128,8 @@ public:
     // A place changed in a way the map shows: once nothing stands over
     // the map, the view is drawn again.
     void placeChanged(std::size_t record);
+    // The map is drawn again at the next tick when it shows.
+    void redraw();
 
     // The map's point at the middle of the view.
     std::uint16_t longitude() const { return longitude_; }

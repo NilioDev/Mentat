@@ -152,8 +152,21 @@ public:
     void startMove(int troop, std::size_t place, FlatMap& map);
     // Up to `steps` steps towards its destination; true when it arrived.
     bool stepTroop(int troop, int steps, FlatMap& map);
-    // Each hour: the troops on the move step on, but troop `except`.
-    void moveTroops(int except, FlatMap& map);
+    // Each hour (see docs/rules/work.md): the troops on the move step
+    // on, but troop `except`, and the others do their work.
+    void hourPassed(int except, FlatMap& map);
+    void troopsWork(int except, FlatMap& map);
+    // The map mode the original keeps (bit 6 while the map shows spice),
+    // and a count of the times the map should be drawn again.
+    int mapMode = 0;
+    int mapRedraws = 0;
+    // A troop whose orders are shown (a record, 0 for none): it does not
+    // move on when it is done prospecting.
+    std::size_t shownTroop = 0;
+    // Set when the place Paul is at became a sietch, and when the
+    // Harkonnens won the place he is at.
+    bool sietchHere = false;
+    bool lostWithPaul = false;
     // Turns the state's word 0 one bit left; true for the bit that came
     // round.
     bool turnSeed();
@@ -167,6 +180,7 @@ public:
     // Game::random3), for what troops do; without them, 0.
     std::function<int(int mask)> random;
     std::function<int(int most)> random3;
+    std::function<int()> random2;
 
     // The places and their troops as the program sets them up when it
     // starts: each place moves onto the nearest point of the map, which is
@@ -191,13 +205,41 @@ private:
     int harvest(std::size_t troop);
     void arrive(int troop, FlatMap& map);
     void settle(int troop);
-    void capture(int troop, FlatMap& map);
+    void capture(std::size_t place, FlatMap& map, bool told = true);
+    void tell(std::uint16_t message, std::size_t place);
     void sendAway(int troop);
     int countHarkonnenForts();
     void raiseCharisma(int by);
     void raiseSpirits(int by);
     void troopsAt(std::size_t place, const std::function<void(int troop)>& each);
     int dice(int mask) { return random ? random(mask) : 0; }
+    int keenness(std::size_t troop) const;
+    void raiseSkill(std::size_t troop, int which, int by);
+    void step(int troop, int except, FlatMap& map);
+    bool joinOther(int troop);
+    void forget(std::size_t troop);
+    void newDay(int troop, std::size_t place, FlatMap& map);
+    void becameSietch(std::size_t place);
+    void mine(int troop, std::size_t place, FlatMap& map);
+    void miningEvents(int troop, std::size_t place);
+    void prospect(int troop, std::size_t place, FlatMap& map);
+    void train(int troop, std::size_t place, FlatMap& map);
+    void plant(int troop, std::size_t place, FlatMap& map);
+    void spreadGreen(int troop, std::size_t place, FlatMap& map);
+    void waitToPlant(int troop, std::size_t place);
+    void buildWindTrap(int troop, std::size_t place);
+    int strength(std::size_t troop) const;
+    void weighForces(std::size_t place);
+    void lowerCharisma(int by);
+    void flee(int troop);
+    int casualties(std::size_t troop, unsigned blow) const;
+    void attack(int troop, std::size_t place);
+    void fight(int troop, std::size_t place, FlatMap& map);
+    void countFighters(std::size_t place, int& harkonnens, int& pauls);
+    void strike(int troop, std::size_t place, FlatMap& map);
+    void struck(int troop, std::size_t place, FlatMap& map);
+    void sendHarkonnensAway(std::size_t place);
+    void losePlace(std::size_t place, FlatMap& map);
     void lowerSpirits(std::size_t troop, int by);
     void heldEquipment(std::size_t troop, std::size_t place, int change);
 
@@ -215,6 +257,11 @@ private:
     static constexpr std::size_t kPresent = 0x12;
 
     std::vector<std::uint8_t> bytes_;
+    // What the original keeps outside the state for the hour's work.
+    bool newDay_ = false;
+    std::size_t harkonnenGoal_ = 0;
+    std::uint8_t busy_ = 0;
+    int spiceLeft_ = 0;
 };
 
 } // namespace mentat
