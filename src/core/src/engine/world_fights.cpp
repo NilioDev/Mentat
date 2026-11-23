@@ -291,4 +291,35 @@ void World::losePlace(std::size_t place, FlatMap& map) {
     }
 }
 
+// The men of each side against what they lost: the Harkonnens' men
+// against those they lost, and Paul's fighting men against theirs; the
+// difference, as a share of the larger, halved about 0x80.
+int World::battleBalance(std::size_t place) const {
+    int ours = 0;
+    int theirs = 0;
+    int ourLost = 0;
+    int theirLost = 0;
+    for (int troop = u8(place + 9); troop != 0;) {
+        const std::size_t at = troopRecord(troop);
+        const int men = u8(at + 0x1A);
+        if (u8(at + 0x10) & kHarkonnen) {
+            theirs += men;
+        } else if (u8(at + 3) == kFighting) {
+            ours += men;
+            theirLost += u16(at + 0x0C);
+            ourLost += u16(at + 0x0E);
+        }
+        troop = u8(at + 1);
+    }
+    const int ourShare = ours + ourLost == 0 ? 0 : ours * 256 / (ours + ourLost);
+    const int theirShare = theirs + theirLost == 0 ? 0 : theirs * 256 / (theirs + theirLost);
+    const int most = std::max(ourShare, theirShare);
+    int v = ourShare - theirShare;
+    if (most != 0) {
+        const std::int32_t num = static_cast<std::int32_t>(static_cast<std::int16_t>(v)) * 256 + (v < 0 ? 255 : 0);
+        v = static_cast<std::int16_t>(num / most);
+    }
+    return static_cast<std::uint8_t>((static_cast<std::int16_t>(v) >> 1) + 0x80);
+}
+
 } // namespace mentat

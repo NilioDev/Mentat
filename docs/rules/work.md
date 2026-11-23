@@ -3,7 +3,8 @@
 Each time the clock moves on (see [timing.md](timing.md)) the state's
 word `0x1174` takes the clock, and a new day has come when the high four
 bits of its low byte (the day) changed. Unless the story's byte `0xC2`
-is 7 or more, the troops then work. For the records of troops and places
+is 7 or more, the troops then work (for the rest of the hour see
+[days.md](days.md)). For the records of troops and places
 see [moves.md](moves.md) and [places_taken.md](places_taken.md); a
 troop's skills are its bytes `0x16` (spice), `0x17` (army) and `0x18`
 (ecology), its men byte `0x1A`.

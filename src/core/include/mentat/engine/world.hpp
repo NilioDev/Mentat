@@ -167,6 +167,15 @@ public:
     // Harkonnens won the place he is at.
     bool sietchHere = false;
     bool lostWithPaul = false;
+    // Set when the Harkonnens attack the place Paul is at, and when the
+    // fight there is over.
+    bool attackedHere = false;
+    bool attackOver = false;
+    // How a fight at a place leans, from 0 (the Harkonnens' way) to 255
+    // (Paul's), 0x80 even.
+    int battleBalance(std::size_t place) const;
+    // Why the game ends (the original's codes, 0 while it goes on).
+    int gameOverReason = 0;
     // Turns the state's word 0 one bit left; true for the bit that came
     // round.
     bool turnSeed();
@@ -240,6 +249,22 @@ private:
     void struck(int troop, std::size_t place, FlatMap& map);
     void sendHarkonnensAway(std::size_t place);
     void losePlace(std::size_t place, FlatMap& map);
+    void loadDayTables(const ProgramFile& program);
+    void dayPassed(FlatMap& map);
+    void ageRecords();
+    void callGathering();
+    bool gathersAt(std::size_t place);
+    void gatheringEnds();
+    void takeStock(FlatMap& map);
+    void keepResults();
+    void smugglersChange();
+    void waterAndFading(FlatMap& map);
+    void remindOfTheHarkonnens();
+    void harkonnensGrow();
+    void sendNews(std::uint16_t news);
+    void emperorsDemand();
+    void harkonnensAttack(FlatMap& map);
+    void paulsPlace();
     void lowerSpirits(std::size_t troop, int by);
     void heldEquipment(std::size_t troop, std::size_t place, int change);
 
@@ -262,6 +287,10 @@ private:
     std::size_t harkonnenGoal_ = 0;
     std::uint8_t busy_ = 0;
     int spiceLeft_ = 0;
+    // Where the green fades next (the original keeps it in its code).
+    std::uint16_t fade_ = 1;
+    std::vector<std::uint8_t> keep_;
+    std::vector<std::uint8_t> warnings_;
 };
 
 } // namespace mentat

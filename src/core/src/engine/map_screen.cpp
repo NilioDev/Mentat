@@ -645,37 +645,7 @@ int MapScreen::labelSize(std::size_t record) const {
 // The gauge of the fight at a place, 0 to 8: the men of Paul's troops
 // waiting there against what they hold, and the Harkonnens' men against
 // theirs.
-int MapScreen::battle(std::size_t record) const {
-    int ours = 0;
-    int theirs = 0;
-    int ourHold = 0;
-    int theirHold = 0;
-    for (int troop = world_.u8(record + 9); troop != 0;) {
-        const std::size_t at = World::troopRecord(troop);
-        const int men = world_.u8(at + 0x1A);
-        const int job = world_.u8(at + 3);
-        if (world_.u8(at + 0x10) & 0x80) {
-            theirs += men;
-        } else if (job == 6) {
-            if (!(job & 0x20)) {
-                ours += men;
-            }
-            theirHold += world_.u16(at + 0x0C);
-            ourHold += world_.u16(at + 0x0E);
-        }
-        troop = world_.u8(at + 1);
-    }
-    const int ourShare = ours + ourHold == 0 ? 0 : ours * 256 / (ours + ourHold);
-    const int theirShare = theirs + theirHold == 0 ? 0 : theirs * 256 / (theirs + theirHold);
-    const int most = std::max(ourShare, theirShare);
-    int v = ourShare - theirShare;
-    if (most != 0) {
-        const std::int32_t num = static_cast<std::int32_t>(static_cast<std::int16_t>(v)) * 256 + (v < 0 ? 255 : 0);
-        v = static_cast<std::int16_t>(num / most);
-    }
-    const int gauge = static_cast<std::uint8_t>((static_cast<std::int16_t>(v) >> 1) + 0x80);
-    return (gauge + 0x0F) >> 5;
-}
+int MapScreen::battle(std::size_t record) const { return (world_.battleBalance(record) + 0x0F) >> 5; }
 
 void MapScreen::showLabel(std::size_t record, int px, int py) {
     const ProgramFile& program = g_.resources().program();
