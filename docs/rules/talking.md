@@ -106,7 +106,7 @@ it starts.
 | 5 | A question about a smuggler's bill |
 | 6 | The talk ends after this line: TALK TO ME has nothing more |
 | 7 | The answer is "maybe" (`0x80`) |
-| 8 | For Duncan: he works out what to propose (see [shipments.md](shipments.md)). For Stilgar: the water of life (see [stilgar.md](stilgar.md)) |
+| 8 | For Duncan: he works out what to propose (see [shipments.md](shipments.md)). For Stilgar: the water of life (see [stilgar.md](stilgar.md)). For the smuggler: his offer (see [smugglers.md](smugglers.md)) |
 | 9 | For Duncan: Paul's answer is taken (see [shipments.md](shipments.md)). For Stilgar: the last attack (see [stilgar.md](stilgar.md)) |
 | 10 | A few words show beside the face (below) |
 | 11 | When said the first time: the story moves on a step (state `0x2A`); at step 1 byte `0x100B` is set |
@@ -114,8 +114,8 @@ it starts.
 | 14 | When said the first time: one more at `0xC2` |
 | 15 | For Jessica: one more at `0xF5`. For Duncan: the Emperor's answer to the shipment comes (see [shipments.md](shipments.md)) |
 
-What actions 8, 9 and 13 do for the other characters (Jessica's powers,
-the smuggler's trade and the chiefs' places) Mentat does not have yet.
+What actions 8, 9 and 13 do for the other characters (Jessica's powers
+and the chiefs' places) Mentat does not have yet.
 
 The program's code calls a line's action by its number less one from a
 table of routines; the numbers above are the lines' own.
@@ -128,7 +128,8 @@ ARGUE (phrase `0xF1`), ACCEPT (`0xEF`), REFUSE (`0xF0`) and " WHAT ? ",
 which says the line again. ARGUE, ACCEPT and REFUSE set `0x9F` to 3, 1 and
 2, count one more at `0x1A`, bring back the talk menu and go on as TALK
 TO ME does. Action 5 asks about a smuggler's bill rather than an amount
-to send.
+to send. The smuggler's own answers do more first (see
+[smugglers.md](smugglers.md)).
 
 ### A few words beside the face
 
@@ -138,7 +139,9 @@ words for each such line, ordered by the first: the line's phrase number
 with bit 11 set, a phrase of the command file, x, y, and the colours (the
 background in the high byte, the letters in the low one). A line not in
 the table shows nothing. From `0x38` on, the second word names a number
-the voice says rather than a phrase; nothing is shown then.
+the voice says rather than a phrase: `0x38` the bill (word `0x20`), `0x39`
+the smuggler's price (byte `0x9D`). The original shows nothing then;
+Mentat writes the number × 10 and " kgs", as the other amounts are.
 
 The phrase is made into text as a line's are (the state's numbers filled
 in), and drawn in the small font from (x, y), each letter on its whole

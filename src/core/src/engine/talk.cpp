@@ -143,16 +143,21 @@ constexpr int kEntranceHall = 1;
 // Duncan, who looks after the spice.
 constexpr int kDuncan = 3;
 constexpr int kStilgar = 5;
+constexpr int kSmuggler = 13;
+constexpr int kSmugglerStep = 0x3C; // the story step a smuggler's offer brings
+constexpr std::size_t kBillWord = 0x20; // the bill of the smuggler spoken of
+constexpr std::size_t kPrice = 0x9D;    // the smuggler's price
 constexpr std::size_t kAnswers = 0x1A; // how many questions Paul answered in this talk
 constexpr std::size_t kAnswer = 0x9F;  // the last answer: 1 accept, 2 refuse, 3 argue
 constexpr std::size_t kQuestionMenu = 0x1FFE;
 // The table of the lines that show a few words (data offset, 10 bytes an
 // entry: the line's phrase, a phrase of the command file, x, y, colours),
-// ordered by phrase. From kSpokenNumbers on, the second word names a
-// number the voice says instead.
+// ordered by phrase. Two second words name a number the voice says instead:
+// the bill, or the smuggler's price.
 constexpr std::size_t kLabels = 0x1984;
 constexpr std::size_t kLabelSize = 10;
-constexpr int kSpokenNumbers = 0x38;
+constexpr int kSpokenBill = 0x38;
+constexpr int kSpokenPrice = 0x39;
 
 std::uint16_t bit(int c) { return static_cast<std::uint16_t>(1u << (c & 15)); }
 
@@ -496,6 +501,9 @@ void Talk::runAction(const DialogueLine& line) {
             world_.prepareShipment();
         } else if (character_ == kStilgar) {
             afterSpeech_ = true;
+        } else if (character_ == kSmuggler) {
+            raiseProgress(kSmugglerStep);
+            world_.smugglerOffers();
         }
         break;
     case 9:
@@ -535,8 +543,8 @@ void Talk::runAction(const DialogueLine& line) {
         }
         break;
     default:
-        // The others start things this port does not have yet (the
-        // smuggler's trade, Jessica's powers, the chiefs' places).
+        // The others start things this port does not have yet (Jessica's
+        // powers, the chiefs' places).
         break;
     }
 }
@@ -569,6 +577,9 @@ void Talk::ask(bool bill) {
 // back and the character goes on as TALK TO ME has it.
 void Talk::answerQuestion(int answer) {
     asking_ = false;
+    if (character_ == kSmuggler) {
+        answer = world_.smugglerAnswered(answer);
+    }
     world_.setU8(kAnswer, static_cast<std::uint8_t>(answer));
     world_.setU8(kAnswers, static_cast<std::uint8_t>(world_.u8(kAnswers) + 1));
     setMenu();
@@ -592,12 +603,18 @@ void Talk::findLabel(int phrase) {
         break;
     }
     const int text = program.dataU16(at + 2);
-    if (text >= kSpokenNumbers) {
-        return; // a number the voice says: not in the text
-    }
     std::string out;
-    std::vector<std::string> ignored;
-    expand(panel_.phrases().at(static_cast<std::size_t>(text - 1)), out, ignored, 1, false);
+    if (text == kSpokenBill || text == kSpokenPrice) {
+        // The original only says these numbers; here they are written
+        // where its table puts them, in kilos as the other amounts.
+        const unsigned amount = text == kSpokenBill ? world_.u16(kBillWord) : world_.u8(kPrice);
+        out = decimal(amount * 10) + " kgs";
+    } else if (text > kSpokenPrice) {
+        return;
+    } else {
+        std::vector<std::string> ignored;
+        expand(panel_.phrases().at(static_cast<std::size_t>(text - 1)), out, ignored, 1, false);
+    }
     label_.text = out;
     label_.x = program.dataU16(at + 4);
     label_.y = program.dataU16(at + 6);

@@ -36,6 +36,11 @@ constexpr std::size_t kNextDemand = 0x118D;
 constexpr std::size_t kLastWarning = 0x11BB;
 constexpr std::size_t kVillageName = 0x11F7;
 constexpr std::size_t kCharacterTable = 0xFD8;
+constexpr std::size_t kHaggle = 0x9E;      // which of his lines the smuggler says
+constexpr std::size_t kPrice = 0x9D;       // the price he asks, in tens of kilos
+constexpr std::size_t kPaulsPlace = 0x114E;
+constexpr std::size_t kKinds = 0x1141;     // how many kinds of equipment there are
+constexpr std::size_t kOffered = 0x11F1;   // the kind offered, + 0xE8
 constexpr std::size_t kCharacterSize = 0x10;
 
 std::uint16_t word(unsigned v) { return static_cast<std::uint16_t>(v & 0xFFFF); }
@@ -243,6 +248,89 @@ void World::stopsFollowing(int c) {
         setU8(kSlots, u8(kSlots + 1));
         setU8(kSlots + 1, 0xFF);
     }
+}
+
+// --- The smuggler's trade
+
+void World::smugglerOffers() {
+    const std::size_t s = u16(kSmugglerNow);
+    if (s < kSmugglers || s + kSmugglerSize > kSize) {
+        return;
+    }
+    setU8(kHaggle, static_cast<std::uint8_t>(dice(3)));
+    const std::uint8_t day = static_cast<std::uint8_t>(u16(kClockWord) >> 4);
+    setU8(s + 3, day);
+    setU8(kAnswers, 0);
+    // The next kind he has, going round the kinds at most twice.
+    const unsigned kinds = u8(kKinds);
+    unsigned kind = static_cast<unsigned>(u16(kOffered) - 0xE8) & 0xFF;
+    int rounds = 2;
+    for (;;) {
+        kind = (kind + 1) & 0xFF;
+        while (kind >= kinds) {
+            kind = (kind - kinds) & 0xFF;
+            if (--rounds == 0) {
+                return;
+            }
+        }
+        if (kind < 5 && u8(s + 4 + kind) != 0) {
+            break;
+        }
+    }
+    setU16(kOffered, static_cast<std::uint16_t>(kind + 0xE8));
+    setU8(kPrice, static_cast<std::uint8_t>((u8(s + 9 + kind) & 0x7F) << 1));
+}
+
+int World::smugglerAnswered(int answer) {
+    const std::size_t s = u16(kSmugglerNow);
+    if (s < kSmugglers || s + kSmugglerSize > kSize) {
+        return answer;
+    }
+    if (answer == 1) {
+        // Bought: the price goes on his bill, the equipment to Paul's place.
+        setU8(s + 2, static_cast<std::uint8_t>(u8(s + 2) & 0x9F));
+        const std::uint16_t price = u8(kPrice);
+        setU8(kPrice, 0);
+        setU16(kBill, word(u16(kBill) + price));
+        setU16(s + 0x0E, word(u16(s + 0x0E) + price));
+        if (u16(s + 0x0E) == price) {
+            setU8(kBills, static_cast<std::uint8_t>(u8(kBills) + 1));
+        }
+        setU8(s + 0x10, static_cast<std::uint8_t>(u16(kClockWord) >> 4));
+        const std::size_t kind = static_cast<std::size_t>(u16(kOffered) - 0xE8) & 0xFF;
+        if (kind < 5) {
+            setU8(s + 4 + kind, static_cast<std::uint8_t>(u8(s + 4 + kind) - 1));
+            const std::size_t place = u16(kPaulsPlace);
+            if (place != 0 && place + 0x14 + kind < kSize) {
+                setU8(place + 0x14 + kind, static_cast<std::uint8_t>(u8(place + 0x14 + kind) + 1));
+            }
+        }
+        return 1;
+    }
+    if (answer == 2) {
+        // Now and then he will not take no and haggles on; else no deal.
+        if (dice(7) == 0) {
+            setU8(kHaggle, static_cast<std::uint8_t>(u8(kHaggle) | 0x10));
+            return 3;
+        }
+        setU8(kPrice, 0);
+        return 2;
+    }
+    const int r = dice(3);
+    if (r == 0) {
+        setU8(kHaggle, static_cast<std::uint8_t>(u8(kHaggle) | 0x10));
+        return 3;
+    }
+    setU8(kHaggle, static_cast<std::uint8_t>((u8(kHaggle) + 1) & 3));
+    // He gives way while Paul has argued less than his patience (byte 1).
+    const unsigned tried = static_cast<unsigned>((r & 1) + u8(kAnswers)) & 0xFF;
+    if (tried < u8(s + 1)) {
+        const std::uint8_t price = u8(kPrice);
+        setU8(kPrice, static_cast<std::uint8_t>(price - (price >> 3)));
+    } else {
+        setU8(kPrice, 0);
+    }
+    return 3;
 }
 
 } // namespace mentat

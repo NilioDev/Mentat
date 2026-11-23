@@ -1025,6 +1025,67 @@ MTT_TEST("world: a smuggler's bill is paid from the stock, or waits") {
     MTT_CHECK(w.u16(s + 0x0E) == 0 && w.u16(0xA0) == 60 && w.u16(0x1172) == 40 && w.u8(0x22) == 0);
 }
 
+MTT_TEST("world: the smuggler offers his next kind, and haggles") {
+    World w;
+    const std::size_t s = 0x10D8;
+    w.setU8(s + 0x11, 0xFF);
+    w.setU8(s + 1, 2);           // his patience
+    w.setU8(s + 4 + 0, 3);       // three of the first kind
+    w.setU8(s + 4 + 2, 1);       // one of the third
+    w.setU8(s + 9 + 0, 0x8A);    // prices, the top bit not counted
+    w.setU8(s + 9 + 2, 0x40);
+    w.setU8(0x1141, 4);          // four kinds
+    w.setU16(0x11F1, 0xE8);      // the first was offered last
+    w.setU16(0x10B4, static_cast<std::uint16_t>(s));
+    w.setU16(0x114E, 0x200);     // Paul's place
+    w.setU16(2, 9 << 4);         // day 9
+    std::vector<int> draws;
+    w.random = [&](int mask) {
+        const int n = draws.empty() ? 0 : draws.front();
+        if (!draws.empty()) {
+            draws.erase(draws.begin());
+        }
+        return n & mask;
+    };
+    draws = {2};
+    w.smugglerOffers();
+    MTT_CHECK(w.u16(0x11F1) == 0xEA && w.u8(0x9D) == 0x80 && w.u8(0x9E) == 2 && w.u8(s + 3) == 9);
+
+    // Arguing: he gives way by an eighth while Paul has argued less than his
+    // patience, then no more.
+    w.setU8(0x1A, 0);
+    draws = {2};
+    MTT_CHECK(w.smugglerAnswered(3) == 3);
+    MTT_CHECK(w.u8(0x9D) == 0x70 && w.u8(0x9E) == 3);
+    w.setU8(0x1A, 1);
+    draws = {1};
+    MTT_CHECK(w.smugglerAnswered(3) == 3 && w.u8(0x9D) == 0);
+    draws = {0};
+    w.setU8(0x9D, 0x70);
+    MTT_CHECK(w.smugglerAnswered(3) == 3 && w.u8(0x9D) == 0x70 && (w.u8(0x9E) & 0x10));
+
+    // Refusing ends the offer, now and then he asks again.
+    draws = {0};
+    MTT_CHECK(w.smugglerAnswered(2) == 3 && w.u8(0x9D) == 0x70);
+    draws = {5};
+    MTT_CHECK(w.smugglerAnswered(2) == 2 && w.u8(0x9D) == 0);
+
+    // Accepting puts the price on his bill and the equipment in Paul's place.
+    w.setU8(0x9D, 0x70);
+    w.setU8(s + 2, 0x60);
+    MTT_CHECK(w.smugglerAnswered(1) == 1);
+    MTT_CHECK(w.u16(s + 0x0E) == 0x70 && w.u16(0x20) == 0x70 && w.u8(0x22) == 1 && w.u8(s + 0x10) == 9);
+    MTT_CHECK(w.u8(s + 6) == 0 && w.u8(0x200 + 0x16) == 1 && w.u8(s + 2) == 0 && w.u8(0x9D) == 0);
+
+    // The next offer goes round to the first kind; with none left, nothing.
+    w.smugglerOffers();
+    MTT_CHECK(w.u16(0x11F1) == 0xE8 && w.u8(0x9D) == 0x14);
+    w.setU8(s + 4, 0);
+    w.setU8(0x9D, 0);
+    w.smugglerOffers();
+    MTT_CHECK(w.u16(0x11F1) == 0xE8 && w.u8(0x9D) == 0);
+}
+
 MTT_TEST("world: a shipment sets the Emperor's mood and the day of his next demand") {
     World w;
     w.setU16(0xBC, 400);

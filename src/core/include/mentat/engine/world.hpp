@@ -150,6 +150,13 @@ public:
     // The smuggler of record `record` (from 0x10D8) is the one the state
     // speaks of.
     void smugglerNow(std::size_t record);
+    // The smuggler offers his next kind of equipment in stock and names its
+    // price (see docs/rules/smugglers.md).
+    void smugglerOffers();
+    // Paul's answer to the smuggler (1 accept, 2 refuse, 3 argue): accepting
+    // buys the offer on the bill, refusing or arguing may bring a better
+    // price. Returns the answer the talk goes on with.
+    int smugglerAnswered(int answer);
 
     // What the state keeps of place `record` while the player is in it.
     void learnPlace(std::size_t record);
