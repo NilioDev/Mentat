@@ -17,6 +17,8 @@ constexpr std::size_t kSpice = 0xA0;
 constexpr std::size_t kBoost = 0xFA;
 constexpr std::size_t kNameKinds = 0x1141;
 constexpr std::size_t kProgress = 0x2A;
+constexpr std::size_t kWithPaul = 0x10;           // the characters going with Paul, a bit each
+constexpr std::size_t kHarkonnenArmyHere = 0x66;  // learnt: Harkonnen army troops at the place
 constexpr std::size_t kEvents = 0x0A;
 constexpr std::size_t kGrowing = 0xEC;
 constexpr std::size_t kHarkonnenGoal = 0x101A;
@@ -69,6 +71,15 @@ void World::troopsWork(int except, FlatMap& map) {
     const std::uint16_t goal = u16(kHarkonnenGoal);
     if ((goal & 0xFF) == 0x80) {
         harkonnenGoal_ = kPlaces + kPlaceSize * static_cast<std::size_t>(((goal >> 8) - 1) & 0xFF);
+    }
+    // From step 0x2D to 0x2F, Harkonnen army troops where character 4 is,
+    // while he is not with Paul, move the story on to 0x30.
+    const int storyStep = u8(kProgress);
+    if (storyStep >= 0x2D && storyStep < 0x30 && !(u16(kWithPaul) & 0x10) && harkonnenGoal_ != 0) {
+        learnPlace(harkonnenGoal_);
+        if (u8(kHarkonnenArmyHere) != 0) {
+            raiseStory(0x30);
+        }
     }
     busy_ = 0;
     for (std::size_t t = kTroops; t < kTroopsEnd; t += kTroopSize) {

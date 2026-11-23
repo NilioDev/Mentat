@@ -16,11 +16,25 @@ that is not past the step reached, nothing happens. Otherwise byte `0x2A`
 takes it, byte `0xFF` becomes 0, the story's lines run, and then, for a
 step up to `0x6C` that is a multiple of 4, the step's own changes below.
 
-These move the story on so: a line's action 12 (to the next multiple of 4)
-and finding sietch `0x0603` (to `0x10`, see "found" in
-[flight.md](flight.md)). The others the program has, and Mentat not yet:
-`0x30`, `0x3C`, `0x4C` (Paul's forts reaching the count at byte `0x1178`),
-`0x50` and `0x64` (a gathering).
+These move the story on so:
+
+- a line's action 12 (to the next multiple of 4);
+- finding sietch `0x0603` (to `0x10`, see "found" in [flight.md](flight.md));
+- a line of the smuggler's offer (to `0x3C`, see [smugglers.md](smugglers.md));
+- the troops working for Paul (byte `0x28`) reaching byte `0x1178` as one
+  more joins (to `0x4C`, see [people.md](people.md));
+- leaving a troop's orders while its word `0x12` has bit 11, at a step
+  from `0x60` to `0x63` (to `0x64`, see [orders.md](orders.md));
+- each hour, before the troops work (see [work.md](work.md)), at a step
+  from `0x2D` to `0x2F`, while character 4 does not go with Paul (word
+  `0x10` lacks bit 4) and is in a place (his word 2, `0x101A`, has `0x80`
+  in its low byte): the state learns that place (see
+  [people.md](people.md#what-the-state-learns-about-the-place)), and when
+  Harkonnen army troops are counted there (byte `0x66` not 0) the story
+  goes to `0x30`.
+
+The program also moves it to `0x50` the first time Paul rides a worm;
+Mentat has no worms to ride yet.
 
 ## What each step changes
 
@@ -93,5 +107,6 @@ story's lines run.
 
 ## Not built yet
 
-Some of the scenes' steps (see [story_scenes.md](story_scenes.md)), and the other ways of moving the story on listed above. Mentat has no ways out of
-a place's rooms yet, so Paul is never outside but when flying.
+Some of the scenes' steps (see [story_scenes.md](story_scenes.md)), and
+riding a worm (step `0x50`). Mentat has no ways out of a place's rooms
+yet, so Paul is never outside but when flying.
