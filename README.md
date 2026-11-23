@@ -146,7 +146,8 @@ button acts as a key.
 | Look at the globe | On the map, click the small planet at the left of the panel; "EXIT GLOBE" or the button beside the list goes back | | |
 | Turn the globe | Click or hold an arrow; the middle turns it to you; click on the planet to see the map there | | |
 | See how you are doing | On the globe, "SEE RESULTS"; "STANDARD VISION" goes back | | |
-| Fly to a place | In the palace's entrance, "TAKE AN ORNITHOPTER", then click a place on the small map; "Cancel" goes back | | |
+| Fly to a place | In the palace's entrance, "TAKE AN ORNITHOPTER", then click a place on the small map; "Cancel" goes back. On the map, from a sietch or near a place's entrance: click a place, then "GO THERE FLYING AN ORNI"; or "TAKE AN ORNITHOPTER" | | |
+| Give orders from afar | On the map, "CONTACT FREMEN TROOPS" (once Jessica has taught you), "NEXT TROOP" for the next one, "CUT CONTACT" to stop; "FIND PROSPECTORS" goes to the prospectors | | |
 | Fly over the desert | In the cockpit, click the desert; the arrows turn; "BACK TO STARTING POINT" goes home | | |
 | While flying | "SKIP TO DESTINATION" lands at once; "CHANGE DESTINATION" opens the map again | | |
 | After the game ends | "RESTART GAME", "LOAD GAME" or "EXIT GAME"; " WHAT ? " says it again | | |

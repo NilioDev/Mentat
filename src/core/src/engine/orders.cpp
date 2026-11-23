@@ -101,7 +101,7 @@ constexpr std::uint8_t kMaybe = 0x80;            // the answer of a line that sh
 constexpr std::uint8_t kEquipped = 0x0C;         // the situation while the chief answers
 constexpr std::size_t kHeldBefore = 0x3D;        // state: what the troop held, then what it gained
 constexpr std::size_t kLost = 0x3E;              // state: what it gave back
-constexpr std::size_t kHarvesterHome = 0x3F;     // state: 0x40 when it took a harvester at Paul's home
+constexpr std::size_t kOrnithopterHome = 0x3F;   // state: 0x40 when it took an ornithopter at Paul's home
 constexpr int kEcologyWork = 8;
 constexpr std::uint8_t kNoneFound = 0x0E;        // the situation when no place has the equipment
 constexpr std::uint8_t kHasAll = 0x0F;           // and when the troop has all its speciality's
@@ -648,7 +648,7 @@ void Orders::equipped() {
     const auto gained = static_cast<std::uint8_t>(now & changed);
     world_.setU8(kHeldBefore, gained);
     world_.setU8(kLost, static_cast<std::uint8_t>(before & changed));
-    world_.setU8(kHarvesterHome, (gained & 0x40) && world_.u16(t + 4) == world_.u16(kHome) ? 0x40 : 0);
+    world_.setU8(kOrnithopterHome, (gained & 0x40) && world_.u16(t + 4) == world_.u16(kHome) ? 0x40 : 0);
     if ((world_.u8(t + 3) & 0x0F) == kEcologyWork) {
         world_.cannotWork(troop_);
     }

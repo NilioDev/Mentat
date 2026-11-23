@@ -50,6 +50,7 @@ public:
     int troop() const { return troop_; }
     // The troop last given orders, 0 at first.
     int lastTroop() const { return last_; }
+    void setLastTroop(int troop) { last_ = troop; }
 
     // Opens the orders for troop `troop`, from a talk with its chief
     // (`fromRoom`) or from the map: the map around the place, dissolved
