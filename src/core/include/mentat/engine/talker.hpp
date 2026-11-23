@@ -32,7 +32,9 @@ public:
     // Speaks phrase `phrase`: plays the character's recording of it and
     // moves the mouth with it. False when there is no recording. `variant`
     // picks one of the other recordings of the phrase (0 for the usual).
-    bool speak(int phrase, int variant = 0);
+    // `voice` is whose recordings say it: the shown character's when
+    // negative.
+    bool speak(int phrase, int variant = 0, int voice = -1);
     // Plays character `character`'s recording of `phrase` with no face to
     // move. False when there is none.
     bool playVoice(int character, int phrase, int variant = 0);

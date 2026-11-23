@@ -13,6 +13,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -57,6 +58,12 @@ public:
     static constexpr std::uint16_t kStopFollowing = 0x9533;
     static constexpr std::uint16_t kWhat = 0x9ED5;
     static constexpr std::uint16_t kStopTalking = 0xD2E2;
+    // For the Fremen: "WORK FOR ME" (or "RALLY ME"); for the chief of a
+    // troop of Paul's, "GIVE ORDERS TO TROOP"; with the Harkonnens'
+    // captain held, "OVERPOWER THE PRISONER".
+    static constexpr std::uint16_t kWorkForMe = 0x95C1;
+    static constexpr std::uint16_t kGiveOrders = 0x5A03;
+    static constexpr std::uint16_t kOverpower = 0x9584;
     // Clicking a character: the actions from kFirstCharacter on, five apart,
     // talk to characters 0 to 11.
     static constexpr std::uint16_t kFirstCharacter = 0x92F2;
@@ -76,10 +83,16 @@ public:
 
     Subtitles subtitles = Subtitles::None;
 
+    // The Fremen agreed to work for Paul: the caller enlists their troop
+    // and returns it; the menu becomes that of its chief.
+    std::function<void()> enlisted;
+
     // Starts talking to character `c`, who says the first line there is.
     // `x` and `y` are where the room showed the character, or negative
     // when it did not.
-    void start(int c, int x, int y);
+    // `face` is the portrait to show (the character's own when negative)
+    // and `variant` which of its sets.
+    void start(int c, int x, int y, int face = -1, int variant = 0);
     // A command of the talk menu. False when it is not one.
     bool command(std::uint16_t action);
 
@@ -94,6 +107,8 @@ public:
     // The story's own list of lines: run when the story moves on, they say
     // nothing but change the game.
     void runEvents();
+    // The story moves on to step `to`, if it is not there yet.
+    void raiseProgress(int to);
 
     // The text that would be shown for a phrase, all its pages, with what
     // the game fills in put in. Exposed for the tests.
@@ -116,7 +131,6 @@ private:
     void showPage(const std::string& page);
     void afterLine(std::size_t at);
     void runAction(const DialogueLine& line);
-    void raiseProgress(int to);
     void speak();
     void drawBackground(int x, int y);
     void restartFace();
@@ -124,7 +138,10 @@ private:
     void showScene();
     void layoutSubtitle(const std::string& text);
     void setMenu();
-    void comeWithMe();
+    void setMenuFor(int number);
+    int face_ = -1;
+    int faceVariant_ = 0;
+    void comeWithMe(bool work);
     void stopFollowing();
     void leaves(std::size_t record);
     void takeSlot(int number);

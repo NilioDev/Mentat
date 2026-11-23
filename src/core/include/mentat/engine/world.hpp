@@ -98,6 +98,28 @@ public:
     // in the room in the order the list of commands names them.
     std::vector<Character> findPresent();
 
+    // The troops of the place the player is in, as the people of the room:
+    // characters 12 (the Harkonnens' captain), 13 (the smuggler), 14 (the
+    // Fremen not yet working for Paul) and 15 (the chiefs of his troops)
+    // are put in the room their troops stand in, and the state learns
+    // what the place holds (see docs/rules/people.md). Troops by number
+    // from 1, 0 for none.
+    struct People {
+        int harkonnens = 0;
+        int fremen = 0;
+        std::vector<int> chiefs;
+        int prospector = 0; // which of the chiefs, from 1, is the prospectors'
+    };
+    People meetPeople();
+    // What the state keeps of place `record` while the player is in it.
+    void learnPlace(std::size_t record);
+    // What the state keeps of troop `troop` while Paul talks to its
+    // people, and of the place it is at.
+    void learnTroop(int troop);
+    // The Fremen of troop `troop` work for Paul. True when as many troops
+    // have rallied to him as the story waits for.
+    bool enlist(int troop);
+
 
     // The places and their troops as the program sets them up when it
     // starts: each place moves onto the nearest point of the map, which is
@@ -119,6 +141,8 @@ public:
     void restore(std::span<const std::uint8_t> bytes);
 
 private:
+    int harvest(std::size_t troop);
+
     static constexpr std::size_t kClock = 0x02;
     static constexpr std::size_t kPlaceRecord = 0x114E;
     static constexpr std::size_t kHome = 0x1150;

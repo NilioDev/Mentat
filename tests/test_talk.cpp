@@ -8,6 +8,7 @@
 #include "mentat/engine/fiber.hpp"
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/intro.hpp"
+#include "mentat/engine/map_screen.hpp"
 #include "mentat/engine/panel.hpp"
 #include "mentat/engine/places.hpp"
 #include "mentat/engine/platform.hpp"
@@ -17,6 +18,7 @@
 #include "mentat/gfx/font.hpp"
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -231,4 +233,67 @@ MTT_TEST("talk: a companion's remark on the way, and what it answers to") {
     w.setU8(0x23, 4);
     MTT_CHECK(remark(4) && talk.phrase() == 0x1C7);
     talk.endRemark();
+}
+
+MTT_TEST("people: the Fremen of a sietch stand in its second room and agree to work for Paul") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g, kEnglish);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    // As far as the story has come when Gurney first flies with Paul.
+    w.setU8(0x2A, 4);
+    const std::size_t sietch = World::placeRecord(12);
+    w.enterPlace(sietch);
+    // Its first room: nobody of the troop.
+    auto people = w.meetPeople();
+    MTT_CHECK(people.fremen == 0 && people.chiefs.empty());
+    w.goTo((w.room() & 0xFF00) | 2, w.place());
+    people = w.meetPeople();
+    const int troop = w.u8(sietch + 9);
+    MTT_CHECK(troop != 0 && people.fremen == troop && people.chiefs.empty());
+    MTT_CHECK(w.u16(0x11CE) == sietch && w.u8(0x4D) == w.u8(sietch + 8) && w.u8(0x90) == 1);
+    w.findPresent();
+    MTT_CHECK((w.present() & (1u << 14)) != 0);
+
+    FakeHost host;
+    Talk talk(g, w, panel, host, kEnglish);
+    talk.subtitles = Talk::Subtitles::Below;
+    int enlisted = 0;
+    talk.enlisted = [&] {
+        ++enlisted;
+        MTT_CHECK(!w.enlist(troop));
+        people = w.meetPeople();
+        w.findPresent();
+    };
+    auto run = [&](const std::function<void()>& f) {
+        Fiber fiber([&] {
+            g.display().targetBack();
+            f();
+        });
+        p.fiber = &fiber;
+        while (!fiber.finished()) {
+            fiber.resume();
+            ++p.ticks;
+        }
+        p.fiber = nullptr;
+    };
+    w.learnTroop(troop);
+    MTT_CHECK(w.u16(0x2C) == sietch && w.u8(0x30) == w.u8(World::troopRecord(troop) + 3));
+    run([&] { talk.start(14, -1, -1); });
+    MTT_CHECK(panel.commands().size() == 4 && panel.commands()[1].action == Talk::kWorkForMe &&
+              panel.commands()[1].phrase == 0x96);
+    run([&] { talk.command(Talk::kWorkForMe); });
+    MTT_CHECK(enlisted == 1);
+    const std::size_t t = World::troopRecord(troop);
+    MTT_CHECK(w.u8(t + 3) == 2 && w.u8(0x28) == 1 && w.u8(sietch + 0x0B) == 2);
+    MTT_CHECK(people.fremen == 0 && people.chiefs.size() == 1 && people.chiefs[0] == troop);
+    MTT_CHECK((w.present() & (1u << 15)) != 0 && (w.present() & (1u << 14)) == 0);
+    MTT_CHECK(panel.commands()[1].action == Talk::kGiveOrders && panel.commands()[1].phrase == 0x93);
 }

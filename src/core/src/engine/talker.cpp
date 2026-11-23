@@ -263,15 +263,18 @@ void Talker::halt() {
     shownPieces_.clear();
 }
 
-bool Talker::speak(int phrase, int variant) {
+bool Talker::speak(int phrase, int variant, int speaker) {
     endSpeech();
     if (character_ < 0) {
         return false;
     }
+    if (speaker < 0) {
+        speaker = character_;
+    }
     DatArchive& archive = game_.resources().archive();
-    std::string name = voiceName(character_, phrase, game_.indoors, variant);
+    std::string name = voiceName(speaker, phrase, game_.indoors, variant);
     if (archive.directory().find(name) == nullptr) {
-        name = voiceName(character_, phrase, !game_.indoors, variant);
+        name = voiceName(speaker, phrase, !game_.indoors, variant);
         if (archive.directory().find(name) == nullptr) {
             return false;
         }

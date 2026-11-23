@@ -113,6 +113,17 @@ constexpr int kFirstRemarkRecording = 0x3E7;
 constexpr int kRetriesWithOnceMore = 0x0D;
 constexpr int kNoFaceFrom = 0x10;
 constexpr int kLastRecordedCharacter = 0x0E;
+constexpr int kCaptain = 12;
+constexpr int kChiefs = 15;
+constexpr std::size_t kTalking = 0x11CA; // set once Paul has talked to someone
+constexpr std::size_t kCharacterTable = 0xFD8;
+constexpr std::size_t kCharacterSize = 0x10;
+constexpr std::size_t kPresentWord = 0x12;
+constexpr std::size_t kCaptainHeld = 0x10A7; // the captain's flags: bit 4, overpowered
+constexpr std::size_t kStoryFlags = 0x0A;    // bit 4: the Fremen rally to Paul
+constexpr std::uint16_t kOverpowerPhrase = 0x9C;
+constexpr std::uint16_t kGiveOrdersPhrase = 0x93;
+constexpr std::uint16_t kWorkForMePhrase = 0x96; // and 0x97, "RALLY ME"
 
 constexpr int kEntranceHall = 1;
 
@@ -127,6 +138,14 @@ std::string decimal(unsigned value) {
 } // namespace
 
 int Talk::characterOf(std::uint16_t action) {
+    // The people of a place's troops.
+    switch (action) {
+    case 0x932E: return 12;
+    case 0x936F: return 13;
+    case 0x9373: return 14;
+    case 0x937E: return 15;
+    default: break;
+    }
     const int d = action - kFirstCharacter;
     if (d < 0 || d % kTalkActionStep != 0 || d / kTalkActionStep >= kTalkActions) {
         return -1;
@@ -175,8 +194,11 @@ void Talk::prepareCondition() {
 
 bool Talk::condition(int n) { return conditions_.test(n, world_); }
 
-void Talk::start(int c, int x, int y) {
+void Talk::start(int c, int x, int y, int face, int variant) {
     character_ = c;
+    face_ = face < 0 ? c : face;
+    faceVariant_ = variant;
+    world_.setU8(kTalking, 1);
     host_.showPointer(false);
     Talker& talker = game_.talker();
     talker.halt();
@@ -187,7 +209,7 @@ void Talk::start(int c, int x, int y) {
     };
     subtitle_.shown = false;
     drawBackground(x, y);
-    talker.show(c, 0, 0, game_.textWords);
+    talker.show(face_, 0, faceVariant_, game_.textWords);
     host_.keepOrnamentBackground();
     showScene();
 
@@ -206,10 +228,20 @@ void Talk::start(int c, int x, int y) {
 
 // The menu: what Paul can say. Whether "come with me" is on offer, or
 // "stop following me", goes by the character's flags.
-void Talk::setMenu() {
-    const std::uint8_t flags = world_.u8(record() + kFlags);
+void Talk::setMenu() { setMenuFor(world_.u8(record() + kNumber)); }
+
+void Talk::setMenuFor(int number) {
+    const std::size_t r = kCharacterTable + kCharacterSize * static_cast<std::size_t>(number);
+    const std::uint8_t flags = world_.u8(r + kFlags);
     Command follow{static_cast<std::uint16_t>(kComeWithMePhrase | Command::kGrey), kComeWithMe};
-    if (!(flags & kCannotFollow)) {
+    if (number != kCaptain && (world_.u16(kPresentWord) & bit(kCaptain)) && !(world_.u8(kCaptainHeld) & 0x10)) {
+        follow = Command{kOverpowerPhrase, kOverpower};
+    } else if (number == kChiefs) {
+        follow = Command{kGiveOrdersPhrase, kGiveOrders};
+    } else if (number == kLastRecordedCharacter) {
+        follow = Command{static_cast<std::uint16_t>(kWorkForMePhrase + ((world_.u8(kStoryFlags) & 0x10) ? 1 : 0)),
+                         kWorkForMe};
+    } else if (!(flags & kCannotFollow)) {
         follow.phrase = kComeWithMePhrase;
         if (flags & kFollows) {
             follow = Command{kStopFollowingPhrase, kStopFollowing};
@@ -239,7 +271,10 @@ bool Talk::command(std::uint16_t action) {
     }
     switch (action) {
     case kTalkToMe: next(); return true;
-    case kComeWithMe: comeWithMe(); return true;
+    case kComeWithMe: comeWithMe(false); return true;
+    case kWorkForMe: comeWithMe(true); return true;
+    case kGiveOrders: return true; // the orders' screen is not built yet
+    case kOverpower: return true;  // not built yet
     case kStopFollowing: stopFollowing(); return true;
     case kWhat:
         speak();
@@ -475,17 +510,20 @@ void Talk::endRemark() {
     remark_ = false;
 }
 
-// "Come with me": the character answers from list 5 of the group and goes
-// with Paul when the answer is yes.
-void Talk::comeWithMe() {
-    std::uint8_t willing = 0;
-    if (world_.u16(kSpice) >= 1000) {
-        const int left = 100 - world_.u8(kCharm);
-        if (left >= 0 && (left >> 2) > world_.u8(kTroops)) {
-            willing = 2;
+// "Come with me", or the Fremen's "work for me": the character answers
+// from list 5 of the group and goes with Paul, or the troop works for him,
+// when the answer is yes.
+void Talk::comeWithMe(bool work) {
+    if (work) {
+        std::uint8_t willing = 0;
+        if (world_.u16(kSpice) >= 1000) {
+            const int left = 100 - world_.u8(kCharm);
+            if (left >= 0 && (left >> 2) > world_.u8(kTroops)) {
+                willing = 2;
+            }
         }
+        world_.setU8(kWillFollow, willing);
     }
-    world_.setU8(kWillFollow, willing);
     answer_ = 0xFF;
     const auto savedResume = resume_;
     const bool savedFinished = finished_;
@@ -509,7 +547,11 @@ void Talk::comeWithMe() {
     const std::size_t r = record();
     const int number = world_.u8(r + kNumber);
     if (number == kLastRecordedCharacter) {
-        return; // the Fremen troops go another way; not built yet
+        if (enlisted) {
+            enlisted();
+        }
+        setMenuFor(kChiefs);
+        return;
     }
     world_.setU8(r + kFlags, static_cast<std::uint8_t>(world_.u8(r + kFlags) | kFollows));
     if (static_cast<std::uint16_t>(world_.u16(kClock) - world_.u16(r + kLastLeft)) >= 2) {
@@ -607,7 +649,7 @@ void Talk::speak() {
     }
     game_.indoors = world_.inside() && (world_.room() & 0xFF) != kEntranceHall;
     const int variant = ((number >> 12) & 0x0F) | take_;
-    game_.talker().speak(number & 0xFFF, variant);
+    game_.talker().speak(number & 0xFFF, variant, remark_ ? -1 : who);
 }
 
 // --- Text

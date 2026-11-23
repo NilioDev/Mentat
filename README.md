@@ -28,7 +28,8 @@ and touch controls.
 > with the arrows; a click on a place shows its label, with what it is,
 > its name and, for places you know, the battle there or its equipment.
 > The small planet beside it opens the globe, which turns with your
-> place marked, and a click on it takes you to the map of that area. "See results" on the globe shows the day, your charisma,
+> place marked, and a click on it takes you to the map of that area.
+> "See results" on the globe shows the day, your charisma,
 > the areas you hold, your spice and the men on each side, with the planet
 > coloured by who holds it, and "Save game" and "Load game" keep your
 > game, in the same files as the original. In the palace's entrance you
@@ -38,9 +39,10 @@ and touch controls.
 > that way, steered with the arrows. A companion on board points out a
 > hidden sietch you fly past, and you are warned when you enter the
 > Harkonnens' zone; fly on and they catch you, and the game ends with the
-original's flashes, video and words, where you can start again, load a
-game or stop. Giving orders and the rest of the game are not there
-> yet.
+> original's flashes, video and words, where you can start again, load a
+> game or stop. In a sietch you meet its Fremen, who can agree to work
+> for you; their chief then waits for your orders. Giving orders and the
+> rest of the game are not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the

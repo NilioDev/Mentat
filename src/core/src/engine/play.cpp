@@ -64,6 +64,26 @@ constexpr int kPaulsRoom = 9;
 // The palace's ornithopters: a new game gives it one.
 constexpr std::size_t kPalaceOrnithopters = 0x100 + 0x15;
 constexpr std::uint16_t kFirstPersonPhrase = 0x78;
+// The people of the troops (see docs/rules/people.md).
+constexpr int kCaptain = 12;
+constexpr int kSmuggler = 13;
+constexpr int kFremen = 14;
+constexpr int kFirstFremenLook = 0x0E; // three looks of Fremen, by the troop's name
+constexpr int kStoryEnd = 0xC8;
+constexpr int kGurney = 4;
+constexpr int kGurneyLyingFrom = 0x15;
+constexpr int kGurneyLyingTo = 0x20;
+constexpr int kLyingPerson = 0x11;
+constexpr int kLyingDown = 0x35;
+constexpr int kCaptainHeld = 0x12;
+constexpr std::size_t kCaptainFlags = 0x10A7;
+constexpr std::size_t kSpotTurn = 0xC5; // turns where the people stand
+constexpr int kChiefs = 15;
+constexpr int kProspectorsTroop = 3;
+constexpr int kProspectorsNamed = 5; // the story's step from which their chief is named
+constexpr std::uint16_t kProspectorsPhrase = 0x8F;
+constexpr std::size_t kKeenness = 0x36; // the troop talked to
+constexpr int kAllRallied = 0x4C; // the story's step once enough troops work for Paul
 // A place's ornithopters, in its record.
 constexpr std::size_t kOrnithopters = 0x15;
 
@@ -185,6 +205,8 @@ public:
           globe_(game, world_, panel_, map_, language, &saves_), cockpit_(game, world_, panel_, map_),
           flight_(game, world_, panel_, map_) {
         talk_.subtitles = subtitlesFor(language);
+        talk_.enlisted = [this] { enlistFremen(); };
+        g_.places().personOf = [this](int c, int& down) { return personOf(c, down); };
     }
 
     void run() {
@@ -500,7 +522,104 @@ private:
                     y = s.rect.top;
                 }
             }
-            talk_.start(c, x, y);
+            meetTroop(c, phrase);
+            int variant = 0;
+            const int face = look(c, variant);
+            talk_.start(c, x, y, face, variant);
+        }
+    }
+
+    // The picture (persons and portraits) character `c` is shown with, and
+    // which of its sets; chiefs from 16 on are the further chiefs here.
+    int look(int c, int& variant) const {
+        variant = 0;
+        std::size_t chief = chief_;
+        if (c >= kChiefs) {
+            chief = static_cast<std::size_t>(c - kChiefs);
+            c = kChiefs;
+        }
+        if (c == kSmuggler) {
+            variant = (world_.u8(world_.placeHere()) >> 1) + 1;
+            return c;
+        }
+        if (c != kFremen && c != kChiefs) {
+            return c;
+        }
+        int troop = people_.fremen;
+        if (c == kChiefs) {
+            if (world_.u8(kProgress) == kStoryEnd) {
+                return c;
+            }
+            troop = chief < people_.chiefs.size() ? people_.chiefs[chief] : 0;
+        }
+        if (troop == 0) {
+            return c;
+        }
+        // By the troop's name: one of three Fremen, and one of their sets.
+        const int name = world_.u8(World::troopRecord(troop));
+        int sets = name / 3;
+        const int limit = name % 3 == 0 ? 0x0F : 0x11;
+        while (sets >= limit) {
+            sets -= limit;
+        }
+        variant = sets + 1;
+        return kFirstFremenLook + name % 3;
+    }
+
+    // The persons' picture, which may also stand lower.
+    int personOf(int c, int& down) const {
+        down = 0;
+        int variant = 0;
+        const int person = look(c, variant);
+        if (c == kGurney && world_.u8(kProgress) >= kGurneyLyingFrom && world_.u8(kProgress) < kGurneyLyingTo) {
+            down = kLyingDown;
+            return kLyingPerson;
+        }
+        if (c == kCaptain && (world_.u8(kCaptainFlags) & 0x10)) {
+            return kCaptainHeld;
+        }
+        return person;
+    }
+
+    // Talking to the people of a troop: the state learns about the troop
+    // first.
+    void meetTroop(int c, std::uint16_t phrase) {
+        if (c == kFremen && people_.fremen != 0) {
+            world_.learnTroop(people_.fremen);
+        } else if (c == kChiefs && !people_.chiefs.empty()) {
+            int index = (phrase & Command::kPhrase) - (kFirstPersonPhrase + kChiefs);
+            if (index < 0 || index >= 9) {
+                index = 0;
+            }
+            if (index == 8) {
+                index = std::max(people_.prospector - 1, 0);
+            }
+            chief_ = std::min<std::size_t>(static_cast<std::size_t>(index), people_.chiefs.size() - 1);
+            world_.learnTroop(people_.chiefs[chief_]);
+        }
+    }
+
+    // The Fremen work for Paul now: their troop is his, and its chief
+    // answers from now on.
+    void enlistFremen() {
+        const int troop = people_.fremen;
+        if (troop == 0) {
+            return;
+        }
+        if (world_.enlist(troop)) {
+            talk_.raiseProgress(kAllRallied);
+        }
+        people_ = world_.meetPeople();
+        world_.findPresent();
+        if (troop == kProspectorsTroop) {
+            const std::size_t t = World::troopRecord(troop);
+            world_.setU8(t + 0x15, static_cast<std::uint8_t>(world_.u8(t + 0x15) + 0x18));
+            world_.setU8(kKeenness, static_cast<std::uint8_t>(world_.u8(kKeenness) + 0x18));
+        }
+        for (std::size_t i = 0; i < people_.chiefs.size(); ++i) {
+            if (people_.chiefs[i] == troop) {
+                chief_ = i;
+            }
         }
     }
 
@@ -1224,6 +1343,7 @@ private:
     void drawView(bool ornithopters = true) {
         Places& places = g_.places();
         places.enter(world_.room(), world_.place());
+        people_ = world_.meetPeople();
         const std::vector<World::Character> here = world_.findPresent();
         panel_.setArrows(world_, places.exits());
         panel_.drawSlots(world_);
@@ -1231,6 +1351,21 @@ private:
         std::vector<Command> commands = placeCommands();
         for (const World::Character& c : here) {
             commands.push_back(Command{static_cast<std::uint16_t>(kFirstPersonPhrase + c.number), c.talk});
+            if (c.number == kChiefs) {
+                // A line for each chief of Paul's troops here; the
+                // prospectors' has its own name once the story has come
+                // that far.
+                const std::size_t first = commands.size() - 1;
+                for (std::size_t i = 1; i < people_.chiefs.size(); ++i) {
+                    commands.push_back(Command{static_cast<std::uint16_t>(kFirstPersonPhrase + kChiefs + i), c.talk});
+                }
+                if (world_.u8(kProgress) >= kProspectorsNamed && people_.prospector > 0) {
+                    const std::size_t at = first + static_cast<std::size_t>(people_.prospector - 1);
+                    if (at < commands.size()) {
+                        commands[at].phrase = kProspectorsPhrase;
+                    }
+                }
+            }
         }
         panel_.setCommands(std::move(commands));
         lit_ = -1;
@@ -1240,6 +1375,8 @@ private:
         chooseMusic();
         places.present = world_.present();
         places.absent = world_.away();
+        places.spotTurn = world_.u8(kSpotTurn);
+        places.moreChiefs = people_.chiefs.empty() ? 0 : static_cast<int>(people_.chiefs.size()) - 1;
         const int room = world_.room();
         if (world_.inside() && room == kSkyRoom) {
             places.drawView([&] { places.drawSky(); });
@@ -1325,6 +1462,8 @@ private:
     GlobeScreen globe_;
     Cockpit cockpit_;
     Flight flight_;
+    World::People people_;
+    std::size_t chief_ = 0; // which of the chiefs here Paul talks to
     bool takingOff_ = false;
     bool endTalk_ = false;
     // A companion's remark or the cockpit's warning is shown.
