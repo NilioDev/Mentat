@@ -70,6 +70,10 @@ and touch controls.
 > you click "Continue...". The first Fremen chief to work for you shows you the
 spice map and how it will be kept up to date. In the palace's message room you can view the
 news sent to you: the sender's hologram rises over the device and speaks.
+When the Emperor demands spice, Duncan shows you the stock and proposes
+amounts to send: answer ACCEPT, REFUSE or ARGUE; take him to the message
+room and the spice goes, and the Emperor's mood and his next demand follow
+from how much he got.
 In the palace, the middle of the arrows shows a plan of its rooms and who
 is in them. Reach the Harkonnens' throne room and the story ends as the
 original's does: the last scene, "THE END" and the cast, after which the

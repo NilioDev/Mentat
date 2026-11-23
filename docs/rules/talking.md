@@ -101,16 +101,52 @@ it starts.
 | --- | --- |
 | 1 | The answer is yes |
 | 2 | The answer is no |
+| 3 | One of the story's scenes begins (see [story_scenes.md](story_scenes.md)) |
+| 4 | A question (below); for Duncan, about a shipment for the Emperor |
+| 5 | A question about a smuggler's bill |
 | 6 | The talk ends after this line: TALK TO ME has nothing more |
 | 7 | The answer is "maybe" (`0x80`) |
+| 8 | For Duncan: he works out what to propose (see [shipments.md](shipments.md)) |
+| 9 | For Duncan: Paul's answer is taken (see [shipments.md](shipments.md)) |
+| 10 | A few words show beside the face (below) |
 | 11 | When said the first time: the story moves on a step (state `0x2A`); at step 1 byte `0x100B` is set |
 | 12 | When said the first time: the story moves on to the next multiple of 4, and that step's changes follow (see [story_steps.md](story_steps.md)) |
 | 14 | When said the first time: one more at `0xC2` |
-| 15 | For Jessica: one more at `0xF5` |
+| 15 | For Jessica: one more at `0xF5`. For Duncan: the Emperor's answer to the shipment comes (see [shipments.md](shipments.md)) |
 
-Action 13 begins one of the story's scenes (see [story_scenes.md](story_scenes.md)).
-The others (3 to 5, 8 to 10) open messages, choices and events that
-Mentat does not have yet.
+What actions 8, 9 and 13 do for the other characters (Jessica's powers,
+the water of life, the last attack, the smuggler's trade and the chiefs'
+places) Mentat does not have yet.
+
+The program's code calls a line's action by its number less one from a
+table of routines; the numbers above are the lines' own.
+
+### Questions
+
+A line with action 4 or 5 asks something. State byte `0x9F` becomes 0 and
+the list of commands becomes the program's menu at data offset `0x1FFE`:
+ARGUE (phrase `0xF1`), ACCEPT (`0xEF`), REFUSE (`0xF0`) and " WHAT ? ",
+which says the line again. ARGUE, ACCEPT and REFUSE set `0x9F` to 3, 1 and
+2, count one more at `0x1A`, bring back the talk menu and go on as TALK
+TO ME does. Action 5 asks about a smuggler's bill rather than an amount
+to send.
+
+### A few words beside the face
+
+Lines with action 4, 5 or 10 may show a few words once said, such as an
+amount of spice. The table at data offset `0x1984` has an entry of five
+words for each such line, ordered by the first: the line's phrase number
+with bit 11 set, a phrase of the command file, x, y, and the colours (the
+background in the high byte, the letters in the low one). A line not in
+the table shows nothing. From `0x38` on, the second word names a number
+the voice says rather than a phrase; nothing is shown then.
+
+The phrase is made into text as a line's are (the state's numbers filled
+in), and drawn in the small font from (x, y), each letter on its whole
+cell of the background colour, a new line (`0x0D`) seven rows lower. It
+is drawn once the voice has said the line (at once when there is no
+voice), on the picture and in front of the face as it moves, and goes
+when the next line is shown.
 
 When the story moves on, `0xFF` is cleared and the story's own list (list
 135) is looked through once: its first line that may be said is marked

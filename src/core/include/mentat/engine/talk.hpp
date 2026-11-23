@@ -58,6 +58,11 @@ public:
     static constexpr std::uint16_t kStopFollowing = 0x9533;
     static constexpr std::uint16_t kWhat = 0x9ED5;
     static constexpr std::uint16_t kStopTalking = 0xD2E2;
+    // The menu of a question a line asks (actions 4 and 5): ACCEPT, REFUSE,
+    // ARGUE and " WHAT ? ".
+    static constexpr std::uint16_t kAccept = 0x241A;
+    static constexpr std::uint16_t kRefuse = 0x2432;
+    static constexpr std::uint16_t kArgue = 0x2453;
     // For the Fremen: "WORK FOR ME" (or "RALLY ME"); for the chief of a
     // troop of Paul's, "GIVE ORDERS TO TROOP"; with the Harkonnens'
     // captain held, "OVERPOWER THE PRISONER".
@@ -179,6 +184,8 @@ public:
     std::vector<std::string> phraseText(int phrase, bool secondFile);
 
     Dialogue& dialogue() { return dialogue_; }
+    // The few words a line shows beside the face, while they show.
+    std::string label() const { return label_.shown ? label_.text : std::string(); }
 
 private:
     struct Subtitle {
@@ -197,6 +204,13 @@ private:
     void showPage(const std::string& page);
     void afterLine(std::size_t at);
     void runAction(const DialogueLine& line);
+    void ask(bool bill);
+    void answerQuestion(int answer);
+    void findLabel(int phrase);
+    void showLabel();
+    void drawLabel();
+    void overFace(const ClipRect& dirty);
+    void forgetLabel();
     void speak();
     void recording(int& who, int& number, int& variant);
     void drawBackground(int x, int y);
@@ -252,6 +266,23 @@ private:
     Subtitles mode_ = Subtitles::None; // for the line being said
     Subtitle subtitle_;
     std::vector<std::uint16_t> notes_; // the lines the original notes down
+
+    // A question of Duncan's is open; about a smuggler's bill.
+    bool asking_ = false;
+    bool bill_ = false;
+    // A few words a line shows beside the face once it is said, such as
+    // an amount of spice: in the small font on its own background.
+    struct Label {
+        std::string text;
+        int x = 0;
+        int y = 0;
+        std::uint8_t colour = 0;
+        std::uint8_t background = 0;
+        bool waiting = false; // until the voice has said the line
+        bool shown = false;
+        ClipRect area{};
+    };
+    Label label_;
 };
 
 } // namespace mentat

@@ -408,6 +408,7 @@ void Talker::speechTick() {
     if (mouths_.empty()) {
         if (p.soundQueued[static_cast<int>(SoundChannel::Digital)] <= 0) {
             endSpeech();
+            said();
         }
         return;
     }
@@ -416,6 +417,7 @@ void Talker::speechTick() {
     while (std::floor(nextMouthTick_ + step) <= static_cast<double>(p.ticks)) {
         if (mouthAt_ >= mouths_.size() || mouths_[mouthAt_] == kMouthsEnd) {
             endSpeech();
+            said();
             return;
         }
         shape = mouths_[mouthAt_++];
@@ -453,6 +455,14 @@ void Talker::showMouth(int shape) {
         d.copyRect(d.back(), d.screen(), rect);
     } else {
         drawPieces(pieces, rect, true);
+    }
+}
+
+void Talker::said() {
+    if (spoken) {
+        const std::function<void()> then = std::move(spoken);
+        spoken = nullptr;
+        then();
     }
 }
 

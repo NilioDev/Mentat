@@ -84,5 +84,4 @@ The computer says phrase `0x29`, and the room's commands come back.
 ## Not built yet
 
 What the original does when another list replaces the talk's menu without
-"Viewed", and action 10 of the Emperor's lines (the amount of spice he
-asks for).
+"Viewed".

@@ -92,6 +92,9 @@ constexpr std::uint8_t kLeaving = 1;
 constexpr std::uint8_t kComingIn = 5;
 constexpr std::size_t kGoingTo = 0x0C;
 constexpr std::size_t kEntries = 0x1A;
+constexpr std::size_t kToSend = 0xC0;         // the spice Paul agreed to send the Emperor
+constexpr std::size_t kShipmentDue = 0x1158;  // 0xFFFF while that shipment waits
+constexpr int kDuncan = 3;
 constexpr std::size_t kCameFrom = 0x0D;
 // Negative while the map is shown.
 constexpr std::size_t kMapShown = 0xFB;
@@ -1324,7 +1327,22 @@ private:
         quietSince_ = g_.platform().ticks;
         world_.setU8(kSituation, kComingIn);
         world_.setU8(kEntries, 1);
+        shipSpice();
         speakUp();
+    }
+
+    // Coming into the message room with Duncan while a shipment for the
+    // Emperor is agreed: it goes (see docs/rules/shipments.md).
+    void shipSpice() {
+        if (world_.u8(kRoomByte) != kMessageRoom || !(world_.present() & (1u << kDuncan))) {
+            return;
+        }
+        const unsigned amount = world_.u16(kToSend) & world_.u16(kShipmentDue);
+        if (amount == 0) {
+            return;
+        }
+        world_.sendShipment(amount);
+        panel_.drawSlots(world_);
     }
 
     // The picture (persons and portraits) character `c` is shown with, and
