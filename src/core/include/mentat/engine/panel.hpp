@@ -56,7 +56,9 @@ public:
     static constexpr int kArrows = 12;      // six, from zone 12
     static constexpr int kSlots = 21;       // two, from zone 21
 
-    Panel(Game& game, int language);
+    explicit Panel(Game& game);
+    // The language changed: its words and font are read again.
+    void languageChanged();
 
     std::vector<Zone>& zones() { return zones_; }
     const std::vector<Zone>& zones() const { return zones_; }
@@ -99,7 +101,6 @@ private:
     void drawArrows();
 
     Game& game_;
-    int language_;
     std::vector<Zone> zones_;
     std::vector<Command> commands_;
     Font font_;

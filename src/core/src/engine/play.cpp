@@ -12,6 +12,7 @@
 #include "mentat/engine/intro.hpp"
 #include "mentat/engine/map_screen.hpp"
 #include "mentat/engine/message_room.hpp"
+#include "mentat/engine/mixer_panel.hpp"
 #include "mentat/engine/orders.hpp"
 #include "mentat/engine/panel.hpp"
 #include "mentat/engine/places.hpp"
@@ -214,11 +215,24 @@ constexpr int kFlashes = 3;
 constexpr int kFlashStepTicks = 3;
 // The commands: start again, load, leave, what; leaving asks first.
 constexpr std::size_t kEndCommands = 0x20A2;
-constexpr std::size_t kLeaveCommands = 0x20B4;
+constexpr std::size_t kLeaveCommands = 0x20B6;
 constexpr std::uint16_t kRestart = 0x0E47;
 constexpr std::uint16_t kLeave = 0x0E3E;
 constexpr std::uint16_t kLeaveYes = 0x003A;
 constexpr std::uint16_t kLeaveNo = 0xD2E2;
+// The mixer panel (see docs/rules/mixer.md): its commands, the CD style's,
+// the tracks in the CD's order, the voice its test plays and how long the
+// CD style leaves between tracks.
+constexpr std::size_t kMixerCommands = 0x201A;
+constexpr std::size_t kCdStyleCommands = 0x206A;
+constexpr std::size_t kCdOrder = 0x3804;
+constexpr std::size_t kCdTracks = 9;
+constexpr int kMixerMusicLines = 3;
+constexpr int kVoiceTestCharacter = 5;
+constexpr int kVoiceTestPhrase = 4;
+constexpr std::uint32_t kCdSilenceTicks = 200;
+constexpr int kCdStyleBit = 1;
+constexpr int kShuffleBit = 2;
 constexpr int kLastOrnithopterStep = 0x20;
 constexpr int kOrnithopterStepTicks = 0x14;
 constexpr int kSoundStep = 0x0D;
@@ -354,18 +368,21 @@ std::uint16_t clockTicksToday() {
     return static_cast<std::uint16_t>(static_cast<long long>(std::fmod(seconds, 86400.0) * 1193182.0 / 65536.0));
 }
 
+// The lists of commands the mixer panel shows.
+enum class MixerList { Main, CdStyle, Leave };
+
 class Play : public TalkHost {
 public:
-    Play(Game& game, int language)
-        : language_(language), g_(game), d_(game.display()), world_(game.resources().program()), panel_(game, language),
-          talk_(game, world_, panel_, *this, language), map_(game, world_, panel_),
+    explicit Play(Game& game)
+        : g_(game), d_(game.display()), world_(game.resources().program()), panel_(game),
+          talk_(game, world_, panel_, *this), map_(game, world_, panel_),
           saves_(game.platform().saveFolder, game.resources().program(), world_, talk_.dialogue(),
                  [this]() -> std::vector<std::uint8_t>& { return map_.mapBytes(); }),
-          globe_(game, world_, panel_, map_, language, &saves_), cockpit_(game, world_, panel_, map_),
+          globe_(game, world_, panel_, map_, &saves_), cockpit_(game, world_, panel_, map_),
           flight_(game, world_, panel_, map_), spice_(game, world_, panel_, map_),
           orders_(game, world_, panel_, map_, talk_, spice_), vision_(game, world_, map_),
-          messageRoom_(game, world_, panel_, talk_), war_(game) {
-        talk_.subtitles = subtitlesFor(language);
+          messageRoom_(game, world_, panel_, talk_), war_(game), mixer_(game) {
+        talk_.subtitles = subtitlesFor(game.language);
         talk_.enlisted = [this] { enlistFremen(); };
         talk_.ordersAsked = [this] { openOrders(); };
         talk_.waterOfLife = [this] { drinkWaterOfLife(); };
@@ -451,6 +468,7 @@ public:
             }
             checkMessages();
             checkStory();
+            cdTick();
             followMouse();
         }
     }
@@ -490,7 +508,7 @@ private:
         d_.transition(Display::kDissolveScreen);
         openOrnament();
         startWaitingMusic();
-        g_.playTracksOnce = false;
+        g_.playTracksOnce = (g_.musicStyle & kCdStyleBit) != 0;
         clockRunning_ = true;
         lastTick_ = g_.platform().ticks;
         showPointer(kArrowPointer);
@@ -502,9 +520,9 @@ private:
     // twice the room blurs as it nears, then the vision shows (at once
     // while his place is at war).
     void checkMessages() {
-        if (over_ || mirror_ || talk_.active() || map_.active() || globe_.active() || cockpit_.active() ||
-            flight_.active() || orders_.active() || noticeShown_ || messageRoom_.active() || planShown_ ||
-            !world_.inside()) {
+        if (over_ || mirror_ || mixer_.active() || talk_.active() || map_.active() || globe_.active() ||
+            cockpit_.active() || flight_.active() || orders_.active() || noticeShown_ || messageRoom_.active() ||
+            planShown_ || !world_.inside()) {
             return;
         }
         if (world_.u8(kProgress) <= kMessagesFrom || world_.u8(World::kMessageQueue) == 0) {
@@ -625,8 +643,9 @@ private:
     // What the story changed that shows: ways between rooms opened. And at
     // step 0x14, a long quiet outside with nobody along moves it on.
     void checkStory() {
-        if (scene_ || over_ || mirror_ || talk_.active() || map_.active() || globe_.active() || cockpit_.active() ||
-            flight_.active() || orders_.active() || noticeShown_ || messageRoom_.active() || planShown_) {
+        if (scene_ || over_ || mirror_ || mixer_.active() || talk_.active() || map_.active() || globe_.active() ||
+            cockpit_.active() || flight_.active() || orders_.active() || noticeShown_ || messageRoom_.active() ||
+            planShown_) {
             return;
         }
         if (world_.scene != 0 && !scene_) {
@@ -883,7 +902,7 @@ private:
                 skyFadeLeft_ = 0;
                 talk_.endRemark();
                 g_.talker().halt();
-                runCastList(g_, language_, skyOfTheHour());
+                runCastList(g_, g_.language, skyOfTheHour());
                 won_ = true;
                 quit_ = true;
                 return;
@@ -1024,6 +1043,9 @@ private:
 
     // The pointer's shape for where the mouse is.
     std::size_t pointerFor(int x, int y) const {
+        if (mixer_.holding()) {
+            return kHandPointer; // a control of the mixer panel is held
+        }
         ClipRect r;
         if (map_.active()) {
             r = map_.view();
@@ -1114,11 +1136,26 @@ private:
         if (map_.active()) {
             spice_.pointAt(x, y);
         }
-        lightCommand(scene_ ? (sceneBlink_ ? 0 : -1) : commandUnder(x, y));
+        int under = scene_ ? (sceneBlink_ ? 0 : -1) : commandUnder(x, y);
+        if (under < 0 && mixer_.active()) {
+            under = mixerLit_; // the music's way stays lit
+        }
+        lightCommand(under);
         const bool down = (p.mouseButtons & 1) != 0;
         const bool clicked = down && !buttonWasDown_;
         const bool changed = down != buttonWasDown_;
         buttonWasDown_ = down;
+        const int movedX = x - lastMouseX_;
+        const int movedY = y - lastMouseY_;
+        lastMouseX_ = x;
+        lastMouseY_ = y;
+        if (mixer_.active()) {
+            if (!down) {
+                mixer_.release();
+            } else if (!clicked && (movedX != 0 || movedY != 0)) {
+                mixer_.drag(x, y, movedX, movedY);
+            }
+        }
         if (changed && map_.active()) {
             map_.clicked();
         }
@@ -1233,6 +1270,10 @@ private:
         if (mirror_) {
             return;
         }
+        if (mixer_.active()) {
+            clickMixer(x, y);
+            return;
+        }
         if (cockpit_.active()) {
             const Cockpit::Destination to = cockpit_.destinationAt(x, y);
             if (to.chosen) {
@@ -1322,6 +1363,14 @@ private:
     void choose(std::uint16_t action, std::uint16_t phrase = 0) {
         if (mirror_) {
             endCommand(action, phrase);
+            return;
+        }
+        if (mixer_.active()) {
+            mixerCommand(action);
+            return;
+        }
+        if (action == MixerPanel::kOpen && !map_.active() && !talk_.active()) {
+            openMixer();
             return;
         }
         if (action == kLookAtMirrorAction && world_.inside() && !map_.active() && !talk_.active()) {
@@ -2080,7 +2129,7 @@ private:
             g_.drawSprite(static_cast<std::uint16_t>(count - 2), frame.left + 1, frame.top + 1);
         }
         if (!endFont_) {
-            endFont_ = Font::parse(g_.resources().load(resource::kFont), Font::Size::Large);
+            endFont_ = Font::parse(g_.resources().load(g_.fontFile()), Font::Size::Large);
         }
         const std::string& words = panel_.phrases().at(static_cast<std::size_t>(kFirstEndPhrase + reason - 1));
         const ClipRect box{kEndText.left, kEndText.top + o, kEndText.right, kEndText.bottom + o};
@@ -2218,6 +2267,191 @@ private:
         }
         vision_.drawWindow(place);
         d_.copyRect(d_.back(), d_.screen(), kNamedPlaceWindow);
+    }
+
+    // --- The mixer panel (see docs/rules/mixer.md)
+
+    void openMixer() {
+        talk_.endRemark();
+        beforeMixer_ = panel_.commands();
+        mixer_.open(static_cast<int>(talk_.subtitles));
+        showMixerList(MixerList::Main);
+    }
+
+    void showMixerList(MixerList list) {
+        mixerList_ = list;
+        mixerLit_ = -1;
+        switch (list) {
+        case MixerList::Main: {
+            setEndCommands(kMixerCommands);
+            std::vector<Command> commands = panel_.commands();
+            if (!g_.hasMusic()) {
+                for (int i = 0; i < kMixerMusicLines && i < static_cast<int>(commands.size()); ++i) {
+                    commands[static_cast<std::size_t>(i)].phrase |= Command::kGrey;
+                }
+                showCommands(std::move(commands));
+            } else {
+                mixerLit_ = g_.musicOff ? 0 : (g_.musicStyle & kCdStyleBit) + 1;
+            }
+            break;
+        }
+        case MixerList::CdStyle:
+            setEndCommands(kCdStyleCommands);
+            mixerLit_ = (g_.musicStyle & kShuffleBit) != 0 ? 1 : 0;
+            break;
+        case MixerList::Leave:
+            setEndCommands(kLeaveCommands);
+            break;
+        }
+    }
+
+    // "Done": the scene under the window comes back with the commands the
+    // panel replaced, and lines are shown as chosen.
+    void closeMixer() {
+        talk_.subtitles = static_cast<Talk::Subtitles>(mixer_.subtitles());
+        mixer_.close();
+        mixerLit_ = -1;
+        showCommands(beforeMixer_);
+    }
+
+    void clickMixer(int x, int y) {
+        switch (mixer_.press(x, y)) {
+        case MixerPanel::Click::Outside:
+            // As "Done", or back from a list the panel opened.
+            if (mixerList_ == MixerList::Main) {
+                closeMixer();
+            } else {
+                showMixerList(MixerList::Main);
+            }
+            break;
+        case MixerPanel::Click::VoiceTest:
+            if (g_.talker().playVoice(kVoiceTestCharacter, kVoiceTestPhrase)) {
+                g_.waitSound();
+            }
+            break;
+        case MixerPanel::Click::Language:
+            // The words of the commands are read again in the new language.
+            panel_.languageChanged();
+            showMixerList(MixerList::Main);
+            break;
+        case MixerPanel::Click::Nothing:
+            break;
+        }
+    }
+
+    void mixerCommand(std::uint16_t action) {
+        switch (mixerList_) {
+        case MixerList::Main:
+            if (action == MixerPanel::kMusicOff) {
+                g_.musicOff = true;
+                closeMixer();
+                g_.stopMusic();
+            } else if (action == MixerPanel::kGameRelative) {
+                g_.musicOff = false;
+                g_.musicStyle = 0;
+                closeMixer();
+                g_.playTracksOnce = false;
+                g_.stopMusic();
+                chooseMusic();
+                startWaitingMusic();
+            } else if (action == MixerPanel::kCdStyle) {
+                showMixerList(MixerList::CdStyle);
+            } else if (action == kLeave) {
+                showMixerList(MixerList::Leave);
+            } else if (action == MixerPanel::kDone) {
+                closeMixer();
+            }
+            break;
+        case MixerList::CdStyle:
+            if (action == MixerPanel::kStandardOrder) {
+                g_.musicStyle = kCdStyleBit;
+                readCdOrder();
+                startCdStyle();
+            } else if (action == MixerPanel::kShuffle) {
+                g_.musicStyle = kCdStyleBit | kShuffleBit;
+                startCdStyle();
+            } else if (action == MixerPanel::kCancelCdStyle) {
+                closeMixer();
+            }
+            break;
+        case MixerList::Leave:
+            if (action == kLeaveYes) {
+                quit_ = true;
+            } else if (action == kLeaveNo) {
+                showMixerList(MixerList::Main);
+            }
+            break;
+        }
+    }
+
+    void readCdOrder() {
+        const ProgramFile& program = g_.resources().program();
+        for (std::size_t i = 0; i < kCdTracks; ++i) {
+            cdOrder_[i] = program.dataU8(kCdOrder + i);
+        }
+    }
+
+    // The CD style starts from the first track of its order, shuffled
+    // first for the shuffle.
+    void startCdStyle() {
+        g_.stopMusic();
+        closeMixer();
+        g_.musicOff = false;
+        g_.playTracksOnce = true;
+        if ((g_.musicStyle & kShuffleBit) != 0) {
+            shuffleCdOrder();
+        }
+        cdNext_ = 0;
+        playNextCdTrack();
+    }
+
+    // Eighteen times two places of the order, drawn at random, swap.
+    void shuffleCdOrder() {
+        constexpr int kSwaps = 18;
+        for (int i = 0; i < kSwaps; ++i) {
+            const auto a = static_cast<std::size_t>(g_.random3(static_cast<int>(kCdTracks) - 1));
+            const auto b = static_cast<std::size_t>(g_.random3(static_cast<int>(kCdTracks) - 1));
+            std::swap(cdOrder_[a], cdOrder_[b]);
+        }
+    }
+
+    void playNextCdTrack() {
+        if (cdOrder_[0] == 0) {
+            readCdOrder();
+        }
+        if (cdNext_ >= kCdTracks) {
+            // The end of the order: again from the start, shuffled anew.
+            cdNext_ = 0;
+            if ((g_.musicStyle & kShuffleBit) != 0) {
+                shuffleCdOrder();
+            }
+        }
+        const int track = cdOrder_[cdNext_++];
+        g_.stopMusic();
+        g_.playTracksOnce = true;
+        g_.playTrack(track);
+        cdSilent_ = false;
+    }
+
+    // In the CD style a track that has ended is followed by the next one
+    // after a short silence, unless a voice speaks or the place is at war.
+    void cdTick() {
+        if ((g_.musicStyle & kCdStyleBit) == 0 || g_.musicOff || !g_.hasMusic() || g_.musicPlaying()) {
+            cdSilent_ = false;
+            return;
+        }
+        if (atWar() || g_.platform().soundQueued[static_cast<int>(SoundChannel::Digital)] > 0) {
+            return;
+        }
+        const std::uint32_t now = g_.platform().ticks;
+        if (!cdSilent_) {
+            cdSilent_ = true;
+            cdSilentSince_ = now;
+            return;
+        }
+        if (now - cdSilentSince_ >= kCdSilenceTicks) {
+            playNextCdTrack();
+        }
     }
 
     // --- The mirror
@@ -2836,6 +3070,16 @@ private:
     // Chooses the music for the moment: it plays at once, or the old music
     // fades out and the new waits for the next picture.
     void chooseMusic() {
+        if (g_.musicOff) {
+            return;
+        }
+        if ((g_.musicStyle & kCdStyleBit) != 0) {
+            // As a CD plays: the next track once one has ended.
+            if (!g_.musicPlaying()) {
+                playNextCdTrack();
+            }
+            return;
+        }
         const std::uint8_t entry = g_.resources().program().dataU8(kMusicForMoment + static_cast<std::size_t>(musicMoment()));
         if (entry == 0xFF || entry == 0) {
             return;
@@ -2852,6 +3096,10 @@ private:
     }
 
     void startWaitingMusic() {
+        if ((g_.musicStyle & kCdStyleBit) != 0) {
+            waitingTrack_ = 0;
+            return;
+        }
         if (waitingTrack_ != 0) {
             g_.playTrack(waitingTrack_);
             waitingTrack_ = 0;
@@ -3056,7 +3304,6 @@ private:
         return language == 0 || language == 3 ? Talk::Subtitles::None : Talk::Subtitles::Below;
     }
 
-    int language_;
     Game& g_;
     Display& d_;
     World world_;
@@ -3098,6 +3345,16 @@ private:
     int overReason_ = 0;
     enum class EndList { Main, Leave, Load, Save };
     bool mirror_ = false;
+    MixerPanel mixer_;
+    MixerList mixerList_ = MixerList::Main;
+    std::vector<Command> beforeMixer_; // the commands the panel replaced
+    int mixerLit_ = -1;
+    std::array<std::uint8_t, kCdTracks> cdOrder_{};
+    std::size_t cdNext_ = 0;
+    std::uint32_t cdSilentSince_ = 0;
+    bool cdSilent_ = false;
+    int lastMouseX_ = 0;
+    int lastMouseY_ = 0;
     EndList endList_ = EndList::Main;
     bool endTake_ = false;
     bool quit_ = false;
@@ -3122,6 +3379,9 @@ private:
 
 } // namespace
 
-GameEnd runGame(Game& game, int language) { return Play(game, language).run(); }
+GameEnd runGame(Game& game, int language) {
+    game.language = language;
+    return Play(game).run();
+}
 
 } // namespace mentat

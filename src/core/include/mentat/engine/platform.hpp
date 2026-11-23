@@ -12,7 +12,9 @@
 #include "mentat/gfx/scene.hpp"
 #include "mentat/gfx/surface.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <deque>
 #include <filesystem>
@@ -40,7 +42,16 @@ struct SoundCommand {
     int rate = 0;
     std::vector<std::uint8_t> samples; // unsigned 8-bit mono (Digital)
     std::vector<std::int16_t> wide;    // signed 16-bit stereo, left first (Music)
+    // Digital: the volume of each side, as the mixer panel sets it: the
+    // high four bits the left, the low four the right, 15 the loudest.
+    std::uint8_t levels = 0xFF;
 };
+
+// Mentat's choice for a mixer level from 0 to 15: about 2 dB a level, 0
+// silent.
+inline double levelGain(int level) {
+    return level <= 0 ? 0.0 : std::pow(10.0, -2.0 * (15 - std::min(level, 15)) / 20.0);
+}
 
 // A mouse pointer as the original keeps it: where its point is, and per
 // row of 16 pixels a mask of the screen pixels kept (bit 15 the leftmost)
@@ -92,6 +103,8 @@ struct Platform {
     // What can be clicked on the screen now, for a gamepad's pointer to
     // jump to (see pointer_jump.hpp).
     std::vector<ClipRect> pointerTargets;
+    // The volumes of the digital channel's sides (see SoundCommand::levels).
+    std::uint8_t digitalLevels = 0xFF;
 
     Fiber* fiber = nullptr;
     // The music player, run on the timer; null when there is no music.
@@ -135,7 +148,7 @@ public:
     }
 
     void queueSound(SoundChannel channel, int rate, std::vector<std::uint8_t> samples, bool stopFirst = false) {
-        sound.push_back(SoundCommand{channel, stopFirst, rate, std::move(samples), {}});
+        sound.push_back(SoundCommand{channel, stopFirst, rate, std::move(samples), {}, digitalLevels});
         // Count it at once, so the game sees it as queued before the app has run.
         if (rate > 0) {
             soundQueued[static_cast<int>(channel)] += static_cast<double>(sound.back().samples.size()) / rate;

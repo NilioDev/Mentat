@@ -5,6 +5,7 @@
 #include "mentat/engine/display.hpp"
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/intro.hpp"
+#include "mentat/engine/mixer_panel.hpp"
 #include "mentat/engine/panel.hpp"
 #include "mentat/engine/places.hpp"
 #include "mentat/engine/platform.hpp"
@@ -45,7 +46,7 @@ MTT_TEST("panel: the zones, the arrows of a room and the command lines") {
     }
     Platform p;
     Game g(p, *archive, *program, DisplayTables{}, nullptr);
-    Panel panel(g, kEnglish);
+    Panel panel(g);
     MTT_CHECK(panel.zones().size() == 24);
     MTT_CHECK(panel.zones()[Panel::kCommandLines].left == 0x5C && panel.zones()[Panel::kCommandLines].top == 0x9F);
 
@@ -138,4 +139,52 @@ MTT_TEST("news: the message room lists news from the newest, and looking at one 
     MTT_CHECK(w.u8(World::kMessageQueue) == 1);
     MTT_CHECK(w.u16(World::kMessageQueue + 1) == 0x0105 && w.u16(World::kMessageQueue + 3) == 0x0180);
     MTT_CHECK(w.u16(World::kMessageQueue + 5) == 0 && w.u16(World::kMessageQueue + 7) == 0);
+}
+
+MTT_TEST("mixer panel: volumes, balances, the language and the subtitles") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    // The settings start as the program keeps them; the voices lean a
+    // little to one side.
+    MTT_CHECK(g.levels.voices == 0xFF && g.levels.music == 0xE6 && g.levels.quietMusic == 0xB4);
+    MTT_CHECK(g.levels.voicesBalance == 0x64 && g.levels.musicBalance == 0x78 && g.levels.quietBalance == 0x8C);
+    MTT_CHECK(p.digitalLevels == 0xFC);
+
+    MixerPanel m(g);
+    m.open(2);
+    MTT_CHECK(m.active());
+    MTT_CHECK(m.press(10, 180) == MixerPanel::Click::Outside);
+    MTT_CHECK(m.press(100, 128) == MixerPanel::Click::VoiceTest);
+
+    // The voices' knob, dragged down 8 rows, takes 4 a row off.
+    MTT_CHECK(m.press(57, 37) == MixerPanel::Click::Nothing && m.holding());
+    m.drag(57, 45, 0, 8);
+    MTT_CHECK(g.levels.voices == 0xFF - 32);
+    MTT_CHECK(p.digitalLevels != 0xFC);
+    // Not past the top of its track.
+    m.drag(57, 25, 0, -20);
+    MTT_CHECK(g.levels.voices == 0xFF - 32);
+    m.release();
+    MTT_CHECK(!m.holding());
+
+    // The music's balance turns 10 at a time: up on its right side one way.
+    m.drag(104, 106, 0, -1);
+    MTT_CHECK(g.levels.musicBalance == 0x6E);
+    m.drag(104, 107, 0, 1);
+    MTT_CHECK(g.levels.musicBalance == 0x78);
+
+    // Another language: lines without subtitles get them.
+    MTT_CHECK(m.press(184, 57) == MixerPanel::Click::Language);
+    MTT_CHECK(g.language == kFrench && m.subtitles() == 0);
+    MTT_CHECK(g.fontFile() == 0xBB);
+    MTT_CHECK(m.press(184, 85) == MixerPanel::Click::Language && g.fontFile() == 0xC7);
+    // Balloons, from the second list.
+    MTT_CHECK(m.press(184, 1 + 0x27 + 11 * 7 + 3) == MixerPanel::Click::Nothing && m.subtitles() == 1);
+    m.close();
+    MTT_CHECK(!m.active());
 }

@@ -86,6 +86,37 @@ public:
     // Draws a list of (sprite word, x, y) entries, ending with 0xFFFF.
     void drawSpriteList(std::span<const std::uint16_t> list);
 
+    // --- The language and the mixer panel's settings (see
+    // docs/rules/mixer.md)
+    // 0 American, 1 French, 2 German, 3 English, 4 Italian, 5 Spanish,
+    // 6 Fremen: the files of text and the font go by it.
+    int language = 3;
+    // The font of the language: the Fremen one has its own letters.
+    int fontFile() const;
+    // The volumes (0 to 255) and balances (0x78 the middle) of the voices,
+    // of the music, and of the music while a voice speaks.
+    struct SoundLevels {
+        std::uint8_t voices = 0xFF;
+        std::uint8_t voicesBalance = 0x78;
+        std::uint8_t music = 0xE6;
+        std::uint8_t musicBalance = 0x78;
+        std::uint8_t quietMusic = 0xB4;
+        std::uint8_t quietBalance = 0x78;
+    };
+    SoundLevels levels;
+    // The voices' volume goes to the digital channel.
+    void applyVoiceLevels();
+    // The music goes to its volume at once.
+    void applyMusicLevels();
+    // A voice starts: the music fades to its quiet volume, and back when
+    // the voice has ended.
+    void quietenForVoice();
+    // "MUSIC OFF": no track plays until it is turned on again.
+    bool musicOff = false;
+    // How the music goes: 0 with the game; bit 0 as a CD plays, one track
+    // after another; bit 1 in a shuffled order.
+    int musicStyle = 0;
+
     // --- Music
     bool hasMusic() const { return music_ != nullptr; }
     // Plays track `n` (1..10); nothing changes when it plays already.
@@ -150,6 +181,10 @@ public:
     void closeVideo();
 
 private:
+    // Ends the music's quiet once the voice has been heard.
+    void checkVoiceEnded();
+    bool quietForVoice_ = false;
+
     struct Timer {
         int id = 0;
         std::uint32_t interval = 0;

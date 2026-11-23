@@ -45,6 +45,7 @@ add_library(mtt_core STATIC
     src/engine/world_desert.cpp
     src/engine/vision.cpp
     src/engine/message_room.cpp
+    src/engine/mixer_panel.cpp
     src/engine/world_days.cpp
     src/engine/world_spice.cpp
     src/engine/orders.cpp

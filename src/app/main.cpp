@@ -120,8 +120,9 @@ void openAudio(App& app) {
     }
     for (int i = 0; i < kChannels; ++i) {
         const bool music = i == static_cast<int>(mentat::SoundChannel::Music);
-        const SDL_AudioSpec spec = music ? SDL_AudioSpec{SDL_AUDIO_S16, 2, mentat::Opl::kRate}
-                                         : SDL_AudioSpec{SDL_AUDIO_U8, 1, 11025};
+        // Both channels go out as 16-bit stereo: the digital one's sides
+        // have their own volumes.
+        const SDL_AudioSpec spec{SDL_AUDIO_S16, 2, music ? mentat::Opl::kRate : 11025};
         app.streams[static_cast<std::size_t>(i)] = SDL_CreateAudioStream(&spec, nullptr);
         app.streamRates[static_cast<std::size_t>(i)] = spec.freq;
         SDL_BindAudioStream(app.audio, app.streams[static_cast<std::size_t>(i)]);
@@ -146,11 +147,11 @@ void runGame(App& app) {
     // After the end of the story the whole program starts over, from the
     // opening.
     do {
-        while (runIntro(game, kEnglish) == IntroEnd::Finished) {
+        while (runIntro(game, game.language) == IntroEnd::Finished) {
         }
         runCredits(game);
-        runStory(game, kEnglish);
-    } while (mentat::runGame(game, kEnglish) == GameEnd::Won);
+        runStory(game, game.language);
+    } while (mentat::runGame(game, game.language) == GameEnd::Won);
     app.platform.music = nullptr;
 }
 
@@ -181,11 +182,19 @@ void playQueuedSound(App& app) {
         }
         if (command.rate > 0 && !command.samples.empty()) {
             if (command.rate != app.streamRates[channel]) {
-                const SDL_AudioSpec spec{SDL_AUDIO_U8, 1, command.rate};
+                const SDL_AudioSpec spec{SDL_AUDIO_S16, 2, command.rate};
                 SDL_SetAudioStreamFormat(stream, &spec, nullptr);
                 app.streamRates[channel] = command.rate;
             }
-            SDL_PutAudioStreamData(stream, command.samples.data(), static_cast<int>(command.samples.size()));
+            const double left = mentat::levelGain(command.levels >> 4);
+            const double right = mentat::levelGain(command.levels & 0x0F);
+            std::vector<Sint16> frames(command.samples.size() * 2);
+            for (std::size_t i = 0; i < command.samples.size(); ++i) {
+                const double v = (static_cast<int>(command.samples[i]) - 128) * 256.0;
+                frames[2 * i] = static_cast<Sint16>(v * left);
+                frames[2 * i + 1] = static_cast<Sint16>(v * right);
+            }
+            SDL_PutAudioStreamData(stream, frames.data(), static_cast<int>(frames.size() * 2));
         }
     }
     app.platform.sound.clear();
@@ -267,7 +276,7 @@ void updateInput(App& app) {
     for (int i = 0; i < kChannels; ++i) {
         SDL_AudioStream* stream = app.streams[static_cast<std::size_t>(i)];
         const int rate = app.streamRates[static_cast<std::size_t>(i)];
-        const double bytesPerSecond = rate * (i == static_cast<int>(SoundChannel::Music) ? 4.0 : 1.0);
+        const double bytesPerSecond = rate * 4.0; // 16-bit stereo frames
         p.soundQueued[i] = stream != nullptr && rate > 0 ? SDL_GetAudioStreamQueued(stream) / bytesPerSecond : 0.0;
     }
 }

@@ -12,13 +12,61 @@
 
 namespace mentat {
 
+namespace {
+
+// The mixer panel's controls in the program's data: a volume byte each,
+// with its balance 0x18 bytes further.
+constexpr std::size_t kVoicesLevel = 0x288E;
+constexpr std::size_t kMusicLevel = 0x2896;
+constexpr std::size_t kQuietMusicLevel = 0x289E;
+constexpr std::size_t kBalanceAfter = 0x18;
+// How fast the music goes quiet for a voice, and back.
+constexpr int kQuietTicks = 0x64;
+constexpr int kLoudTicks = 0x190;
+constexpr int kFremenLanguage = 6;
+
+} // namespace
+
 Game::Game(Platform& platform, DatArchive& archive, const ProgramFile& program, const DisplayTables& displayTables,
            MusicSystem* music)
     : platform_(platform), resources_(archive, program), display_(platform, displayTables),
       sceneTables_(SceneTables::fromProgram(program)), music_(music), timersRan_(platform.ticks),
-      talker_(std::make_unique<Talker>(*this)), companion_(std::make_unique<Talker>(*this)), places_(std::make_unique<Places>(*this)) {}
+      talker_(std::make_unique<Talker>(*this)), companion_(std::make_unique<Talker>(*this)), places_(std::make_unique<Places>(*this)) {
+    // The mixer panel's settings start as the program keeps them.
+    levels.voices = program.dataU8(kVoicesLevel);
+    levels.voicesBalance = program.dataU8(kVoicesLevel + kBalanceAfter);
+    levels.music = program.dataU8(kMusicLevel);
+    levels.musicBalance = program.dataU8(kMusicLevel + kBalanceAfter);
+    levels.quietMusic = program.dataU8(kQuietMusicLevel);
+    levels.quietBalance = program.dataU8(kQuietMusicLevel + kBalanceAfter);
+    applyVoiceLevels();
+}
 
 Game::~Game() = default;
+
+int Game::fontFile() const { return language == kFremenLanguage ? resource::kFremenFont : resource::kFont; }
+
+void Game::applyVoiceLevels() {
+    platform_.digitalLevels = MusicDriver::mixerLevels(levels.voices, levels.voicesBalance);
+}
+
+void Game::applyMusicLevels() {
+    if (music_ != nullptr) {
+        music_->driver().setVolume(music_->opl(), std::max<std::uint8_t>(levels.music, 4), levels.musicBalance);
+    }
+}
+
+void Game::quietenForVoice() {
+    quietForVoice_ = true;
+    fadeMusic(kQuietTicks, levels.quietMusic, levels.quietBalance);
+}
+
+void Game::checkVoiceEnded() {
+    if (quietForVoice_ && platform_.soundQueued[static_cast<int>(SoundChannel::Digital)] <= 0) {
+        quietForVoice_ = false;
+        fadeMusic(kLoudTicks, levels.music, levels.musicBalance);
+    }
+}
 
 namespace {
 
@@ -110,7 +158,7 @@ void Game::drawSpriteList(std::span<const std::uint16_t> list) {
 // --- Music
 
 void Game::playTrack(int n) {
-    if (music_ == nullptr || n == track_) {
+    if (music_ == nullptr || musicOff || n == track_) {
         return;
     }
     track_ = n;
@@ -213,6 +261,7 @@ bool Game::pollInput() {
     }
     keepLooping();
     runTimers();
+    checkVoiceEnded();
     return false;
 }
 

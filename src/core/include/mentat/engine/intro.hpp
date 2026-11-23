@@ -15,8 +15,10 @@ inline constexpr int kGerman = 2;
 inline constexpr int kEnglish = 3;
 inline constexpr int kItalian = 4;
 inline constexpr int kSpanish = 5;
+inline constexpr int kFremenLanguage = 6;
+inline constexpr int kLanguages = 7;
 
-// Which COMMAND file (from 0) holds a language's text.
+// Which COMMAND file (from 0) holds a language's text: its own.
 int commandFile(int language);
 
 enum class IntroEnd {

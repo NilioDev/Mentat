@@ -183,7 +183,7 @@ void Cockpit::drawWarning() {
     drawList(kOverMap);
     panel_.drawOrnament();
     if (!font_) {
-        font_ = Font::parse(g_.resources().load(resource::kFont), Font::Size::Small);
+        font_ = Font::parse(g_.resources().load(g_.fontFile()), Font::Size::Small);
     }
     const std::string& text = panel_.phrases().at(kWarningPhrase - 1);
     int x = kWarningX;
@@ -259,7 +259,7 @@ void Cockpit::blink() {
 
 int Cockpit::drawText(int x, const std::string& text, std::uint8_t colour) {
     if (!font_) {
-        font_ = Font::parse(g_.resources().load(resource::kFont), Font::Size::Small);
+        font_ = Font::parse(g_.resources().load(g_.fontFile()), Font::Size::Small);
     }
     Display& d = g_.display();
     for (const char c : text) {
@@ -439,8 +439,9 @@ void Cockpit::confirm() {
 }
 
 void Cockpit::say(int phrase) {
-    if (!g_.playVoice(Talker::voiceName(kVoiceCharacter, phrase, g_.indoors))) {
-        g_.playVoice(Talker::voiceName(kVoiceCharacter, phrase, !g_.indoors));
+    if (g_.playVoice(Talker::voiceName(kVoiceCharacter, phrase, g_.indoors)) ||
+        g_.playVoice(Talker::voiceName(kVoiceCharacter, phrase, !g_.indoors))) {
+        g_.quietenForVoice();
     }
 }
 

@@ -39,5 +39,5 @@ the clock (state word 2, in parts of a day, 16 to a day):
 | RESTART GAME | As at the end of the game: the video, then a new game. |
 | LOAD GAME | The list of saved games to load; "Cancel" goes back. A game loaded goes on where it was saved. |
 | SAVE GAME | The list of saved games to save over, as on the globe; once saved, or with "Cancel", the mirror's commands come back. |
-| EXIT GAME | Asks first (the list at `0x20B4`); no goes back to the mirror's commands. |
+| EXIT GAME | Asks first (the list at `0x20B6`); no goes back to the mirror's commands. |
 | Look away from the mirror | The faces go, the clock runs again, and the room comes back with the squash, then the ornament opens. |

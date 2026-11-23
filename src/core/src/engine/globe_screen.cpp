@@ -135,8 +135,8 @@ constexpr int kMapCountedLess = 0x187;     // the share is out of the count less
 
 } // namespace
 
-GlobeScreen::GlobeScreen(Game& game, World& world, Panel& panel, MapScreen& map, int language, SavedGames* saves)
-    : g_(game), world_(world), panel_(panel), map_(map), language_(language), saves_(saves) {}
+GlobeScreen::GlobeScreen(Game& game, World& world, Panel& panel, MapScreen& map, SavedGames* saves)
+    : g_(game), world_(world), panel_(panel), map_(map), saves_(saves) {}
 
 Globe& GlobeScreen::globe() { return *globe_; }
 
@@ -800,7 +800,7 @@ void GlobeScreen::loadTexts() {
 
 void GlobeScreen::loadFonts() {
     if (!fonts_) {
-        const std::vector<std::uint8_t> bytes = g_.resources().load(resource::kFont);
+        const std::vector<std::uint8_t> bytes = g_.resources().load(g_.fontFile());
         fonts_.emplace(Font::parse(bytes, Font::Size::Large), Font::parse(bytes, Font::Size::Small));
     }
 }
@@ -814,7 +814,7 @@ void GlobeScreen::writeResults() {
     std::size_t end = afterNumber(textAt(kDayPhrase));
     if (end >= 3 && end + 2 <= texts_.size()) {
         writeThree(texts_, end, ((world_.clock() + 3) >> 4) + 1);
-        const std::size_t ordinals = kOrdinals + 8 * static_cast<std::size_t>(language_);
+        const std::size_t ordinals = kOrdinals + 8 * static_cast<std::size_t>(g_.language);
         const char tens = texts_[end - 2];
         const int units = texts_[end - 1] & 0x0F;
         std::size_t pick = ordinals;

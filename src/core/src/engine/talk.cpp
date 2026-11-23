@@ -183,17 +183,23 @@ int Talk::characterOf(std::uint16_t action) {
     return d / kTalkActionStep;
 }
 
-Talk::Talk(Game& game, World& world, Panel& panel, TalkHost& host, int language)
-    : game_(game), world_(world), panel_(panel), host_(host), language_(language),
+Talk::Talk(Game& game, World& world, Panel& panel, TalkHost& host)
+    : game_(game), world_(world), panel_(panel), host_(host),
       dialogue_(Dialogue::parse(game.resources().load(kDialogueFile))),
       conditions_(Conditions::parse(game.resources().load(kConditionsFile))) {
     world_.storyEvents = [this] { runEvents(); };
 }
 
 const PhraseFile& Talk::phrases(bool second) {
+    if (phrasesLanguage_ != game_.language) {
+        // The mixer panel changed the language.
+        phrases_[0].reset();
+        phrases_[1].reset();
+        phrasesLanguage_ = game_.language;
+    }
     auto& slot = phrases_[second ? 1 : 0];
     if (!slot) {
-        const int file = (second ? kSecondPhraseFile : kFirstPhraseFile) + language_;
+        const int file = (second ? kSecondPhraseFile : kFirstPhraseFile) + game_.language;
         slot = PhraseFile::parse(game_.resources().load(file));
     }
     return *slot;
@@ -1171,7 +1177,7 @@ void Talk::endBox() {
 // out in it, on the screen and the back buffer.
 void Talk::loadFonts() {
     if (!large_) {
-        const auto bytes = game_.resources().load(resource::kFont);
+        const auto bytes = game_.resources().load(game_.fontFile());
         large_ = Font::parse(bytes, Font::Size::Large);
         small_ = Font::parse(bytes, Font::Size::Small);
     }
@@ -1388,7 +1394,7 @@ void Talk::showPage(const std::string& page) {
 
 void Talk::layoutSubtitle(const std::string& text) {
     if (!large_) {
-        const auto bytes = game_.resources().load(resource::kFont);
+        const auto bytes = game_.resources().load(game_.fontFile());
         large_ = Font::parse(bytes, Font::Size::Large);
         small_ = Font::parse(bytes, Font::Size::Small);
     }

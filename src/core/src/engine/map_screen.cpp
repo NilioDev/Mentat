@@ -464,7 +464,7 @@ void MapScreen::showBox() {
         text[at - 2] = tens;
         text[at - 1] = static_cast<char>('0' + n % 10);
     }
-    const Font font = Font::parse(g_.resources().load(resource::kFont));
+    const Font font = Font::parse(g_.resources().load(g_.fontFile()));
     int x = left + kBoxTextX;
     int y = top + kBoxTextY;
     for (const char c : text) {
@@ -691,7 +691,7 @@ void MapScreen::showLabel(std::size_t record, int px, int py) {
 
     const StringTable& phrases = panel_.phrases();
     auto phrase = [&](int n) -> const std::string& { return phrases.at(static_cast<std::size_t>(n) - 1u); };
-    const Font large = Font::parse(g_.resources().load(resource::kFont), Font::Size::Large);
+    const Font large = Font::parse(g_.resources().load(g_.fontFile()), Font::Size::Large);
     auto write = [&](const Font& font, int x, int y, const std::string& text, std::uint8_t colour) {
         for (const char c : text) {
             x = font.draw(to, x, y, std::string_view(&c, 1), colour, fill);
@@ -741,7 +741,7 @@ void MapScreen::showLabel(std::size_t record, int px, int py) {
 
     // The water, for a fort once the story shows it.
     if (size == 0 && (world_.u8(kStoryFlags) & 0x20)) {
-        const Font small = Font::parse(g_.resources().load(resource::kFont), Font::Size::Small);
+        const Font small = Font::parse(g_.resources().load(g_.fontFile()), Font::Size::Small);
         y += 0x0A;
         int x = write(small, left + 4, y, phrase(kWaterPhrase), kWaterColour);
         y += 7;
