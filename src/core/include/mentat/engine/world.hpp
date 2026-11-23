@@ -140,6 +140,9 @@ public:
     // The shipment goes from the message room: the stock goes down, and the
     // Emperor's mood and his next demand follow from how much was sent.
     void sendShipment(unsigned amount);
+    // Stilgar launches the last attack: up to seven of Paul's army troops
+    // with weapons (byte 0x19 bit 2) set off for the Harkonnens' palace.
+    void launchAttack(FlatMap& map);
     // Character `c` stops going with Paul and leaves the panel's slots.
     void stopsFollowing(int c);
     // How unhappy the Emperor is, from 0 to 5, by his mood (byte 0xBE).

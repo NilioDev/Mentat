@@ -88,6 +88,15 @@ constexpr std::size_t kSpotTurn = 0xC5; // turns where the people stand
 // (and the room it leads to), or has come into a room; and the count of
 // rooms come into, which starts again at each.
 constexpr std::size_t kSituation = 0x23;
+constexpr std::size_t kStoryFlags = 0x0A;   // bit 3 the water of life offered, bit 1 drunk
+constexpr std::size_t kAnswer = 0x9F;       // Paul's answer to a question: 1 accept
+constexpr std::size_t kCharisma = 0x29;
+constexpr std::size_t kVisionsFrom = 0xD5;
+constexpr int kCharismaToLive = 100;
+constexpr int kDrinkingTicks = 0x258;
+constexpr int kUnconsciousTicks = 1000;
+constexpr int kDiedOfTheWater = 3;
+constexpr std::uint8_t kAfterTheWater = 0x11;
 constexpr std::uint8_t kLeaving = 1;
 constexpr std::uint8_t kComingIn = 5;
 constexpr std::size_t kGoingTo = 0x0C;
@@ -302,6 +311,8 @@ public:
         talk_.subtitles = subtitlesFor(language);
         talk_.enlisted = [this] { enlistFremen(); };
         talk_.ordersAsked = [this] { openOrders(); };
+        talk_.waterOfLife = [this] { drinkWaterOfLife(); };
+        talk_.attackLaunched = [this] { world_.launchAttack(map_.flatMap()); };
         orders_.finished = [this] { toggleMap(); };
         messageRoom_.drawRoom = [this] {
             d_.targetBack();
@@ -1326,6 +1337,12 @@ private:
     void cameIn() {
         quietSince_ = g_.platform().ticks;
         world_.setU8(kSituation, kComingIn);
+        roomEntered();
+    }
+
+    // What coming into a room brings, as the original does it on walking
+    // in and after the water of life.
+    void roomEntered() {
         world_.setU8(kEntries, 1);
         shipSpice();
         speakUp();
@@ -1409,6 +1426,48 @@ private:
 
     // "Give orders to troop": the map around the chief's troop, with him
     // answering in a box.
+    // Stilgar's water of life (see docs/rules/stilgar.md): offered once;
+    // when Paul accepted, he drinks it once the line is said, and lives
+    // only with charisma enough.
+    void drinkWaterOfLife() {
+        world_.setU8(kStoryFlags, static_cast<std::uint8_t>(world_.u8(kStoryFlags) | 0x08));
+        if (world_.u8(kAnswer) != 1) {
+            return;
+        }
+        Talker& talker = g_.talker();
+        if (talker.speaking()) {
+            while (talker.speaking()) {
+                g_.waitTicks(1);
+            }
+        } else {
+            g_.waitTicks(kDrinkingTicks);
+        }
+        if (world_.u8(kCharisma) < kCharismaToLive) {
+            talk_.leave();
+            gameOver(kDiedOfTheWater);
+            return;
+        }
+        world_.setU8(kStoryFlags, static_cast<std::uint8_t>(world_.u8(kStoryFlags) | 0x02));
+        world_.setU8(kVisionsFrom, 0xFF);
+        d_.transition(Display::kFadeToBlack);
+        d_.waitTicks(g_.platform().ticks, kUnconsciousTicks);
+        talk_.leave();
+        d_.targetBack();
+        drawView();
+        d_.transition(Display::kFadeInFromBlack);
+        lit_ = -1;
+        for (int hour = 0; hour < 3; ++hour) {
+            world_.setClock(world_.clock() + 1);
+            newHour();
+            if (over_) {
+                return;
+            }
+        }
+        quietSince_ = g_.platform().ticks;
+        world_.setU8(kSituation, kAfterTheWater);
+        roomEntered();
+    }
+
     void openOrders() {
         if (people_.chiefs.empty()) {
             return;

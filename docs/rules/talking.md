@@ -106,8 +106,8 @@ it starts.
 | 5 | A question about a smuggler's bill |
 | 6 | The talk ends after this line: TALK TO ME has nothing more |
 | 7 | The answer is "maybe" (`0x80`) |
-| 8 | For Duncan: he works out what to propose (see [shipments.md](shipments.md)) |
-| 9 | For Duncan: Paul's answer is taken (see [shipments.md](shipments.md)) |
+| 8 | For Duncan: he works out what to propose (see [shipments.md](shipments.md)). For Stilgar: the water of life (see [stilgar.md](stilgar.md)) |
+| 9 | For Duncan: Paul's answer is taken (see [shipments.md](shipments.md)). For Stilgar: the last attack (see [stilgar.md](stilgar.md)) |
 | 10 | A few words show beside the face (below) |
 | 11 | When said the first time: the story moves on a step (state `0x2A`); at step 1 byte `0x100B` is set |
 | 12 | When said the first time: the story moves on to the next multiple of 4, and that step's changes follow (see [story_steps.md](story_steps.md)) |
@@ -115,8 +115,7 @@ it starts.
 | 15 | For Jessica: one more at `0xF5`. For Duncan: the Emperor's answer to the shipment comes (see [shipments.md](shipments.md)) |
 
 What actions 8, 9 and 13 do for the other characters (Jessica's powers,
-the water of life, the last attack, the smuggler's trade and the chiefs'
-places) Mentat does not have yet.
+the smuggler's trade and the chiefs' places) Mentat does not have yet.
 
 The program's code calls a line's action by its number less one from a
 table of routines; the numbers above are the lines' own.

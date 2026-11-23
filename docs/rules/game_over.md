@@ -5,6 +5,7 @@ byte at `0x46D9` holds the reason. Built so far:
 
 - 2, Paul caught by the Harkonnens in their zone (see
   [flight.md](flight.md));
+- 3, Paul dead of the water of life (see [stilgar.md](stilgar.md));
 - 6, the place Paul is at lost to the Harkonnens (see
   [fights.md](fights.md)), or Paul caught there when the fight is over
   (see [days.md](days.md#pauls-place-at-war));

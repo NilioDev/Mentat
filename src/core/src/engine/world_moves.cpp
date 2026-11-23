@@ -6,6 +6,7 @@
 #include "mentat/engine/world.hpp"
 
 #include <cstdlib>
+#include <vector>
 
 namespace mentat {
 
@@ -307,6 +308,33 @@ void World::settle(int troop) {
     heldEquipment(t, place, 1);
     if (u8(t + 3) < kNotPauls) {
         resetOccupation(troop, u8(t + 3) & kOccupation);
+    }
+}
+
+void World::launchAttack(FlatMap& map) {
+    constexpr std::size_t kExploits = 0xC2;
+    constexpr std::size_t kPalace = 0x11C;
+    constexpr int kArmy = 4;
+    constexpr std::uint8_t kWeapons = 0x04;
+    constexpr std::size_t kMost = 7;
+    setU8(kExploits, static_cast<std::uint8_t>(u8(kExploits) + 1));
+    std::vector<int> going;
+    for (std::size_t t = kTroops; t + kTroopSize <= 0xFBB; t += kTroopSize) {
+        if (u8(t + 3) == kArmy && (u8(t + 0x19) & kWeapons)) {
+            going.push_back(static_cast<int>((t - kTroops) / kTroopSize) + 1);
+        }
+    }
+    if (going.size() > kMost) {
+        going.resize(kMost);
+    }
+    for (const int troop : going) {
+        startMove(troop, kPalace, map);
+        const std::size_t t = troopRecord(troop);
+        if (u8(t + 3) & kMoving) {
+            if (!stepTroop(troop, (u8(t + 0x19) & 0x40) ? 8 : 4, map) && markMoved) {
+                markMoved(troop);
+            }
+        }
     }
 }
 
