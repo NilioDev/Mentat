@@ -33,8 +33,9 @@ and touch controls.
 > game, in the same files as the original. In the palace's entrance you
 > can take an ornithopter and fly to a place you know: it takes off, the
 > desert goes by with a small map of your way in the corner, and you land
-> at the place, or skip straight there. Flying off in a direction, giving
-> orders and the rest of the game are not there yet.
+> at the place, or skip straight there. A click on the desert flies off
+> that way, steered with the arrows. Giving orders and the rest of the
+> game are not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the
@@ -81,6 +82,7 @@ and the original can load the games you save in Mentat.
 | Turn the globe | Click or hold an arrow; the middle turns it to you; click on the planet to see the map there | | |
 | See how you are doing | On the globe, "SEE RESULTS"; "STANDARD VISION" goes back | | |
 | Fly to a place | In the palace's entrance, "TAKE AN ORNITHOPTER", then click a place on the small map; "Cancel" goes back | | |
+| Fly over the desert | In the cockpit, click the desert; the arrows turn; "BACK TO STARTING POINT" goes home | | |
 | While flying | "SKIP TO DESTINATION" lands at once; "CHANGE DESTINATION" opens the map again | | |
 | Save or load a game | On the globe, "SAVE GAME" or "LOAD GAME", then a log; "Cancel" goes back | | |
 | Close Mentat | Window's close button | | Back |

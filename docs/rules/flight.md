@@ -4,7 +4,7 @@ From the cockpit (see [cockpit.md](cockpit.md)) a click on a place sets
 off for it: the ornithopter takes off from the place's entrance, the
 desert goes by in the videos with a small map in the top right corner,
 and at the place the ornithopter comes down in front of its entrance.
-This page covers flying to a place. Flying off in a direction, what
+This page covers flying to a place and flying off over the desert. What
 happens on the way (places seen ahead, the Harkonnens' zones) and flying
 from the desert are not covered yet.
 
@@ -15,10 +15,11 @@ A click on the cockpit's map looks at what the mouse points at there:
 - nothing (off the map): the click does nothing;
 - a place: the place Paul is in does nothing, unless he is flying
   already; any other is the destination;
-- the desert: a flight in a direction (not covered yet).
+- the desert: a free flight toward the map point clicked (below).
 
 The cockpit's voice (character `0x19`) then says the place's name:
-phrase `0x2BC` + ((first word − 1) × 16 + second word, kept to 8 bits).
+phrase `0x2BC` + ((first word − 1) × 16 + second word, kept to 8 bits);
+for the desert phrase `0x2AC` + the direction, or `0x2BB` without one.
 Nine times the name stays 20 ticks, then the line is cleared as when the
 mouse points at nothing (the title starts being typed again) for 10
 ticks, and the name is written again. Then the game waits for the voice
@@ -41,6 +42,23 @@ point from where Paul is:
 
 Setting course for a place takes this heading toward the place's point,
 and sets the latitude's left-over (below) to `0x80`.
+
+### The point clicked
+
+On the cockpit's map, (*x*, *y*) shows latitude *φ* + *y* − (top + *c*)
+(see [cockpit.md](cockpit.md)); in that latitude's ring, the point *x* −
+(left + *w* / 2) from the row's middle point, wrapped round the ring. Its
+longitude is point × 65536 / ring, rounded down.
+
+### Flying freely
+
+A click on the desert flies freely: the heading is taken toward the point
+clicked (kept when it is Paul's own point), the left-over set to `0x80`,
+and the destination is the place last entered (state offset `0x1150`):
+passing over it ends the flight there. The heading then stays, except
+near the poles: beyond latitude ±`0x4D`, a heading toward the nearer pole
+(within a quarter turn of north in the north, of south in the south)
+becomes east (`0x40`) or west (`0xC0`), keeping its east or west half.
 
 ## Taking off
 
@@ -69,6 +87,10 @@ The clock does not run by itself while flying: only the steps move it.
 
 - The commands: "SKIP TO DESTINATION" (data offset `0x21FC`) and "CHANGE
   DESTINATION" (`0x21F8`); the arrows from data offset `0x1D1E` (none).
+  Flying freely: "BACK TO STARTING POINT" (`0x2200`), then, once the story
+  has come to `0x32` (state offset `0x2A`), "TOWARDS NEAREST PLACE"
+  (`0x2204`), then "CHANGE DESTINATION"; the arrows from data offset
+  `0x1D72`, which turn the ornithopter.
 - The corner: in the third buffer, around Paul's place,
   - the small map (see [cockpit.md](cockpit.md)) in the rectangle at data
     offset `0x148A`, (`0xCC`, 4) to (`0x13C`, `0x3C`);
@@ -109,7 +131,8 @@ Every 768 ticks (the first at once):
 
 ### Moving
 
-1. The heading is set toward the destination from where Paul is.
+1. The heading is set toward the destination from where Paul is, unless
+   he flies freely or has turned (see above).
 2. The heading's direction is (*across*, *down*): with *t* = heading +
    `0x20`, when *t*'s low seven bits are `0x40` or more: *across* = 32
    (−32 when *t*'s bit 7 is set) and *down* = heading − `0x40` (negated
@@ -145,6 +168,17 @@ starts again.
 - "SKIP TO DESTINATION": the video stops and up to 200 steps are taken at
   once (with the clock), stopping at the destination; after 200 the place
   is reached anyway. There is no approach.
+- The arrows, flying freely: left turns the heading by −4, right by +4
+  (held, they repeat); the left-over is set to `0x80`, and from then on
+  the heading is not set toward the destination.
+- "BACK TO STARTING POINT": course is set for the place last entered, the
+  video starts again, and the commands become those for flying to a
+  place.
+- "TOWARDS NEAREST PLACE": course is set for the nearest place not hidden:
+  the distance is the longitudes' difference's high byte, or, when that
+  is smaller than the latitudes' difference's low byte, the latitudes'
+  difference; the first of those as near. The commands become those for
+  flying to a place.
 - "CHANGE DESTINATION": the video stops and the cockpit opens around
   Paul's place; the flight waits meanwhile. "Cancel" goes back to the
   flight, and a place chosen there sets course for it without taking off.

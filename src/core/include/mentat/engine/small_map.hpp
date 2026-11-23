@@ -36,6 +36,8 @@ public:
     // Where map point (longitude, latitude) is on the screen; false when it
     // is outside the view.
     bool toScreen(std::uint16_t lon, int lat, int& x, int& y) const;
+    // The map point shown at (x, y) on the screen, inside the view.
+    void toMap(int x, int y, std::uint16_t& lon, int& lat) const;
 
     struct Shown {
         std::size_t record = 0;

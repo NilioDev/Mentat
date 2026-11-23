@@ -25,6 +25,10 @@ public:
     // The original's numbers for what its commands do.
     static constexpr std::uint16_t kSkip = 0x4FFB;
     static constexpr std::uint16_t kChange = 0x497A;
+    static constexpr std::uint16_t kBack = 0x50A5;
+    static constexpr std::uint16_t kNearest = 0x50C4;
+    static constexpr std::uint16_t kLeft = 0x4AD0;
+    static constexpr std::uint16_t kRight = 0x4AD7;
 
     Flight(Game& game, World& world, Panel& panel, MapScreen& map);
 
@@ -35,6 +39,10 @@ public:
 
     // Sets course for place `record` from where the player is.
     void setDestination(std::size_t record);
+    // Flies freely toward the map point (longitude, latitude) and on past
+    // it; the place last entered is where the flight would end.
+    void setFree(std::uint16_t longitude, int latitude);
+    bool free() const { return free_; }
     // Leaves the ground: the trail starts and the first step is taken.
     void begin();
     // Shows the flight from the start of its first video: the commands,
@@ -81,8 +89,12 @@ public:
 private:
     void advance(std::uint16_t& longitude, int& latitude);
     void move(std::uint16_t& longitude, int& latitude);
-    void steer();
+    void steer(int latitude);
+    void drawCommands();
     bool headingTo(std::uint16_t longitude, int latitude, std::size_t record, int& heading) const;
+    static bool headingToward(std::uint16_t longitude, int latitude, std::uint16_t toLongitude, int toLatitude,
+                              int& heading);
+    std::size_t nearestPlace() const;
     int terrain(std::uint16_t longitude, int latitude) const;
     int pointIndex(std::uint16_t longitude, int latitude) const;
     void lookAhead();
@@ -100,6 +112,9 @@ private:
     MapScreen& map_;
     SmallMap small_;
     bool active_ = false;
+    // Flying in a direction, and steered by hand (the arrows).
+    bool free_ = false;
+    bool manual_ = false;
     std::size_t destination_ = 0;
     int heading_ = 0;
     int fraction_ = 0x80;

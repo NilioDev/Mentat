@@ -50,11 +50,19 @@ public:
     // The mouse is at (x, y): the line above the map names what it points
     // at.
     void pointAt(int x, int y);
-    // A click at (x, y): the record of the place to fly to, or 0 when the
-    // click chooses none (not a place, or the place Paul is in).
-    std::size_t destinationAt(int x, int y);
-    // The place's name blinks while the cockpit's voice names it.
-    void confirm(std::size_t record);
+    // Where a click on the map sends the ornithopter: a place, or the
+    // desert's point clicked.
+    struct Destination {
+        bool chosen = false;
+        std::size_t record = 0; // 0 for the desert
+        std::uint16_t longitude = 0;
+        int latitude = 0;
+    };
+    // A click at (x, y); nothing chosen off the map or on the place Paul is
+    // in.
+    Destination destinationAt(int x, int y);
+    // The name blinks while the cockpit's voice says it.
+    void confirm();
 
     bool leaving = false;
 

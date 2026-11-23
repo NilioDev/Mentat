@@ -66,6 +66,8 @@ constexpr int kNearPlace = 9;
 // The cockpit's own voice asks where to.
 constexpr int kVoiceCharacter = 0x19;
 constexpr int kAskVoice = 0x2BC;
+constexpr int kDirectionVoice = 0x2AC;
+constexpr int kDesertVoice = 0x2BB;
 // A destination chosen: its name blinks 9 times, shown 20 ticks and gone
 // 10.
 constexpr int kConfirmBlinks = 9;
@@ -321,32 +323,44 @@ void Cockpit::writeTarget() {
     clearLineFrom(x);
 }
 
-std::size_t Cockpit::destinationAt(int x, int y) {
+Cockpit::Destination Cockpit::destinationAt(int x, int y) {
+    Destination to;
     if (!active_) {
-        return 0;
+        return to;
     }
     pointAt(x, y);
-    // The desert is a way to fly rather than a place: not built yet.
-    if (target_.kind != Target::Kind::Place) {
-        return 0;
+    if (target_.kind == Target::Kind::Nothing) {
+        return to;
     }
-    if (!world_.flying() && target_.place == world_.placeHere()) {
-        return 0;
+    if (target_.kind == Target::Kind::Place) {
+        if (!world_.flying() && target_.place == world_.placeHere()) {
+            return to;
+        }
+        to.record = target_.place;
     }
-    return target_.place;
+    to.chosen = true;
+    small_.toMap(x, y, to.longitude, to.latitude);
+    return to;
 }
 
-void Cockpit::confirm(std::size_t record) {
-    // The voice for a place goes by its name's two words.
-    const int name = ((world_.u8(record) - 1) << 4 | world_.u8(record + 1)) & 0xFF;
-    say(kAskVoice + name);
-    const Target place = target_;
+void Cockpit::confirm() {
+    // The voice for a place goes by its name's two words; for the desert
+    // by the direction, or the one before the directions without one.
+    int voice = kDesertVoice;
+    if (target_.kind == Target::Kind::Place) {
+        const std::size_t record = target_.place;
+        voice = kAskVoice + (((world_.u8(record) - 1) << 4 | world_.u8(record + 1)) & 0xFF);
+    } else if (target_.direction >= 0) {
+        voice = kDirectionVoice + target_.direction;
+    }
+    say(voice);
+    const Target chosen = target_;
     for (int i = 0; i < kConfirmBlinks; ++i) {
         g_.waitTicks(kConfirmShown);
         target_ = Target{};
         writeTarget();
         g_.waitTicks(kConfirmHidden);
-        target_ = place;
+        target_ = chosen;
         writeTarget();
     }
     g_.waitSound();

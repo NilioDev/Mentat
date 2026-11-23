@@ -7,6 +7,7 @@
 #include "mentat/engine/world.hpp"
 #include "mentat/gfx/sprite_sheet.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 
 namespace mentat {
@@ -31,6 +32,19 @@ bool SmallMap::toScreen(std::uint16_t lon, int lat, int& x, int& y) const {
     x = static_cast<int>((along * ring) >> 16) + middleX;
     y = lat - latitude + middleY;
     return x >= view.left && x < view.right && y >= view.top && y < view.bottom;
+}
+
+void SmallMap::toMap(int x, int y, std::uint16_t& lon, int& lat) const {
+    const int middleX = view.left + (view.right - view.left) / 2;
+    const int middleY = view.top + (view.bottom - view.top - 1) / 2;
+    lat = latitude + y - middleY;
+    const int ring = 2 * map_.flatMap().width(std::min(std::abs(lat), FlatMap::kRows - 1));
+    const int middle = static_cast<int>((static_cast<std::uint32_t>(longitude) * static_cast<std::uint32_t>(ring)) >> 16);
+    int point = (x - middleX + middle) % ring;
+    if (point < 0) {
+        point += ring;
+    }
+    lon = static_cast<std::uint16_t>((static_cast<std::uint32_t>(point) << 16) / static_cast<std::uint32_t>(ring));
 }
 
 void SmallMap::drawPlaces() {

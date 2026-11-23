@@ -512,3 +512,46 @@ MTT_TEST("world: flying takes the followers along, and landing finds a hidden pl
     MTT_CHECK((w.u8(record + 0x0A) & 0x80) == 0 && w.u8(0x27) == 1);
     MTT_CHECK(w.character(0).room == 0x0501 && w.character(0).place == 0x0380);
 }
+
+MTT_TEST("flight: a click on the desert flies that way, the arrows turn, and back goes home") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables::fromDriver(archive->load("DNVGA.HSQ")), nullptr);
+    World w(*program);
+    w.goTo(0x2001, 0x0180);
+    Panel panel(g, kEnglish);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    Cockpit cockpit(g, w, panel, map);
+    cockpit.enter();
+    cockpit.drawScene();
+    // Off the map nothing is chosen; due west of the palace the desert is.
+    MTT_CHECK(!cockpit.destinationAt(20, 20).chosen);
+    const Cockpit::Destination west = cockpit.destinationAt(100, 89);
+    MTT_CHECK(west.chosen && west.record == 0);
+    cockpit.leave();
+    Flight f(g, w, panel, map);
+    f.setFree(west.longitude, west.latitude);
+    MTT_CHECK(f.free() && f.heading() >= 0xB0 && f.heading() <= 0xD0);
+    f.begin();
+    f.show();
+    MTT_CHECK(panel.commands().front().action == Flight::kBack && panel.commands().back().action == Flight::kChange);
+    std::uint16_t lon = 0;
+    int lat = 0;
+    w.position(lon, lat);
+    f.step();
+    std::uint16_t lon2 = 0;
+    w.position(lon2, lat);
+    MTT_CHECK(static_cast<std::int16_t>(lon2 - lon) < 0); // westwards
+    const int h = f.heading();
+    MTT_CHECK(f.command(Flight::kLeft) && f.heading() == ((h - 4) & 0xFF));
+    MTT_CHECK(f.command(Flight::kRight) && f.command(Flight::kRight) && f.heading() == ((h + 4) & 0xFF));
+    f.step();
+    MTT_CHECK(f.heading() == ((h + 4) & 0xFF)); // steered by hand, it keeps its heading
+    MTT_CHECK(f.command(Flight::kBack) && !f.free() && f.destination() == w.home());
+    MTT_CHECK(panel.commands().front().action == Flight::kSkip);
+}
