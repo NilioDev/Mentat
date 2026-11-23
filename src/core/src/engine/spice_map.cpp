@@ -123,6 +123,7 @@ void SpiceMap::openAt(int troop, int left, int top) {
     small_.longitude = map_.longitude();
     small_.latitude = map_.latitude();
     shown_ = true;
+    world_.takeRegions(g_.resources().load(resource::kRegions), map_.flatMap());
     draw();
 }
 

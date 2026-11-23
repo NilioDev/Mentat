@@ -68,7 +68,9 @@ and touch controls.
 > reaches his troops from further off: "CONTACT FREMEN TROOPS" on the map
 > then gives orders to troops far away, and "NEXT TROOP" goes from one to
 > the next. Taking a
-> Harkonnen fort raises your charisma and your troops' spirits. Hour by
+> Harkonnen fort raises your charisma and your troops' spirits, and once
+> every fort of a region is yours, the Harkonnens' land there becomes
+> yours on the map of the regions. Hour by
 > hour your troops work: they mine spice into your stock (and a harvester
 > may meet a worm), prospect places, train for the army, build wind-traps
 > and make the desert green. Send them to attack a Harkonnen place and

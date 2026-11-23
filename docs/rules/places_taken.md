@@ -125,6 +125,14 @@ When a troop is enlisted (see [people.md](people.md)) the land around
 its place is looked over with radius 2; when a fort is taken, with
 radius 5.
 
-## Not built yet
+## The regions changing hands
 
-The regions of the small map changing with the word at `0x115A`.
+The word at `0x115A` (set when a fort is taken, above) is read, and
+cleared, each time the map of the regions opens (see
+[spice_map.md](spice_map.md)), before it is drawn. Its bits 0 to 11 stand
+for the names 1 to 12. For each bit set, in that order: when every fort
+whose byte 0 is that name (kind from `0x28`) has bit 3 of byte `0x0A`,
+each place of that name gives its region (byte `0x10`; 0 for none), and
+name 7 also region `0x42`. Every map point (see [map.md](map.md)) whose
+point in `MAP2.HSQ` is of such a region and whose bits 4 and 5 are `11`
+(the Harkonnens' land) loses bit 4: the land is Paul's.

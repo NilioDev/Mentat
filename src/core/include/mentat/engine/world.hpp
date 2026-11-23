@@ -269,6 +269,11 @@ public:
     static constexpr std::size_t kAwayWord = 0x10;
     static constexpr std::size_t kPlaceKindByte = 0x08;
     static constexpr std::uint8_t kOutside = 0xFF;
+    // As the map of the regions opens: when a fort was taken and every
+    // fort of its name is Paul's now, the Harkonnens' land in the regions
+    // of the places of that name becomes his (see
+    // docs/rules/places_taken.md). `regions` is MAP2.HSQ.
+    void takeRegions(const std::vector<std::uint8_t>& regions, FlatMap& map);
     bool firstMessage(std::uint16_t& message, std::uint16_t& place) const;
     void dropMessage();
     // The first message waiting that character `c` says (for the chiefs,

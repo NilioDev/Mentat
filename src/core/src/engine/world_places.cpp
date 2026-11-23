@@ -86,6 +86,51 @@ void World::dropMessage() {
     }
 }
 
+void World::takeRegions(const std::vector<std::uint8_t>& regions, FlatMap& map) {
+    constexpr int kNames = 12;
+    constexpr std::uint8_t kHeld = 0x30;
+    constexpr std::uint8_t kHarkonnens = 0x10;
+    constexpr int kFortressName = 7;
+    constexpr std::uint8_t kFortressRegion = 0x42;
+    const unsigned change = u16(kRegionChange);
+    setU16(kRegionChange, 0);
+    std::vector<std::uint8_t>& points = map.bytes();
+    const std::size_t n = std::min(regions.size(), points.size());
+    auto take = [&](std::uint8_t region) {
+        if (region == 0) {
+            return;
+        }
+        for (std::size_t i = 0; i < n; ++i) {
+            if (regions[i] == region && (points[i] & kHeld) == kHeld) {
+                points[i] = static_cast<std::uint8_t>(points[i] & ~kHarkonnens);
+            }
+        }
+    };
+    for (int name = 1; name <= kNames; ++name) {
+        if (!(change & (1u << (name - 1)))) {
+            continue;
+        }
+        bool all = true;
+        for (std::size_t p = kPlaces; u8(p) != 0xFF; p += kPlaceSize) {
+            if (u8(p) == name && u8(p + 8) >= kFirstFort && !(u8(p + 0x0A) & kTaken)) {
+                all = false;
+                break;
+            }
+        }
+        if (!all) {
+            continue;
+        }
+        for (std::size_t p = kPlaces; u8(p) != 0xFF; p += kPlaceSize) {
+            if (u8(p) == name) {
+                take(u8(p + 0x10));
+            }
+        }
+        if (name == kFortressName) {
+            take(kFortressRegion);
+        }
+    }
+}
+
 bool World::messageFrom(int c, std::uint16_t& message, std::uint16_t& place) const {
     constexpr int kChiefs = 0x0F;
     for (int i = 0; i < u8(kMessageQueue); ++i) {

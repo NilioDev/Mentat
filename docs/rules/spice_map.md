@@ -159,7 +159,12 @@ The arrows move the window's middle by their steps instead of the main
 map's. The middle of the arrows puts the main map back on Paul, and the
 window is drawn again over it.
 
+## Opening
+
+Before the window is drawn, the regions whose forts have all been taken
+become Paul's land (see
+[places_taken.md](places_taken.md#the-regions-changing-hands)).
+
 ## Not built yet
 
-Dragging the window; the state's word `0x115A`, which changes the regions
-of `MAP2.HSQ` as the story goes on.
+Dragging the window.

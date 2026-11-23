@@ -1421,3 +1421,60 @@ MTT_TEST("world: the prospectors go to the places of their route in turn") {
     w.setU16(0x11D3, 0);
     MTT_CHECK(w.nextOnRoute(3) == 0);
 }
+
+MTT_TEST("places taken: once every fort of a name is Paul's, the Harkonnens' land in its regions is his") {
+    auto archive = test::openGameData();
+    auto program = test::openProgram();
+    if (!archive || !program) {
+        MTT_SKIP("no game files in gamedata/");
+    }
+    Platform p;
+    Game g(p, *archive, *program, DisplayTables{}, nullptr);
+    World w(*program);
+    Panel panel(g);
+    MapScreen map(g, w, panel);
+    map.setUp();
+    const std::vector<std::uint8_t> regions = g.resources().load(resource::kRegions);
+    std::vector<std::uint8_t>& points = map.flatMap().bytes();
+    MTT_CHECK(regions.size() == points.size());
+    // A name with a fort, and the forts of that name.
+    int name = 0;
+    std::vector<std::size_t> forts;
+    for (std::size_t at = World::kPlaces; w.u8(at) != 0xFF; at += 0x1C) {
+        if (w.u8(at + 8) >= 0x28 && w.u8(at) >= 1 && w.u8(at) <= 12 && w.u8(at) != 7) {
+            name = w.u8(at);
+            break;
+        }
+    }
+    MTT_CHECK(name != 0);
+    std::size_t region = 0;
+    for (std::size_t at = World::kPlaces; w.u8(at) != 0xFF; at += 0x1C) {
+        if (w.u8(at) == name) {
+            if (w.u8(at + 8) >= 0x28) {
+                forts.push_back(at);
+            }
+            region = w.u8(at + 0x10);
+        }
+    }
+    std::size_t inside = regions.size();
+    for (std::size_t i = 0; i < regions.size(); ++i) {
+        if (regions[i] == region) {
+            points[i] = static_cast<std::uint8_t>((points[i] & 0x0F) | 0x30);
+            inside = i;
+        }
+    }
+    MTT_CHECK(inside < regions.size());
+    // One fort of the name still the Harkonnens': nothing changes.
+    for (std::size_t i = 1; i < forts.size(); ++i) {
+        w.setU8(forts[i] + 0x0A, static_cast<std::uint8_t>(w.u8(forts[i] + 0x0A) | 8));
+    }
+    w.setU8(forts[0] + 0x0A, static_cast<std::uint8_t>(w.u8(forts[0] + 0x0A) & ~8));
+    w.setU16(0x115A, static_cast<std::uint16_t>(1u << (name - 1)));
+    w.takeRegions(regions, map.flatMap());
+    MTT_CHECK(w.u16(0x115A) == 0 && (points[inside] & 0x30) == 0x30);
+    // All of them Paul's: the land there is his.
+    w.setU8(forts[0] + 0x0A, static_cast<std::uint8_t>(w.u8(forts[0] + 0x0A) | 8));
+    w.setU16(0x115A, static_cast<std::uint16_t>(1u << (name - 1)));
+    w.takeRegions(regions, map.flatMap());
+    MTT_CHECK((points[inside] & 0x30) == 0x20);
+}
