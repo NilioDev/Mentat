@@ -130,7 +130,7 @@ start, in colour `0xFE` (except the title):
   and phrase `0xDA` + the direction ("northwards" …);
 - a place: by its kind (byte 8), phrase `0x44` ("Sietch: ") below `0x20`,
   `0x45` below `0x21`, `0x46` below `0x28`, `0x47` below `0x30` and
-  `0x46` from there; then the phrase of its first word (byte 0), a hyphen
+  `0x45` from there; then the phrase of its first word (byte 0), a hyphen
   when its second word (byte 1) is 3 or more and a space otherwise, and
   phrase `0x0C` + the second word.
 

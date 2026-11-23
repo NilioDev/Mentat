@@ -52,6 +52,13 @@ public:
     // after the last click.
     void tick();
     void clicked();
+    // A click on the map at (x, y): the label of the place nearest to it,
+    // or the label shown goes.
+    void click(int x, int y);
+    // The place whose label is shown, 0 for none.
+    std::size_t labelled() const { return labelled_; }
+    // Where the label is on the screen.
+    ClipRect label() const { return label_; }
 
     // A command of the map's list or an arrow. False when it is not one of
     // the map's.
@@ -82,6 +89,11 @@ private:
     void showBox();
     void hideBox();
     void scroll(int longitude, int latitude);
+    void showLabel(std::size_t record, int x, int y);
+    void hideLabel();
+    int labelSize(std::size_t record) const;
+    bool knownInside(std::size_t record) const;
+    int battle(std::size_t record) const;
     void playerPoint(std::uint16_t& longitude, int& latitude) const;
     std::vector<Command> commands() const;
     // Where map point (longitude, latitude) is on the screen.
@@ -94,6 +106,15 @@ private:
     std::unique_ptr<FlatMap> map_;
     bool active_ = false;
     bool boxShown_ = false;
+    // The places drawn on the map, with where.
+    struct Shown {
+        std::size_t record;
+        int x;
+        int y;
+    };
+    std::vector<Shown> shown_;
+    std::size_t labelled_ = 0;
+    ClipRect label_{};
     std::uint32_t lastClick_ = 0;
     std::uint16_t longitude_ = 0;
     int latitude_ = 0;

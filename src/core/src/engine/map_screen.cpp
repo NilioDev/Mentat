@@ -60,6 +60,37 @@ constexpr std::size_t kRalliedTroops = 0x28;
 // Spice fields Paul has found: map points whose bits 4 and 5 are 01.
 constexpr std::uint16_t kSpiceMark = 0x78;
 
+// A place's label (see docs/rules/map.md).
+constexpr int kLabelReach = 0x14;   // a click this far from a place (across plus down) or more misses it
+constexpr int kLabelKinds = 0x31;   // places of a kind below this have labels
+constexpr std::size_t kLabel = 0x1668; // rectangle, then the border and fill colours
+constexpr std::size_t kLabelHeights = 0x11D0; // state: the height of each size of label
+constexpr int kLabelWidth = 0x6A;
+constexpr int kLabelGap = 0x0F;     // from the place to the label's left
+constexpr int kLabelTurn = 0xD2;    // a label starting this far right goes left of the place
+constexpr int kLabelBack = 0x82;
+constexpr int kLabelTop = 4;
+constexpr int kLabelBottom = 0x94;
+constexpr std::uint16_t kKindPhrase = 0x44;
+constexpr std::uint16_t kSecondWordPhrase = 0x0C;
+constexpr int kHyphenFrom = 3;
+constexpr std::uint8_t kKindColour = 0x9A;
+constexpr std::uint8_t kNameColour = 0x96;
+constexpr std::uint8_t kWaterColour = 0x90;
+constexpr std::uint16_t kWaterPhrase = 0x6C;
+constexpr std::uint16_t kNoWindTrapPhrase = 0x6D;
+constexpr std::uint16_t kEquipmentPhrase = 0x6E;
+constexpr std::uint16_t kBattlePhrase = 0x4C;
+constexpr std::uint16_t kNonePhrase = 0x69;
+constexpr std::uint16_t kWaterDrop = 0x75;
+constexpr std::uint16_t kBattleGauge = 0x8E;
+constexpr std::size_t kEquipmentSprites = 0x192F; // data: the sprite of each of the 7 kinds of equipment
+constexpr std::size_t kStoryFlags = 0x0A;          // state: bit 5, water is shown
+constexpr std::uint8_t kPlaceSeen = 0x02;    // flag at 0x0A: what is inside is known
+constexpr std::uint8_t kPlaceSafe = 0x08;    // flag at 0x0A, for a fort
+constexpr std::uint8_t kPlaceShown = 0x10;   // flag at 0x0A, for a fort: its inside is shown
+constexpr std::uint8_t kPlaceWindTrap = 0x20; // flag at 0x0A
+
 // Paul's place: sprite 0x4C of the panel's picture file, its bottom at the
 // place and 13 pixels left of it.
 constexpr std::uint16_t kPlayerMark = 0x4C;
@@ -128,6 +159,7 @@ void MapScreen::show() {
 void MapScreen::leave() {
     active_ = false;
     boxShown_ = false;
+    labelled_ = 0;
 }
 
 void MapScreen::drawFrame() {
@@ -170,6 +202,7 @@ void MapScreen::drawView() {
     const ClipRect r = viewRect(g_.resources().program());
     Display& d = g_.display();
     d.targetBack();
+    labelled_ = 0; // the label is on the screen only, and goes with the view
     map().draw(d.target(), r.left, r.top, longitude_, latitude_);
     g_.selectSheet(resource::kMapSprites);
     drawPlaces();
@@ -227,6 +260,7 @@ void MapScreen::drawPlaces() {
     }
 
     // The places, in the order of the state.
+    shown_.clear();
     for (std::size_t record = World::kPlaces; world_.u16(record) != 0xFFFF; record += World::kPlaceSize) {
         if (world_.u8(record + 0x0A) & kPlaceHidden) {
             continue;
@@ -241,6 +275,7 @@ void MapScreen::drawPlaces() {
         }
         const std::uint16_t n = placeSprite(record, kPlaceSprite);
         drawCentred(n, x, y);
+        shown_.push_back(Shown{record, x, y});
     }
 }
 
@@ -442,6 +477,267 @@ bool MapScreen::command(std::uint16_t action) {
     default:
         return false;
     }
+}
+
+// --- A place's label
+
+void MapScreen::click(int x, int y) {
+    hideBox();
+    // The nearest place drawn, across plus down; the first of equals.
+    const Shown* nearest = nullptr;
+    int best = 0xFFFF;
+    for (const Shown& place : shown_) {
+        if (world_.u8(place.record + 8) >= kLabelKinds) {
+            continue;
+        }
+        const int distance = std::abs(place.x - x) + std::abs(place.y - y);
+        if (distance < best) {
+            best = distance;
+            nearest = &place;
+        }
+    }
+    if (nearest == nullptr || best >= kLabelReach || nearest->record == labelled_) {
+        hideLabel();
+        return;
+    }
+    hideLabel();
+    showLabel(nearest->record, nearest->x, nearest->y);
+}
+
+void MapScreen::hideLabel() {
+    if (labelled_ == 0) {
+        return;
+    }
+    labelled_ = 0;
+    g_.display().copyRect(g_.display().back(), g_.display().screen(), label_);
+}
+
+// What is inside a place is known: Paul has seen it, or a troop of his
+// waits there.
+bool MapScreen::knownInside(std::size_t record) const {
+    if (world_.u8(record + 0x0A) & kPlaceSeen) {
+        return true;
+    }
+    const int kind = world_.u8(record + 8);
+    if (kind >= 0x28 && (world_.u8(record + 0x0A) & kPlaceSafe)) {
+        return false;
+    }
+    for (int troop = world_.u8(record + 9); troop != 0;) {
+        const std::size_t at = World::troopRecord(troop);
+        const int job = world_.u8(at + 3);
+        if (!(job & 0x20) && !(world_.u8(at + 0x10) & 0x80) && job == 6) {
+            return true;
+        }
+        troop = world_.u8(at + 1);
+    }
+    return false;
+}
+
+namespace {
+
+int kindPhrase(int kind) {
+    if (kind < 0x20) {
+        return 0; // sietch
+    }
+    if (kind < 0x21) {
+        return 1; // palace
+    }
+    if (kind < 0x28) {
+        return 2; // village
+    }
+    if (kind < 0x30) {
+        return 3; // fort
+    }
+    return 1;
+}
+
+} // namespace
+
+// 0 the tallest label, 2 the name alone.
+int MapScreen::labelSize(std::size_t record) const {
+    if (knownInside(record)) {
+        return 1;
+    }
+    const int kind = world_.u8(record + 8);
+    const std::uint8_t flags = world_.u8(record + 0x0A);
+    if (!(kind >= 0x28 && (flags & kPlaceSafe)) || !(flags & kPlaceShown)) {
+        return 2;
+    }
+    switch (kindPhrase(kind)) {
+    case 0:
+    case 3:
+        return 0;
+    case 2:
+        return 1;
+    default:
+        return 2;
+    }
+}
+
+// The gauge of the fight at a place, 0 to 8: the men of Paul's troops
+// waiting there against what they hold, and the Harkonnens' men against
+// theirs.
+int MapScreen::battle(std::size_t record) const {
+    int ours = 0;
+    int theirs = 0;
+    int ourHold = 0;
+    int theirHold = 0;
+    for (int troop = world_.u8(record + 9); troop != 0;) {
+        const std::size_t at = World::troopRecord(troop);
+        const int men = world_.u8(at + 0x1A);
+        const int job = world_.u8(at + 3);
+        if (world_.u8(at + 0x10) & 0x80) {
+            theirs += men;
+        } else if (job == 6) {
+            if (!(job & 0x20)) {
+                ours += men;
+            }
+            theirHold += world_.u16(at + 0x0C);
+            ourHold += world_.u16(at + 0x0E);
+        }
+        troop = world_.u8(at + 1);
+    }
+    const int ourShare = ours + ourHold == 0 ? 0 : ours * 256 / (ours + ourHold);
+    const int theirShare = theirs + theirHold == 0 ? 0 : theirs * 256 / (theirs + theirHold);
+    const int most = std::max(ourShare, theirShare);
+    int v = ourShare - theirShare;
+    if (most != 0) {
+        const std::int32_t num = static_cast<std::int32_t>(static_cast<std::int16_t>(v)) * 256 + (v < 0 ? 255 : 0);
+        v = static_cast<std::int16_t>(num / most);
+    }
+    const int gauge = static_cast<std::uint8_t>((static_cast<std::int16_t>(v) >> 1) + 0x80);
+    return (gauge + 0x0F) >> 5;
+}
+
+void MapScreen::showLabel(std::size_t record, int px, int py) {
+    const ProgramFile& program = g_.resources().program();
+    const int size = labelSize(record);
+    const int height = world_.u8(kLabelHeights + static_cast<std::size_t>(size));
+    int top = std::max(py - height / 2, kLabelTop);
+    top = std::min(top, kLabelBottom - height);
+    int left = px + kLabelGap;
+    if (left >= kLabelTurn) {
+        left -= kLabelBack;
+    }
+    label_ = ClipRect{left, top, left + kLabelWidth, top + height};
+    labelled_ = record;
+
+    Display& d = g_.display();
+    d.targetScreen();
+    Surface& to = d.target();
+    const std::uint8_t border = program.dataU8(kLabel + 8);
+    const std::uint8_t fill = program.dataU8(kLabel + 9);
+    to.fillRect(label_.left, label_.top, kLabelWidth, height, fill);
+    for (int x = label_.left; x < label_.right; ++x) {
+        to.set(x, label_.top, border);
+        to.set(x, label_.bottom - 1, border);
+    }
+    for (int y = label_.top; y < label_.bottom; ++y) {
+        to.set(label_.left, y, border);
+        to.set(label_.right - 1, y, border);
+    }
+
+    const StringTable& phrases = panel_.phrases();
+    auto phrase = [&](int n) -> const std::string& { return phrases.at(static_cast<std::size_t>(n) - 1u); };
+    const Font large = Font::parse(g_.resources().load(resource::kFont), Font::Size::Large);
+    auto write = [&](const Font& font, int x, int y, const std::string& text, std::uint8_t colour) {
+        for (const char c : text) {
+            x = font.draw(to, x, y, std::string_view(&c, 1), colour, fill);
+        }
+        return x;
+    };
+
+    // What it is and its name.
+    write(large, left + 0x0C, top + 4, phrase(kKindPhrase + kindPhrase(world_.u8(record + 8))), kKindColour);
+    int y = top + 13;
+    {
+        int x = write(large, left + 4, y, phrase(world_.u8(record)), kNameColour);
+        const int second = world_.u8(record + 1);
+        x = write(large, x, y, second >= kHyphenFrom ? "-" : " ", kNameColour);
+        write(large, x, y, phrase(kSecondWordPhrase + second), kNameColour);
+    }
+    if (size == 2) {
+        d.targetBack();
+        return;
+    }
+
+    const int previous = g_.sheetResource();
+    g_.selectSheet(resource::kMapSprites);
+    const SpriteSheet& sheet = g_.sheet();
+    // A row (or column) of n copies of a sprite, closer together when they
+    // do not fit before `end`.
+    auto repeat = [&](std::uint16_t n, int count, int atX, int atY, int end, bool across) {
+        if (count == 0) {
+            return;
+        }
+        const SpriteHeader h = sheet.sprite(n).header;
+        const int room = end - (across ? atX : atY);
+        int step = (across ? (h.widthAndFlags & 0x0FFF) : h.height) + 2;
+        if (room / count < step) {
+            const int rest = room - step;
+            step = rest / count;
+            if (step < 2) {
+                step = 2;
+                count = rest / 2;
+            }
+        }
+        for (int i = 0; i < count; ++i) {
+            g_.drawSprite(n, atX, atY);
+            (across ? atX : atY) += step;
+        }
+    };
+
+    // The water, for a fort once the story shows it.
+    if (size == 0 && (world_.u8(kStoryFlags) & 0x20)) {
+        const Font small = Font::parse(g_.resources().load(resource::kFont), Font::Size::Small);
+        y += 0x0A;
+        int x = write(small, left + 4, y, phrase(kWaterPhrase), kWaterColour);
+        y += 7;
+        if (world_.u8(record + 0x0A) & kPlaceWindTrap) {
+            const int water = world_.u8(record + 0x1B);
+            std::string number(3, ' ');
+            if (water >= 100) {
+                number[0] = static_cast<char>('0' + water / 100);
+            }
+            if (water >= 10) {
+                number[1] = static_cast<char>('0' + water / 10 % 10);
+            }
+            number[2] = static_cast<char>('0' + water % 10);
+            write(small, x, y - 7, number, kWaterColour);
+            repeat(kWaterDrop, water, left + 4, y, label_.right, true);
+        } else {
+            write(small, left + 0x0A, y, phrase(kNoWindTrapPhrase), kWaterColour);
+        }
+    }
+
+    y += 0x0C;
+    if (knownInside(record)) {
+        write(large, left + 4, y, phrase(kBattlePhrase), kKindColour);
+        g_.drawSprite(static_cast<std::uint16_t>(kBattleGauge + battle(record)), left + 4 + 0x2F, y + 6);
+    } else {
+        write(large, left + 4, y, phrase(kEquipmentPhrase), kKindColour);
+        y += 0x0A;
+        bool any = false;
+        for (std::size_t i = 0; i < 7; ++i) {
+            any = any || world_.u8(record + 0x14 + i) != 0;
+        }
+        if (!any) {
+            write(large, left + 4 + 0x0C, y + 5, phrase(kNonePhrase), kKindColour);
+        } else {
+            int x = left + 4;
+            for (std::size_t i = 0; i < 7; ++i) {
+                const int count = world_.u8(record + 0x14 + i);
+                if (count == 0) {
+                    continue;
+                }
+                const auto n = static_cast<std::uint16_t>(program.dataU8(kEquipmentSprites + i));
+                repeat(n, count, x, y, label_.bottom, false);
+                x += (sheet.sprite(n).header.widthAndFlags & 0x0FFF) + 1;
+            }
+        }
+    }
+    g_.selectSheet(previous);
+    d.targetBack();
 }
 
 } // namespace mentat

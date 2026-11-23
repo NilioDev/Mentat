@@ -210,3 +210,77 @@ An arrow takes the box away, adds its step to the view's middle (four
 right, down, left) and draws the view again on the back buffer; the
 view's rectangle is then copied to the screen. The middle does the same
 without taking the box away.
+
+## A place's label
+
+The map keeps the places it draws, each with the point of the screen
+where its sprite is centred. A click on the map (above the panel) first
+takes the box away. The place drawn nearest to the click, counting the
+distance across plus the distance down, the first of equal ones winning
+and only places of a kind below `0x31`, is the one clicked when that
+distance is below `0x14`. A click on a place shows its label; a click on
+the place whose label is shown, or away from every place, takes the
+label away by copying its rectangle from the back buffer to the screen.
+Moving the view, its middle and leaving the map take it away too.
+
+Troops giving orders, and what a click on a place does while Paul is in
+a sietch, are not built yet.
+
+### Its size
+
+What is inside a place is known when its byte `0x0A` has bit 1, or,
+unless it is a fort that is safe (kind `0x28` or more, byte `0x0A` bit
+3), when one of its troops (from its byte 9, each troop's byte 1 giving
+the next) has job (byte 3) 6 and is not the Harkonnens' (byte `0x10`
+bit 7). Its size is then 1. Otherwise it is 2, except for a safe fort
+whose byte `0x0A` has bit 4: size 0 for kinds `0x28` to `0x2F`, 2 from
+`0x30`.
+
+### Where
+
+The label is `0x6A` pixels wide; its height is state byte `0x11D0` +
+its size. With the place at (x, y): its left is x + `0x0F`, less `0x82`
+when that is `0xD2` or more; its top is y less half the height, at
+least 4 and at most `0x94` less the height. On the screen only, it is
+filled with the colour of byte 9 of data offset `0x1668` and outlined,
+inside it, with the colour of byte 8.
+
+### What it says
+
+In the large font, on the fill's colour, from the label's left L and top T:
+
+1. The kind's phrase as in the cockpit (see [cockpit.md](cockpit.md))
+   at (L + `0x0C`, T + 4), colour `0x9A`.
+2. The name as in the cockpit at (L + 4, T + 13), colour `0x96`.
+   Size 2 stops here. The row r is now T + 13.
+3. Size 0 only, when state byte `0x0A` has bit 5: in the small font,
+   colour `0x90`, phrase `0x6C` ("water:") at (L + 4, r + `0x0A`). When
+   the place's byte `0x0A` has bit 5 its water (byte `0x1B`) follows as
+   three characters, noughts in front written as spaces, and that many
+   of sprite `0x75` of `ONMAP.HSQ` go in a row from (L + 4,
+   r + `0x11`); otherwise phrase `0x6D` ("No wind-trap") at (L + `0x0A`,
+   r + `0x11`). The row moves on by `0x11`.
+4. At (L + 4, r + `0x0C`), colour `0x9A`:
+   - When its inside is known, phrase `0x4C` ("Battle:") and, at
+     (L + `0x33`, r + `0x12`), sprite `0x8E` + the battle's gauge (below).
+   - Otherwise phrase `0x6E` ("Equipment:"). From row r + `0x16`: when
+     the seven bytes from the place's `0x14` are all 0, phrase `0x69` at
+     (L + `0x10`, r + `0x1B`); otherwise, for each byte that is not 0, a
+     column of that many of its sprite (data offset `0x192F` + which
+     byte), starting at L + 4 and moving right by the sprite's width + 1
+     for each column.
+
+A row or column of n copies of a sprite fills the room from its start to
+the label's right (or bottom) edge: one copy every size + 2 pixels; when
+room / n is less than that, every (room − (size + 2)) / n pixels, and when
+that is below 2, every 2 pixels and only (room − (size + 2)) / 2 copies.
+
+### The battle's gauge
+
+Over the troops at the place: the Harkonnens' men (byte `0x1A`) make H;
+those with job 6 make M, and the words at `0x0C` and `0x0E` of those
+make C and E. With a = 256 M / (M + E) and b = 256 H / (H + C) (0 when
+the sum is 0) and m the larger, the value is (a − b) × 256, plus 255
+when a − b is below 0, divided by m rounding towards 0 (just a − b when
+m is 0); then halved rounding down, plus `0x80`, kept to a byte. The gauge is (value +
+`0x0F`) / 32.

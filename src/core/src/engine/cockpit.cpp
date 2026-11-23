@@ -351,7 +351,7 @@ void Cockpit::writeTarget() {
         const int kind = world_.u8(record + 8);
         int k = 0;
         if (kind >= 0x20) {
-            k = kind < 0x21 ? 1 : kind < 0x28 ? 2 : kind < 0x30 ? 3 : 2;
+            k = kind < 0x21 ? 1 : kind < 0x28 ? 2 : kind < 0x30 ? 3 : 1;
         }
         x = drawText(x, phrase(kKindPhrase + k), kNameColour);
         x = drawText(x, phrase(world_.u8(record)), kNameColour);
