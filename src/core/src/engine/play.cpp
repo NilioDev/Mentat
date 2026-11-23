@@ -182,6 +182,15 @@ constexpr int kSceneSay = 0x02;
 constexpr int kSceneRedraw = 0x04;
 constexpr int kSceneTalker = 0x06;
 constexpr int kSceneWait = 0x08;
+constexpr int kSceneNight = 0x0A;
+constexpr int kSceneCloser = 0x0C;
+// The pictures of those two steps: sprites of resource 0x27 over the room,
+// and the part of the room the second one enlarges.
+constexpr int kScenePictures = 0x27;
+constexpr int kNightFalls = 0x0D;
+constexpr int kCloserZoom = 3;
+constexpr int kCloserX = 0;
+constexpr int kCloserY = 0x32;
 constexpr int kSceneEnd = 0xFF;
 constexpr std::size_t kSceneMenu = 0x1FBA;
 constexpr std::size_t kSceneTalkMenu = 0x1FAE;
@@ -582,6 +591,31 @@ private:
         return list;
     }
 
+    // The room on the back buffer, kept as the background; enlarged when
+    // `closer`; sprite 0 of the scene's pictures at (78, 33) over it, or
+    // sprite 1 at (26, 4) when closer. Then shown.
+    void scenePicture(bool closer) {
+        d_.targetBack();
+        drawView();
+        if (closer) {
+            // The room without the ornament is enlarged; the ornament
+            // comes over it again.
+            g_.places().drawView();
+            d_.zoom(kCloserZoom, kCloserX, kCloserY, d_.back(), d_.saved());
+            d_.copyRect(d_.saved(), d_.back(), ClipRect{0, 0, 320, kSceneBottom});
+            panel_.drawOrnament();
+        } else {
+            d_.saveBackground();
+        }
+        g_.selectSheet(kScenePictures);
+        const ProgramFile& program = g_.resources().program();
+        const std::size_t list = closer ? 0x2298 : 0x2290;
+        g_.drawSprite(program.dataU16(list), program.dataU16(list + 2), program.dataU16(list + 4));
+        d_.showBack();
+        d_.flush();
+        lit_ = -1;
+    }
+
     void sceneShowRoom() {
         talk_.endRemark();
         d_.targetBack();
@@ -654,6 +688,29 @@ private:
                 break;
             }
             case kSceneWait:
+                return;
+            case kSceneNight:
+                // The hours pass until night, the sky falling dark at once;
+                // then a picture over the room. Waits.
+                sceneMenu_ = kSceneMenu;
+                talk_.endRemark();
+                while ((world_.clock() & 0x0F) < kNightFalls && !over_) {
+                    world_.setClock(world_.clock() + 1);
+                    newHour();
+                }
+                while (skyFadeLeft_ > 0) {
+                    skyFadeTick();
+                }
+                if (over_) {
+                    return;
+                }
+                scenePicture(false);
+                return;
+            case kSceneCloser:
+                // A part of the room enlarged, with a picture over it. Waits.
+                sceneMenu_ = kSceneMenu;
+                talk_.endRemark();
+                scenePicture(true);
                 return;
             case kSceneEnd:
                 endScene();

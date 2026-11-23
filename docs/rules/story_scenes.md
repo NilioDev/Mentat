@@ -37,6 +37,8 @@ The steps (one byte, then what it takes):
 | 4 | | The commands become list `0x1FBA`; the room is drawn again. Goes on. |
 | 6 | character c | The commands become list `0x1FBA`; character c is shown in front of the room, saying nothing. Goes on. |
 | 8 | | Waits. |
+| `0x0A` | | The commands become list `0x1FBA`. While the part of the day (the clock's low four bits) is below `0x0D`, an hour passes as it would (see [days.md](days.md)); the sky's colours then reach those of the hour at once. The room is drawn, kept as the background, and sprite 0 of resource `0x27` is drawn over it at (78, 33) (the list at data offset `0x2290`). Waits. |
+| `0x0C` | | The commands become list `0x1FBA`. The room is drawn, and the part from (0, 50) is enlarged at zoom level 3 (see [display.md](display.md#zoom)), without the panel's ornament, which is drawn over it again; then sprite 1 of resource `0x27` at (26, 4) (the list at `0x2298`). Waits. |
 | `0xFF` | | The end: the room's low byte comes back to what it was, the people are those who are there again, and the room is drawn with its own commands. |
 
 Before step `0x14` the program's lines in list 7 for each character
@@ -45,8 +47,7 @@ the same script can say different things.
 
 ## Not built yet
 
-The other steps: `0x0A` (hours pass until the 13th part of the day, then
-the room at night), `0x0C` (a picture of resource `0x27`), `0x0E` and
-`0x10` (Paul's vision of the desert), and those of the ending (`0x12` on).
-They are passed over, so the scenes at `0x12F8` and `0x1313` show little.
+The other steps: `0x0E` and `0x10` (Paul's vision of the desert), and
+those of the ending (`0x12` on). They are passed over, so the scene at
+`0x12F8` shows little.
 Nor the scene's music.
