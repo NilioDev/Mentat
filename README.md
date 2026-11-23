@@ -54,7 +54,7 @@ and touch controls.
 > gets the better of you, and you wake up back where you came from. In a
 > sietch you meet its Fremen, who can agree to work
 > for you. Their chief then takes your orders on the map, answering in a
-> box with his face: he tells you about his troop, and you can have it
+> box with his face and his own voice: he tells you about his troop, and you can have it
 > specialize in spice, the army or ecology, send an army troop to spy out
 > the nearest hidden Harkonnen fort and then attack it, have an ecology
 > troop build a wind-trap, give it equipment the sietch keeps

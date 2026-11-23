@@ -15,6 +15,7 @@
 #include "mentat/engine/places.hpp"
 #include "mentat/engine/platform.hpp"
 #include "mentat/engine/talk.hpp"
+#include "mentat/engine/talker.hpp"
 #include "mentat/engine/text_box.hpp"
 #include "mentat/engine/world.hpp"
 #include "mentat/gfx/font.hpp"
@@ -401,11 +402,16 @@ MTT_TEST("orders: a troop's chief answers in a box over the map and takes up an 
         }
         p.fiber = nullptr;
     };
+    double& voice = p.soundQueued[static_cast<int>(SoundChannel::Digital)];
+    voice = 0;
     run([&] { orders.open(troop); });
     MTT_CHECK(orders.active() && map.active() && talk.active() && talk.inBox());
-    // The chief says where his troop is, waiting; the commands are the
-    // orders, with only the occupation to choose and no more orders.
-    MTT_CHECK(talk.phrase() == 0x118);
+    // The chief says where his troop is, waiting, and is heard saying it;
+    // the commands are the orders, with only the occupation to choose and
+    // no more orders.
+    MTT_CHECK(talk.phrase() == 0x118 && g.talker().speaking());
+    g.pollInput();
+    MTT_CHECK(voice > 0);
     const auto& c = panel.commands();
     MTT_CHECK(c.size() == 5 && c[0].action == Orders::kInformation && c[1].phrase == 0x56 && (c[2].phrase & Command::kGrey) &&
               (c[3].phrase & Command::kGrey) && c[4].action == Orders::kNoMoreOrders);

@@ -31,7 +31,7 @@ clipped one pixel within the border. Each piece of the face goes where it
 would in a talk, less the face's focus point, plus the frame's inside
 corner: the focus is the pair of words at `0x22B9` plus four times the face
 less `0x0E` (the three Fremen faces). The face's set is the troop's, as in
-talks; it moves as in talks, with no voice.
+talks; it moves as in talks.
 
 The text is laid out like a box's text (see [text.md](text.md)) in colour
 `0xF0` over the box's fill, from `0x49` columns into the box and 4 rows
@@ -47,6 +47,11 @@ start when nothing more is found. "Ask for more information" says the next.
 When a line leaves the answer "maybe" (`0x80`, see
 [talking.md](talking.md)), the chief shows what his troop holds in his
 box, as when modifying it (below).
+
+After each line, when there is a recording of it (counted as in talks,
+see [talking.md](talking.md#voices)), the face starts a new idle sequence,
+its calm part as long as the words of the page, and the chief's voice says
+it, whatever is chosen for the subtitles: the text stays in the box.
 
 ## The commands
 
@@ -359,8 +364,3 @@ place of the route in turn.
   Cancel. Otherwise the chief answers as for a place clicked, about the
   route's first place (the situation always `0x0B`, never "where it is").
   How the troop then goes is in [moves.md](moves.md#the-prospectors-route).
-
-## Not built yet
-
-The chief's voice in the box, the orders
-from the map for troops on the move, and what troops do day by day.

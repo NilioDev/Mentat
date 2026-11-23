@@ -1409,7 +1409,7 @@ private:
             return;
         }
         if (orders_.active()) {
-            return; // the rest of the orders is not built yet
+            return; // nothing else acts while the orders are shown
         }
         if (talk_.command(action)) {
             return;

@@ -459,7 +459,12 @@ void Talk::afterLine(std::size_t at) {
             ended = true;
         }
     }
-    if (character_ >= 0 && character_ < kNoFaceFrom && !box_) {
+    if (box_ && character_ >= 0) {
+        // In the box the face starts over and the voice says the line too,
+        // whatever the subtitles.
+        game_.talker().restart(words_);
+        speak();
+    } else if (character_ >= 0 && character_ < kNoFaceFrom) {
         Talker& talker = game_.talker();
         talker.restart(words_);
         if (subtitle_.shown) {
@@ -1239,13 +1244,17 @@ void Talk::showBoxText(const std::string& page) {
                      box_->text.bottom - box_->text.top, box_->fill);
         drawTextBox(*to, *large_, page, box_->text, box_->colour);
     }
+    // The face's calm part lasts as long as the words, as in talks.
     words_ = 0;
+    for (const TextLine& l : layoutText(*large_, page, box_->text.right - box_->text.left)) {
+        words_ += l.words;
+    }
 }
 
 // --- The voice
 
 void Talk::speak() {
-    if (mode_ == Subtitles::Below || character_ < 0 || character_ >= kNoFaceFrom) {
+    if ((mode_ == Subtitles::Below && !box_) || character_ < 0 || character_ >= kNoFaceFrom) {
         return;
     }
     int who = 0;
