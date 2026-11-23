@@ -31,4 +31,27 @@ same pointer, so everything works the same way.
   from where the mouse pointer was. The mouse takes it back as soon as it
   moves.
 
-Not yet: changing the buttons.
+## Choosing the buttons
+
+A text file `gamepad.txt` in Mentat's own folder (beside the `saves`
+folder) can say what each button does, one `button = action` a line.
+Case, spaces, dashes and underscores do not matter, and `#` starts a
+comment. Buttons not named keep what they do; lines that cannot be read
+are left out (Mentat logs how many).
+
+- Buttons: `a`/`south`/`cross`, `b`/`east`/`circle`, `x`/`west`/`square`,
+  `y`/`north`/`triangle`, `back`/`select`, `guide`, `start`, `left stick`,
+  `right stick`, `left shoulder`/`lb`, `right shoulder`/`rb`, `dp up`/`up`,
+  `dp down`/`down`, `dp left`/`left`, `dp right`/`right`.
+- Actions: `click`, `right click`, `key` (or `skip`), `jump up`,
+  `jump down`, `jump left`, `jump right`, `quit`, `none`.
+
+For example, to click with B and keep Back from closing Mentat:
+
+```
+b = click
+a = right click
+back = none
+```
+
+The pieces are in `src/core/.../pad_buttons.hpp`.

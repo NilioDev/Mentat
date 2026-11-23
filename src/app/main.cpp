@@ -19,6 +19,7 @@
 #include "mentat/engine/fiber.hpp"
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/intro.hpp"
+#include "mentat/engine/pad_buttons.hpp"
 #include "mentat/engine/platform.hpp"
 #include "mentat/engine/play.hpp"
 #include "mentat/engine/pointer_jump.hpp"
@@ -29,6 +30,8 @@
 #include <array>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -62,6 +65,7 @@ struct App {
     float padX = 0;
     float padY = 0;
     std::uint8_t padButtons = 0; // as the mouse's: bit 0 left, bit 1 right
+    mentat::PadButtons buttons;  // what each button does
     Uint64 lastFrameNs = 0;
 
     ~App() {
@@ -312,6 +316,29 @@ void drawScreen(App& app) {
 
 } // namespace
 
+static_assert(SDL_GAMEPAD_BUTTON_SOUTH == 0 && SDL_GAMEPAD_BUTTON_BACK == 4 && SDL_GAMEPAD_BUTTON_DPAD_UP == 11 &&
+                  SDL_GAMEPAD_BUTTON_DPAD_RIGHT == 14 && SDL_GAMEPAD_BUTTON_COUNT <= mentat::PadButtons::kButtons,
+              "PadButtons counts the buttons in SDL's order");
+
+// The player's own choice of what the gamepad's buttons do, from
+// gamepad.txt beside the saved games (see docs/gamepad.md).
+void readPadButtons(App& app) {
+    char* pref = SDL_GetPrefPath("NilioDev", "Mentat");
+    if (pref == nullptr) {
+        return;
+    }
+    const std::filesystem::path file = std::filesystem::path(pref) / "gamepad.txt";
+    SDL_free(pref);
+    std::ifstream in(file, std::ios::binary);
+    if (!in) {
+        return;
+    }
+    const std::string text((std::istreambuf_iterator<char>(in)), {});
+    if (const int bad = app.buttons.read(text); bad > 0) {
+        SDL_Log("gamepad.txt: %d line(s) not understood", bad);
+    }
+}
+
 SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
     auto app = std::make_unique<App>();
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD)) {
@@ -330,6 +357,7 @@ SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
         SDL_CreateTexture(app->renderer, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, kScreenW, kScreenH);
     SDL_SetTextureScaleMode(app->texture, SDL_SCALEMODE_NEAREST);
     openAudio(*app);
+    readPadButtons(*app);
 
     openGameFiles(*app, argc, argv);
     if (app->problem.empty()) {
@@ -362,31 +390,33 @@ SDL_AppResult SDL_AppEvent(void* state, SDL_Event* event) {
         app->padPointer = false;
         return SDL_APP_CONTINUE;
     case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
-        switch (event->gbutton.button) {
-        case SDL_GAMEPAD_BUTTON_BACK:
+        switch (app->buttons.action(event->gbutton.button)) {
+        case mentat::PadAction::Quit:
             return SDL_APP_SUCCESS;
-        case SDL_GAMEPAD_BUTTON_DPAD_UP: jumpPadPointer(*app, 0, -1); break;
-        case SDL_GAMEPAD_BUTTON_DPAD_DOWN: jumpPadPointer(*app, 0, 1); break;
-        case SDL_GAMEPAD_BUTTON_DPAD_LEFT: jumpPadPointer(*app, -1, 0); break;
-        case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: jumpPadPointer(*app, 1, 0); break;
-        case SDL_GAMEPAD_BUTTON_SOUTH:
+        case mentat::PadAction::Up: jumpPadPointer(*app, 0, -1); break;
+        case mentat::PadAction::Down: jumpPadPointer(*app, 0, 1); break;
+        case mentat::PadAction::Left: jumpPadPointer(*app, -1, 0); break;
+        case mentat::PadAction::Right: jumpPadPointer(*app, 1, 0); break;
+        case mentat::PadAction::Click:
             takePadPointer(*app);
             app->padButtons |= 1;
             break;
-        case SDL_GAMEPAD_BUTTON_EAST:
+        case mentat::PadAction::RightClick:
             takePadPointer(*app);
             app->padButtons |= 2;
             break;
-        default:
+        case mentat::PadAction::Key:
             app->platform.keys.push_back(mentat::KeyPress{0x39, ' '});
+            break;
+        case mentat::PadAction::None:
             break;
         }
         return SDL_APP_CONTINUE;
     case SDL_EVENT_GAMEPAD_BUTTON_UP:
-        if (event->gbutton.button == SDL_GAMEPAD_BUTTON_SOUTH) {
-            app->padButtons &= static_cast<std::uint8_t>(~1u);
-        } else if (event->gbutton.button == SDL_GAMEPAD_BUTTON_EAST) {
-            app->padButtons &= static_cast<std::uint8_t>(~2u);
+        switch (app->buttons.action(event->gbutton.button)) {
+        case mentat::PadAction::Click: app->padButtons &= static_cast<std::uint8_t>(~1u); break;
+        case mentat::PadAction::RightClick: app->padButtons &= static_cast<std::uint8_t>(~2u); break;
+        default: break;
         }
         return SDL_APP_CONTINUE;
     default:
