@@ -200,6 +200,15 @@ public:
     static constexpr std::uint8_t kOutside = 0xFF;
     bool firstMessage(std::uint16_t& message, std::uint16_t& place) const;
     void dropMessage();
+    // The messages that only say news waits (those whose word's low byte is
+    // 1) go, as when the news is looked at.
+    void dropNewsReminders();
+    // The news in the message room: where in the queue each one that is
+    // new (or, with `seen`, already seen) is, newest first.
+    std::vector<int> newsShown(bool seen) const;
+    // News `at` of the queue is looked at: it is seen from now on, and
+    // byte 0x24 takes what it is about. Returns its word.
+    std::uint16_t lookAtNews(int at, bool seen);
     // Turns the state's word 0 one bit left; true for the bit that came
     // round.
     bool turnSeed();

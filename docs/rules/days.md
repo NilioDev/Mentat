@@ -81,7 +81,8 @@ At step `0x5C`, from the day at word `0x1156`, unless Paul is at place
 (the first of those with as many). With one, word `0x11DB` names it,
 byte `0xF8` grows by one, each of Paul's troops there gets bit 10 of
 word `0x12` and bit 4 of byte 3, and message `0x0F08` is left for it (see
-[work.md](work.md#the-chiefs-messages)).
+[work.md](work.md#the-chiefs-messages)). Paul looks at the news in the
+message room (see [news.md](news.md)).
 
 Each hour, unless the state's word `0x12` has bit 7: at step `0x5D`, when
 byte `0x1056` is 7 and the record at `0x1048` names a place, its byte 0

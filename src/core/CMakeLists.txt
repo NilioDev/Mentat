@@ -42,6 +42,7 @@ add_library(mtt_core STATIC
     src/engine/world_fights.cpp
     src/engine/world_story.cpp
     src/engine/vision.cpp
+    src/engine/message_room.cpp
     src/engine/world_days.cpp
     src/engine/orders.cpp
     src/engine/dialogue.cpp

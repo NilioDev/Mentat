@@ -67,7 +67,9 @@ and touch controls.
 > story moves on, doors in the palace open, people move to other rooms,
 > new places become known and news arrives. At moments of the story a
 > scene plays: the family gathers in a room and each speaks in turn while
-> you click "Continue...". The rest of the game is not there yet.
+> you click "Continue...". In the palace's message room you can view the
+news sent to you: the sender's hologram rises over the device and speaks.
+The rest of the game is not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the

@@ -394,6 +394,60 @@ void World::waterAndFading(FlatMap& map) {
     }
 }
 
+// The message room lists the news from the newest; a word with bit 7 has
+// been seen.
+std::vector<int> World::newsShown(bool seen) const {
+    constexpr std::size_t kNews = 0x1179;
+    std::vector<int> shown;
+    for (int i = u8(0xC8) - 1; i >= 0; --i) {
+        const bool wasSeen = (u8(kNews + 2 * static_cast<std::size_t>(i)) & 0x80) != 0;
+        if (wasSeen == seen) {
+            shown.push_back(i);
+        }
+    }
+    return shown;
+}
+
+std::uint16_t World::lookAtNews(int at, bool seen) {
+    constexpr std::size_t kNews = 0x1179;
+    const std::size_t e = kNews + 2 * static_cast<std::size_t>(at);
+    const std::uint16_t news = u16(e);
+    const int about = news >> 8;
+    setU8(0x24, static_cast<std::uint8_t>(about));
+    if (!seen) {
+        setU8(e, static_cast<std::uint8_t>(u8(e) | 0x80));
+        setU8(0xC9, static_cast<std::uint8_t>(u8(0xC9) - 1));
+        // The Emperor's second and third warnings.
+        if ((news & 0x3F) == 0x0B && static_cast<std::uint8_t>(about - 2) < 2) {
+            setU8(0xBF, static_cast<std::uint8_t>(u8(0xBF) | 0x20));
+        }
+    }
+    return news;
+}
+
+void World::dropNewsReminders() {
+    const int count = u8(kMessageQueue);
+    int kept = 0;
+    for (int i = 0; i < count; ++i) {
+        const std::size_t from = kMessageQueue + 1 + 4 * static_cast<std::size_t>(i);
+        if (u8(from) == 1) {
+            continue;
+        }
+        const std::size_t to = kMessageQueue + 1 + 4 * static_cast<std::size_t>(kept);
+        const std::uint16_t message = u16(from);
+        const std::uint16_t place = u16(from + 2);
+        setU16(to, message);
+        setU16(to + 2, place);
+        ++kept;
+    }
+    setU8(kMessageQueue, static_cast<std::uint8_t>(kept));
+    if (kept != count) {
+        const std::size_t after = kMessageQueue + 1 + 4 * static_cast<std::size_t>(kept);
+        setU16(after, 0);
+        setU16(after + 2, 0);
+    }
+}
+
 // News for Paul (from the Emperor, the Harkonnens...) waits at 0x1179: a
 // count at 0xC8, up to ten words; 0xC9 counts all that came.
 void World::sendNews(std::uint16_t news) {

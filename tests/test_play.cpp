@@ -11,6 +11,7 @@
 #include "mentat/engine/world.hpp"
 
 #include <optional>
+#include <vector>
 
 using namespace mentat;
 
@@ -100,4 +101,41 @@ MTT_TEST("story: a step opens the way to the message room and moves people") {
     MTT_CHECK(w.raiseStory(0x10) && (w.u16(0xFD8) & 0xFF) == 5);
     MTT_CHECK(w.u8(0xC8) == 1 && w.u16(0x1179) == 0x010B);
     g.places().stateByte = {};
+}
+
+MTT_TEST("news: the message room lists news from the newest, and looking at one marks it seen") {
+    auto program = test::openProgram();
+    if (!program) {
+        MTT_SKIP("no DNCDPRG.EXE in gamedata/");
+    }
+    World w(*program);
+    // Three pieces of news, the middle one already seen.
+    w.setU16(0x1179, 0x020B);
+    w.setU16(0x117B, 0x0189);
+    w.setU16(0x117D, 0x0C0B);
+    w.setU8(0xC8, 3);
+    w.setU8(0xC9, 2);
+    MTT_CHECK((w.newsShown(false) == std::vector<int>{2, 0}));
+    MTT_CHECK((w.newsShown(true) == std::vector<int>{1}));
+    w.setU8(0xBF, 0);
+    MTT_CHECK(w.lookAtNews(0, false) == 0x020B);
+    MTT_CHECK(w.u8(0x24) == 2 && w.u8(0xC9) == 1 && (w.u8(0x1179) & 0x80));
+    MTT_CHECK(w.u8(0xBF) == 0x20); // the Emperor's second warning
+    MTT_CHECK((w.newsShown(true) == std::vector<int>{1, 0}));
+    // Looking again at news already seen changes nothing but what it is
+    // about.
+    MTT_CHECK(w.lookAtNews(1, true) == 0x0189 && w.u8(0xC9) == 1 && w.u8(0x24) == 1);
+
+    // The reminders that news waits go when the list is shown.
+    w.setU8(World::kMessageQueue, 3);
+    w.setU16(World::kMessageQueue + 1, 0x0201);
+    w.setU16(World::kMessageQueue + 3, 0);
+    w.setU16(World::kMessageQueue + 5, 0x0105);
+    w.setU16(World::kMessageQueue + 7, 0x0180);
+    w.setU16(World::kMessageQueue + 9, 0x0001);
+    w.setU16(World::kMessageQueue + 11, 0);
+    w.dropNewsReminders();
+    MTT_CHECK(w.u8(World::kMessageQueue) == 1);
+    MTT_CHECK(w.u16(World::kMessageQueue + 1) == 0x0105 && w.u16(World::kMessageQueue + 3) == 0x0180);
+    MTT_CHECK(w.u16(World::kMessageQueue + 5) == 0 && w.u16(World::kMessageQueue + 7) == 0);
 }

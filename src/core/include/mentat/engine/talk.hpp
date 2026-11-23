@@ -147,6 +147,12 @@ public:
     // it (`x`, `y`, or negative), says the first line of its list 7 that
     // may be said. False when there is none. endRemark() ends it.
     bool sceneLine(int c, int x, int y, int face, int variant);
+    // News in the message room: character `c`, zoomed in on (`x`, `y`)
+    // where its hologram stands, says the first line of its list 4 that
+    // may be said, with "Viewed" and " WHAT ? " to choose from. False when
+    // there is none. endRemark() ends it.
+    bool news(int c, int x, int y);
+    static constexpr std::uint16_t kViewed = 0x2993;
     // The talk ends without a word, as when a scene takes over.
     void leave();
     // A scene shows character `c` in front of the room, saying nothing.
