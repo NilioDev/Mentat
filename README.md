@@ -47,13 +47,15 @@ and touch controls.
 > box with his face: he tells you about his troop, and you can have it
 > specialize in spice or in the army, or send it somewhere: point at a
 > place on the small map of the regions, and if the chief agrees the troop
-> sets off and walks there hour by hour, its mark crossing the map. The
-> map shows your troops' marks, by what they do. Once the story gets that
-> far, "See spice density" on the map opens that small map of the regions
-> you know, coloured by their spice or, with a click on its bar, by the
+> sets off and walks there hour by hour, its mark crossing the map. A
+> troop that reaches a place where nobody else is takes it; taking a
+> Harkonnen fort raises your charisma and your troops' spirits. The map
+> shows your troops' marks, by what they do. Once the story gets that far,
+> "See spice density" on the map opens that small map of the regions you
+> know, coloured by their spice or, with a click on its bar, by the
 > work of your troops there; point at a place to see who is there, or
-> click it to move the map to it. Taking places and fighting, the troops'
-> equipment, their daily work and the rest of the game are not there yet.
+> click it to move the map to it. Fighting, the troops' equipment, their
+> daily work and the rest of the game are not there yet.
 
 Mentat is not affiliated with or endorsed by the makers or publishers of the
 original game or the owners of the *Dune* name. It contains none of the

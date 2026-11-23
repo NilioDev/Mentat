@@ -48,10 +48,13 @@ public:
     int random(int mask);
     // A number from the original's second generator (all 16 bits).
     int random2();
+    // A number from 0 to `most` from the original's third generator.
+    int random3(int most);
     // Starts the generators again from `seed`, as a new game does.
     void seedRandom(std::uint16_t seed) {
         randomSeed_ = seed;
         randomSeed2_ = seed;
+        randomSeed3_ = seed;
     }
     // When not negative, the seed a new game uses instead of the time of
     // day (for comparing runs).
@@ -167,6 +170,7 @@ private:
     std::unique_ptr<HnmPlayer> video_;
     std::uint16_t randomSeed_ = 0;
     std::uint16_t randomSeed2_ = 0;
+    std::uint16_t randomSeed3_ = 0;
     bool repeating() const { return soundPart_ < soundParts_.size(); }
     std::vector<VocPart> soundParts_;
     std::size_t soundPart_ = 0;

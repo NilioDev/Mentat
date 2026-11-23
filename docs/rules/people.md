@@ -152,13 +152,13 @@ their troop, if not Paul's yet and not the Harkonnens':
 
 1. counts at `0x28`; when that reaches the byte at `0x1178` the story
    moves on to step `0x4C`;
-2. raises Paul's charisma (`0x29`) by 1, at most `0xC8`; each time it
-   passes a multiple of 4, the keenness of every troop whose byte 3 has
-   neither bit 7 nor bit 5 grows by one, at most 100;
+2. raises Paul's charisma (`0x29`) by 1 (see
+   [places_taken.md](places_taken.md#charisma));
 3. gets job 2 (keeping bit 5 of byte 3), its word `0x0A` the clock, its
    words `0x0C` and `0x0E` 0, and its byte `0x14` the day;
 4. when its place's byte `0x0B` is 0, that becomes 2 and the land around
-   the place is looked over for spice (not built yet).
+   the place, 2 points about, is looked over (see
+   [places_taken.md](places_taken.md#looking-over-the-land)).
 
 The room's people are then set up again; for troop 3 its keenness and
 `0x36` grow by `0x18`.

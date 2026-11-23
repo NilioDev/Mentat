@@ -27,7 +27,6 @@ constexpr std::size_t kSmugglerNow = 0x10B4;
 constexpr std::size_t kNameKinds = 0x1141; // a byte for each second word of a place's name
 constexpr std::size_t kLearned = 0x11CE;
 constexpr std::size_t kRallied = 0x28;
-constexpr std::size_t kCharisma = 0x29;
 constexpr std::size_t kRallyGoal = 0x1178;
 
 // Characters 12 to 15 and their records.
@@ -43,6 +42,7 @@ constexpr int kMaxChiefs = 8;
 
 // Troops.
 constexpr std::uint8_t kMoving = 0x20;  // byte 3
+constexpr std::uint8_t kLookedOver = 0x20; // map bytes' bits 4 and 5
 constexpr std::uint8_t kNotPauls = 0x80; // byte 3
 constexpr std::uint8_t kHarkonnen = 0x80; // byte 0x10
 constexpr int kVillage = 0x21;
@@ -510,7 +510,7 @@ void World::learnTroop(int troop) {
     learnPlace(place);
 }
 
-bool World::enlist(int troop) {
+bool World::enlist(int troop, FlatMap* map) {
     const std::size_t t = troopRecord(troop);
     const int job = u8(t + 3);
     if (!(job & kNotPauls) || (u8(t + 0x10) & kHarkonnen)) {
@@ -518,20 +518,8 @@ bool World::enlist(int troop) {
     }
     setU8(kRallied, static_cast<std::uint8_t>(u8(kRallied) + 1));
     const bool goal = u8(kRallied) >= u8(kRallyGoal);
-    // Paul's charisma grows by one; each time it passes a multiple of 4,
-    // every troop of his grows keener.
-    const int before = u8(kCharisma);
-    const int after = std::min(before + 1, 0xC8);
-    setU8(kCharisma, static_cast<std::uint8_t>(after));
-    const int steps = (((after & 0xFC) - (before & 0xFC)) & 0xFF) >> 2;
-    if (steps != 0) {
-        for (std::size_t r = kTroops; r < 0xFBB; r += kTroopSize) {
-            if (u8(r + 3) & 0xA0) {
-                continue;
-            }
-            setU8(r + 0x15, static_cast<std::uint8_t>(std::min(u8(r + 0x15) + steps, 0x64)));
-        }
-    }
+    // Paul's charisma grows by one.
+    raiseCharisma(1);
     setU8(t + 3, static_cast<std::uint8_t>((job & kMoving) | 2));
     setU16(t + 0x0A, u16(kClockWord));
     setU16(t + 0x0C, 0);
@@ -539,9 +527,11 @@ bool World::enlist(int troop) {
     setU8(t + 0x14, static_cast<std::uint8_t>(u16(kClockWord) >> 4));
     const std::size_t place = u16(t + 4);
     if (u8(place + 0x0B) == 0) {
+        // The land around the place is looked over for spice.
         setU8(place + 0x0B, 2);
-        // The land around the place is looked over for spice; the map's
-        // marks for that are not built yet.
+        if (map != nullptr) {
+            markAround(place, 2, kLookedOver, *map);
+        }
     }
     return goal;
 }

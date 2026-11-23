@@ -118,8 +118,13 @@ public:
     // people, and of the place it is at.
     void learnTroop(int troop);
     // The Fremen of troop `troop` work for Paul. True when as many troops
-    // have rallied to him as the story waits for.
-    bool enlist(int troop);
+    // have rallied to him as the story waits for. With the map, the land
+    // around a place first rallied to is looked over.
+    bool enlist(int troop, FlatMap* map = nullptr);
+    // The land within `radius` points of place `record`'s point is marked
+    // as looked over with `mark` (bits 4 and 5 of each map byte), but
+    // where spice was found.
+    void markAround(std::size_t record, int radius, std::uint8_t mark, FlatMap& map);
 
     // The face the people of troop `troop` are shown with (a portrait
     // number), and which of its sets in `variant`: by the troop's name.
@@ -144,11 +149,11 @@ public:
     void unlinkTroop(int troop);
     int linkTroop(int troop, std::size_t place);
     // The troop sets off for `place`, and makes its first steps.
-    void startMove(int troop, std::size_t place, const FlatMap& map);
+    void startMove(int troop, std::size_t place, FlatMap& map);
     // Up to `steps` steps towards its destination; true when it arrived.
-    bool stepTroop(int troop, int steps, const FlatMap& map);
+    bool stepTroop(int troop, int steps, FlatMap& map);
     // Each hour: the troops on the move step on, but troop `except`.
-    void moveTroops(int except, const FlatMap& map);
+    void moveTroops(int except, FlatMap& map);
     // Turns the state's word 0 one bit left; true for the bit that came
     // round.
     bool turnSeed();
@@ -156,6 +161,12 @@ public:
     // where it heads changed, or it moved on its way.
     std::function<void(int troop)> markChanged;
     std::function<void(int troop)> markMoved;
+    // Told when a place changed in a way the map shows.
+    std::function<void(std::size_t record)> placeChanged;
+    // The game's first and third generators (see Game::random and
+    // Game::random3), for what troops do; without them, 0.
+    std::function<int(int mask)> random;
+    std::function<int(int most)> random3;
 
     // The places and their troops as the program sets them up when it
     // starts: each place moves onto the nearest point of the map, which is
@@ -178,8 +189,15 @@ public:
 
 private:
     int harvest(std::size_t troop);
-    void arrive(int troop);
+    void arrive(int troop, FlatMap& map);
     void settle(int troop);
+    void capture(int troop, FlatMap& map);
+    void sendAway(int troop);
+    int countHarkonnenForts();
+    void raiseCharisma(int by);
+    void raiseSpirits(int by);
+    void troopsAt(std::size_t place, const std::function<void(int troop)>& each);
+    int dice(int mask) { return random ? random(mask) : 0; }
     void lowerSpirits(std::size_t troop, int by);
     void heldEquipment(std::size_t troop, std::size_t place, int change);
 

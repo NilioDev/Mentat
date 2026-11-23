@@ -125,6 +125,9 @@ public:
     // A troop on its way has moved: its mark follows it, comes into
     // sight or goes.
     void markMoved(int troop);
+    // A place changed in a way the map shows: once nothing stands over
+    // the map, the view is drawn again.
+    void placeChanged(std::size_t record);
 
     // The map's point at the middle of the view.
     std::uint16_t longitude() const { return longitude_; }
@@ -173,6 +176,7 @@ private:
     std::uint16_t longitude_ = 0;
     int latitude_ = 0;
     int chosen_ = 0;
+    bool stale_ = false;
     std::vector<Mark> marks_;
     Surface base_{320, 200}; // the map without the marks
     std::uint32_t lastStep_ = 0;

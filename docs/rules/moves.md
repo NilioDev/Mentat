@@ -83,8 +83,8 @@ settles (below); nothing more happens.
 Otherwise it settles, then:
 
 - attacking (5): a hidden place (byte `0x0A` bit 7) is shown; that is all;
-- otherwise, alone at the place (the first of its chain): it would take
-  the place, which is not built yet;
+- otherwise, alone at the place (the first of its chain): it takes the
+  place (see [places_taken.md](places_taken.md));
 - otherwise, each of Paul's troops there (byte 3 below `0x80`, without
   bit 5) gets ready to fight: a prospector gets bit 4 of byte 3, any other
   not fighting yet has its occupation set to 6.
@@ -121,5 +121,4 @@ to go (see [spice_map.md](spice_map.md)), the troop's way is drawn in it.
 ## Not built yet
 
 Fighting troops leaving their fight, the second destination of a troop
-whose byte 3 has bits 0 and 1, the troop shown three sietches, taking a
-place, and what the original does when a troop arrives where Paul is.
+whose byte 3 has bits 0 and 1, the troop shown three sietches, and what the original does when a troop arrives where Paul is.
