@@ -66,6 +66,26 @@ constexpr std::size_t kMixer = 0x21F4;
 constexpr std::size_t kSeeMap = 0x220C;
 constexpr std::size_t kCallWorm = 0x2214;
 constexpr std::size_t kMassiveAttack = 0x2218; // and "fight for a whole day" after it
+constexpr std::size_t kWaitForEvening = 0x21E0; // and "wait for morning" after it
+constexpr int kEveningFrom = 0x0B;              // the hour from which morning is waited for
+// What those commands do (the original's code for them).
+constexpr std::uint16_t kWaitEvening = 0x0F48;
+constexpr std::uint16_t kWaitMorning = 0x0F67;
+constexpr std::uint16_t kFightAllDay = 0x0FC5;
+// Walking in the desert (see docs/rules/desert.md): the sun (SUN.HSQ)
+// from so many steps, every 16 steps; at the last, Paul faints (the video
+// DEAD3.HNM), lies there 5 hours and is carried home.
+constexpr int kSunSheet = 0x22;
+constexpr int kStepsToSun = 0x14;
+constexpr int kStepsToFaint = 0x37;
+constexpr int kFaintVideo = 0x0B;
+constexpr int kHoursUnconscious = 5;
+// The desert's pictures: DN20.HSQ on, or, where the land is green,
+// VG01.HSQ on.
+constexpr int kDesertPictures = 0x42;
+constexpr int kDesertCount = 0x13;
+constexpr int kGreenPictures = 0x88;
+constexpr int kGreenCount = 10;
 // State the commands depend on.
 constexpr std::size_t kAtWar = 0x2B;
 constexpr std::size_t kProgress = 0x2A;
@@ -1297,6 +1317,10 @@ private:
             openCockpit();
             return;
         }
+        if ((action == kWaitEvening || action == kWaitMorning || action == kFightAllDay) && !map_.active()) {
+            waitFor(action);
+            return;
+        }
         if (action == Cockpit::kOpen && !cockpit_.active()) {
             openCockpit();
             return;
@@ -2256,10 +2280,18 @@ private:
 
     // Through one of the room's ways out, to the next room of the place.
     void walk(int direction) {
+        if (!world_.inside()) {
+            walkDesert(direction + 1);
+            return;
+        }
         const auto exits = g_.places().exits();
         const auto exit = static_cast<std::int8_t>(exits[static_cast<std::size_t>(direction)]);
-        if (exit <= 0) {
-            return; // the ways outside are not built yet
+        if (exit == 0) {
+            return;
+        }
+        if (exit < 0) {
+            walkDesert(-exit); // a way outside
+            return;
         }
         // Those here may have something to say first, or stop him.
         world_.setU8(kSituation, kLeaving);
@@ -2280,6 +2312,148 @@ private:
         d_.showBack();
         d_.flush();
         cameIn();
+    }
+
+    // A step in the desert, or out into it (see docs/rules/desert.md).
+    void walkDesert(int way) {
+        const bool outside = !world_.inside();
+        const bool arrived = world_.walkDesert(way);
+        d_.targetBack();
+        g_.forgetPalette();
+        drawView();
+        d_.showBack();
+        d_.flush();
+        if (arrived) {
+            quietSince_ = g_.platform().ticks;
+            world_.setU8(kEntries, 1);
+            speakUp();
+            return;
+        }
+        if (outside) {
+            sunBeatsDown();
+        }
+    }
+
+    // Long in the desert, every 16 steps the sun dazzles Paul a little
+    // longer, until he faints.
+    void sunBeatsDown() {
+        const int over = world_.desertSteps() - kStepsToSun;
+        if (over < 0 || (over & 0x0F) != 0) {
+            return;
+        }
+        d_.targetBack();
+        g_.selectSheet(kSunSheet);
+        g_.drawSprite(0, 0, 0);
+        d_.showBack();
+        d_.flush();
+        g_.waitTicks((over >> 4) + 1);
+        if (world_.desertSteps() >= kStepsToFaint) {
+            faint();
+            return;
+        }
+        d_.targetBack();
+        g_.forgetPalette();
+        drawView();
+        d_.showBack();
+        d_.flush();
+    }
+
+    // Paul faints in the sand; hours later he wakes where he last came in,
+    // and those there tell him how he was found.
+    void faint() {
+        flight_.playVideo(kFaintVideo);
+        if (!passHours(kHoursUnconscious)) {
+            return;
+        }
+        world_.carriedHome();
+        settleSky();
+        d_.targetBack();
+        g_.forgetPalette();
+        drawView();
+        d_.transition(Display::kDissolve);
+        lit_ = -1;
+        cameIn();
+    }
+
+    // Hours go by at once, as they would have; false when the game ended
+    // meanwhile.
+    bool passHours(int hours) {
+        for (int i = 0; i < hours; ++i) {
+            world_.setClock(world_.clock() + 1);
+            newHour();
+            if (over_) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // "Wait for evening" (until the 12th part of the day) and "wait for
+    // morning" (the next day's first); "fight for a whole day" passes the
+    // hours while the fight goes on, 16 at most.
+    void waitFor(std::uint16_t action) {
+        const int clock = world_.clock();
+        int hours = 0;
+        if (action == kFightAllDay) {
+            for (int i = 0; i < 16; ++i) {
+                if (!passHours(1)) {
+                    return;
+                }
+                if (world_.u8(kAtWar) == 0) {
+                    break;
+                }
+            }
+        } else {
+            if (action == kWaitEvening) {
+                if ((clock & 0x0F) >= 0x0C) {
+                    return;
+                }
+                hours = ((clock & 0xFFF0) | 0x0C) - clock;
+            } else {
+                if ((clock & 0x0F) < kEveningFrom) {
+                    return;
+                }
+                hours = ((clock & 0xFFF0) + 0x10) - clock;
+            }
+            if (world_.u8(kProgress) == kQuietStep) {
+                quietSince_ -= kQuietStepWait; // waiting counts as a long quiet
+            }
+            if (!passHours(hours)) {
+                return;
+            }
+        }
+        settleSky();
+        d_.targetBack();
+        drawView();
+        d_.showBack();
+        d_.flush();
+    }
+
+    // The picture of the desert where Paul stands: the place he last came
+    // into while he is still on its way out, else one of the desert's (or
+    // of the green land's) by where he is.
+    int desertPicture() {
+        const std::size_t home = world_.home();
+        const int room = world_.room();
+        const int place = world_.place();
+        if (room == world_.u16(home + 2)) {
+            const int p = g_.places().outsidePicture(world_.u8(home + 8), world_.u8(home), (place >> 8) & 0xFF);
+            if (p >= 0) {
+                return p;
+            }
+        }
+        bool green = (world_.u8(home + 0x0A) & 1) != 0;
+        const FlatMap& map = map_.flatMap();
+        const int point = map.pointAt(static_cast<std::uint16_t>(room), static_cast<std::int8_t>(place & 0xFF));
+        const auto& bytes = map.bytes();
+        for (int i = point - 1; i <= point + 2 && !green; ++i) {
+            if (i >= 0 && i < static_cast<int>(bytes.size()) && (bytes[static_cast<std::size_t>(i)] & 0x30) == 0x10) {
+                green = true;
+            }
+        }
+        const int turned = (((place & 0xFF) << 8) | ((place >> 8) & 0xFF)) ^ room;
+        const int n = (turned + 1) & 0xFFFF;
+        return green ? kGreenPictures + n % kGreenCount : kDesertPictures + n % kDesertCount;
     }
 
     // Paul comes into the Harkonnens' throne room: the story is over and
@@ -2353,7 +2527,10 @@ private:
 
     // Puts sky `n`'s colours in `to`: from inside a room the colours of
     // the windows, from outside those of the sky; then the panel's.
-    void loadSky(int n, Palette& to) { loadSky(n, to, world_.inside()); }
+    void loadSky(int n, Palette& to) { loadSky(n, to, roomSky()); }
+    // The sky as a room's view shows it (with Paul inside or walking in
+    // the desert), not as from an ornithopter.
+    bool roomSky() const { return world_.inside() || !flight_.active(); }
     void loadSky(int n, Palette& to, bool inside) {
         g_.selectSheetKeepPalette(resource::kSky + (inside ? 1 : 0));
         const SpriteView v = g_.sheet().sprite(static_cast<std::size_t>(n));
@@ -2374,7 +2551,7 @@ private:
     }
 
     void markSky() {
-        const bool inside = world_.inside();
+        const bool inside = roomSky();
         const int first = inside ? kInsideSkyFirst : kOutsideSkyFirst;
         const int count = inside ? kInsideSkyCount : kOutsideSkyCount;
         for (int i = first; i < first + count; ++i) {
@@ -2401,6 +2578,14 @@ private:
         markSky();
     }
 
+    // Hours went by at once: the sky is the hour's, without fading to it.
+    void settleSky() {
+        if (skyFadeLeft_ > 0) {
+            skyFadeLeft_ = 0;
+            g_.removeTimer(kSkyTimer);
+        }
+    }
+
     // When the hour turns: the colours move to the new sky a little every
     // 16 ticks.
     void fadeSky() {
@@ -2425,7 +2610,7 @@ private:
             g_.removeTimer(kSkyTimer);
             return;
         }
-        const bool inside = world_.inside();
+        const bool inside = roomSky();
         d_.fadeStep(inside ? kInsideSkyFirst : kOutsideSkyFirst, inside ? kInsideSkyCount : kOutsideSkyCount,
                     skyFadeLeft_);
         d_.fadeStep(kPanelColoursFirst, kPanelColoursCount, skyFadeLeft_);
@@ -2532,7 +2717,10 @@ private:
         places.moreChiefs = people_.chiefs.empty() ? 0 : static_cast<int>(people_.chiefs.size()) - 1;
         places.standingList = scene_ ? sceneStanding_ : std::vector<int>{};
         const int room = world_.room();
-        if (world_.inside() && room == kSkyRoom) {
+        if (!world_.inside()) {
+            places.drawDesert(desertPicture());
+            setSky();
+        } else if (world_.inside() && room == kSkyRoom) {
             places.drawView([&] { places.drawSky(); });
         } else if (world_.inside() && (room & 0xFF) == kEntrance) {
             places.drawView([&] { drawEntranceView(); });
@@ -2558,15 +2746,20 @@ private:
     // see docs/rules/game.md.
     std::vector<Command> placeCommands() const {
         std::vector<Command> list;
-        if (!world_.inside()) {
-            return list; // the views outside are not built yet
-        }
         auto grey = [](Command c, bool greyed) {
             if (greyed) {
                 c.phrase = static_cast<std::uint16_t>(c.phrase | Command::kGrey);
             }
             return c;
         };
+        if (!world_.inside()) {
+            // In the desert.
+            list.push_back(commandAt(kSeeMap));
+            list.push_back(grey(commandAt(kCallWorm), world_.u8(kProgress) < kWormProgress));
+            list.push_back(commandAt(kWaitForEvening + (world_.hour() < kEveningFrom ? 0 : 4)));
+            list.push_back(commandAt(kMixer));
+            return list;
+        }
         const int room = world_.room() & 0xFF;
         list.push_back(commandAt(kSeeMap));
         if (room == kEntrance) {

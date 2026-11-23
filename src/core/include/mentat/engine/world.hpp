@@ -77,6 +77,18 @@ public:
     // when it is a sietch.
     void findPlace(std::size_t record);
 
+    // --- Walking in the desert (see docs/rules/desert.md)
+    // Paul takes a step in the desert: from a place's room through one of
+    // its ways outside, or, outside, one step; `way` 1 up, 2 right, 3 down,
+    // 4 left, 5 none. True when the step brings him into a place.
+    bool walkDesert(int way);
+    // The steps taken in the desert since Paul was last in a place (at
+    // most 0x7F).
+    int desertSteps() const { return desertSteps_; }
+    // Paul, found unconscious in the desert, is carried to the place he
+    // last came into.
+    void carriedHome();
+
     // --- The story (see docs/rules/story_steps.md)
     // The story moves on to `step` when that is past the step reached: the
     // story's lines run (storyEvents), then what the step itself changes.
@@ -374,6 +386,7 @@ private:
     std::uint16_t fade_ = 1;
     std::vector<std::uint8_t> keep_;
     std::vector<std::uint8_t> warnings_;
+    int desertSteps_ = 0;
 };
 
 } // namespace mentat

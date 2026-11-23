@@ -67,6 +67,12 @@ public:
     // surroundings, by the kind of place (byte 8 of its record) and the
     // first word of its name.
     void drawOutside(int kind, int firstName);
+    // The picture of that view (a resource) from `step` 256ths of a
+    // latitude south of the place, Paul walking away from it; -1 once the
+    // place is out of sight.
+    int outsidePicture(int kind, int firstName, int step) const;
+    // The desert where Paul walks: picture `picture`, nobody in it.
+    void drawDesert(int picture);
     // The ornithopters kept at a place, in front of its first room.
     void drawOrnithopters(int count, bool sietch);
     // The first of them taking off (`side` 1) or landing (`side` -1),

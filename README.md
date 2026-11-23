@@ -42,7 +42,10 @@ and touch controls.
 > hidden sietch you fly past, and you are warned when you enter the
 > Harkonnens' zone; fly on and they catch you, and the game ends with the
 > original's flashes, video and words, where you can start again, load a
-> game or stop. In a sietch you meet its Fremen, who can agree to work
+> game or stop. You can also walk out of a place into the desert, step by
+> step, and wait there for evening or morning; walk too far and the sun
+> gets the better of you, and you wake up back where you came from. In a
+> sietch you meet its Fremen, who can agree to work
 > for you. Their chief then takes your orders on the map, answering in a
 > box with his face: he tells you about his troop, and you can have it
 > specialize in spice, the army or ecology, send an army troop to spy out
@@ -134,7 +137,8 @@ button acts as a key.
 | Action | Mouse | Keyboard | Gamepad |
 | --- | --- | --- | --- |
 | Skip a video | Click | Any key | Any button |
-| Walk to another room | Click an arrow | | |
+| Walk to another room, or out into the desert | Click an arrow | | |
+| Let the hours pass | In the desert, click "WAIT FOR EVENING" or "WAIT FOR MORNING" | | |
 | Talk to someone | Click the person or their name | | |
 | Hear more, ask again, stop talking | Click a line of the talk menu | | |
 | Look at the map | Click "SEE DUNE MAP"; "EXIT MAPS" goes back | | |

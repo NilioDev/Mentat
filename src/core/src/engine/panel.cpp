@@ -213,6 +213,8 @@ void Panel::setArrows(const World& world, const std::array<std::uint8_t, 4>& exi
         }
     } else {
         pad.sprite = kArrowsOutside;
+        // The middle stays as it was, hidden since the first room.
+        middle.flags = Zone::kHidden;
         for (int i = 0; i < 4; ++i) {
             Zone& z = zones_[static_cast<std::size_t>(kArrows + 1 + i)];
             z.sprite = static_cast<std::uint16_t>(kFirstArrow + i);

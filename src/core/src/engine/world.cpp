@@ -132,6 +132,7 @@ void World::enterPlace(std::size_t record) {
     const int room = (kind << 8) | 1;
     const int place = (n << 8) | 0x80;
     goTo(room, place);
+    desertSteps_ = 0;
     setU16(kHome, static_cast<std::uint16_t>(record));
     setU8(kPlaceNumber, static_cast<std::uint8_t>(n));
 }
