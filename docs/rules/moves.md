@@ -146,6 +146,10 @@ three comes in at the end), and the troop sets off for the first place
 then; with none, it does not set off. Arriving at the route's first place
 moves the route up a word too.
 
-## Not built yet
+## Arriving where Paul is
 
-What the original does when a troop arrives where Paul is.
+When one of Paul's troops settles at the place Paul is at, and Paul is in
+the room where the troops stand (the first while they fight, else the
+second), the room is drawn again at the end of the hour, with the
+newcomers, as long as nothing is shown over it and its own commands are
+listed.

@@ -45,6 +45,7 @@ constexpr std::uint16_t kNowhere = 0xFBC;
 constexpr int kNear = 7;
 constexpr std::size_t kHomeWord = 0x1150;  // Paul's home
 constexpr std::size_t kStoryStep = 0x2A;
+constexpr std::size_t kTroopsInFirstRoom = 0x2B;
 
 std::int16_t s16(std::uint16_t v) { return static_cast<std::int16_t>(v); }
 
@@ -351,6 +352,12 @@ void World::settle(int troop) {
     heldEquipment(t, place, 1);
     if (u8(t + 3) < kNotPauls) {
         resetOccupation(troop, u8(t + 3) & kOccupation);
+        // Arriving where Paul is, in the room where the troops stand (the
+        // first while they fight, else the second): it is drawn again at
+        // the hour's end.
+        if (place == u16(kPlaceRecord) && u8(kRoomNumber) == (u8(kTroopsInFirstRoom) != 0 ? 1 : 2)) {
+            troopArrivedHere = true;
+        }
     }
 }
 

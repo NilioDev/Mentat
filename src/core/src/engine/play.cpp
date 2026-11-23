@@ -2960,6 +2960,17 @@ private:
             gameOver(reason);
             return;
         }
+        if (world_.troopArrivedHere) {
+            // A troop came to the room Paul is in: it is drawn again, with
+            // the newcomers, when nothing is shown over it.
+            world_.troopArrivedHere = false;
+            if (plainView()) {
+                d_.targetBack();
+                drawView();
+                d_.showBack();
+                d_.flush();
+            }
+        }
         d_.targetScreen();
         panel_.drawZones(1, 1);
         panel_.drawClock(world_);
@@ -3240,6 +3251,13 @@ private:
 
     // The fight at Paul's place began or ended with the hour: the view
     // is drawn again, unless something else is shown.
+    // Whether the room is shown with its own commands and nothing over it.
+    bool plainView() const {
+        return !(talk_.active() || map_.active() || globe_.active() || cockpit_.active() || flight_.active() ||
+                 orders_.active() || messageRoom_.active() || mixer_.active() || over_ || scene_ || mirror_ ||
+                 planShown_);
+    }
+
     void warChanged() {
         if (!atWar()) {
             war_.stop();

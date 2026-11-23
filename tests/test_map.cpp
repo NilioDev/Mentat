@@ -1226,10 +1226,15 @@ MTT_TEST("world: a troop fetches equipment from the nearest place that has it fr
     w.startMove(1, sietch, m);
     MTT_CHECK(w.u8(sietch + 0x15) == 0 && w.u8(t + 0x19) == 0x40 && w.u8(t + 0x0F) == 0);
     MTT_CHECK(w.u16(t + 4) == home && (w.u8(t + 3) & 0x40) && w.u8(sietch + 9) == 0);
-    // Home again, it settles with it and mines spice once more.
+    MTT_CHECK(!w.troopArrivedHere);
+    // Home again, it settles with it and mines spice once more; Paul is
+    // there, in the second room, where the troops stand: it is to be seen.
+    w.setU16(0x114E, static_cast<std::uint16_t>(home));
+    w.setU8(0x0B, 2);
     w.stepTroop(1, 4, m);
     MTT_CHECK(!(w.u8(t + 3) & 0x40) && (w.u8(t + 3) & 0x0F) == 0 && w.u8(home + 9) == 1);
     MTT_CHECK(w.u8(home + 0x15) == 1);
+    MTT_CHECK(w.troopArrivedHere);
 }
 
 MTT_TEST("world: Jessica's powers let Paul reach his troops further off") {

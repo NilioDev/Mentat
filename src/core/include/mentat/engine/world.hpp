@@ -250,6 +250,9 @@ public:
     // Harkonnens won the place he is at.
     bool sietchHere = false;
     bool lostWithPaul = false;
+    // Set when one of Paul's troops settles at the place Paul is at while
+    // he is in the room where the troops stand.
+    bool troopArrivedHere = false;
     // Set when the Harkonnens attack the place Paul is at, and when the
     // fight there is over.
     bool attackedHere = false;
