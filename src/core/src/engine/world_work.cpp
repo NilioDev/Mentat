@@ -12,8 +12,6 @@ namespace mentat {
 namespace {
 
 constexpr std::size_t kClockWord = 0x02;
-constexpr std::size_t kLastClock = 0x1174;
-constexpr std::size_t kStoryEnd = 0xC2;
 constexpr std::size_t kSietches = 0x27;
 constexpr std::size_t kSpice = 0xA0;
 constexpr std::size_t kBoost = 0xFA;
@@ -63,16 +61,6 @@ void World::raiseSkill(std::size_t t, int which, int by) {
     setU8(t + 0x16 + static_cast<std::size_t>(which), static_cast<std::uint8_t>(after));
     if ((after ^ before) & 0xF0) {
         setU8(t + 0x10, static_cast<std::uint8_t>((u8(t + 0x10) & 0xFC) | (which + 1)));
-    }
-}
-
-void World::hourPassed(int except, FlatMap& map) {
-    const std::uint16_t now = u16(kClockWord);
-    const std::uint16_t last = u16(kLastClock);
-    setU16(kLastClock, now);
-    newDay_ = ((last & 0xF0) - (now & 0xF0)) != 0;
-    if (u8(kStoryEnd) < 7) {
-        troopsWork(except, map);
     }
 }
 

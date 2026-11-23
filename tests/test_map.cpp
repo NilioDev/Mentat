@@ -290,6 +290,43 @@ MTT_TEST("world: a strong troop fighting the last Harkonnens of a fort takes it"
     MTT_CHECK(w.u8(theirs + 3) == 0xA0 && (w.u8(theirs + 0x10) & 0x80) == 0);
 }
 
+MTT_TEST("world: a new day keeps the spice accounts, and hour 15 the Harkonnens grow") {
+    std::vector<std::uint8_t> map(2 * kMiddle + 512, 0x05);
+    FlatMap m(smallLatitudes(), map, FlatMap::Edges{});
+    World w;
+    w.setU8(World::placeRecord(1), 0xFF);
+    w.setU16(World::placeRecord(1), 0xFFFF);
+    for (int n = 1; World::troopRecord(n) < 0xFBB; ++n) {
+        w.setU8(World::troopRecord(n), static_cast<std::uint8_t>(n));
+        w.setU8(World::troopRecord(n) + 3, 0xA0);
+    }
+    w.setU16(0x1174, 0x1F);
+    w.setU16(0x02, 0x20); // day 2 begins
+    w.setU16(0xA0, 500);  // the stock
+    w.setU16(0x1170, 300); // the stock a day ago
+    w.setU16(0x1172, 20);
+    w.setU16(0xAE, 200); // what was made the day before
+    w.hourPassed(0, m);
+    MTT_CHECK(w.u16(0x1174) == 0x20 && w.u8(0xFF) == 1);
+    MTT_CHECK(w.u16(0xA6) == 220 && w.u16(0xAE) == 220);
+    MTT_CHECK(w.u16(0xB0) == 20 && w.u16(0xB2) == 0);
+    MTT_CHECK(w.u16(0x1170) == 500 && w.u16(0x1172) == 0);
+    MTT_CHECK(w.u16(0xA2) == 1 && w.u16(0xA4) == 0);
+
+    const std::size_t harkonnens = World::troopRecord(5);
+    w.setU8(harkonnens + 3, 0x80);
+    w.setU8(harkonnens + 0x10, 0x80);
+    w.setU8(harkonnens + 0x1A, 50);
+    const std::size_t full = World::troopRecord(6);
+    w.setU8(full + 3, 0x80);
+    w.setU8(full + 0x10, 0x80);
+    w.setU8(full + 0x1A, 200);
+    w.setU16(0x02, 0x2F); // hour 15
+    w.setU16(0x00, 0x8000); // the bit that comes round is set
+    w.hourPassed(0, m);
+    MTT_CHECK(w.u8(harkonnens + 0x1A) == 51 && w.u8(full + 0x1A) == 200);
+}
+
 MTT_TEST("map screen: opens on the palace and the arrows move it") {
     auto archive = test::openGameData();
     auto program = test::openProgram();

@@ -20,6 +20,7 @@ World::World(const ProgramFile& program) : bytes_(kSize) {
     for (std::size_t i = 0; i < kSize; ++i) {
         bytes_[i] = program.dataU8(i);
     }
+    loadDayTables(program);
 }
 
 std::uint8_t World::u8(std::size_t offset) const {

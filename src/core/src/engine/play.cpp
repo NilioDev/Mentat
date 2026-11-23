@@ -121,6 +121,7 @@ constexpr int kCabinSheet = 0x34; // ORNYCAB.HSQ
 // is shown and whose recording 0xFFF says it (none from 0x80), from the
 // table at data offset 0x225D.
 constexpr int kCaught = 2;
+constexpr int kPlaceLost = 6;
 constexpr std::uint16_t kFirstEndPhrase = 0xBA;
 constexpr std::size_t kEndFaces = 0x225D;
 constexpr int kEndVoice = 0xFFF;
@@ -1382,6 +1383,16 @@ private:
         if (world_.mapRedraws > 0) {
             world_.mapRedraws = 0;
             map_.redraw();
+        }
+        if (world_.lostWithPaul) {
+            world_.lostWithPaul = false;
+            world_.gameOverReason = kPlaceLost;
+        }
+        if (world_.gameOverReason != 0) {
+            const int reason = world_.gameOverReason;
+            world_.gameOverReason = 0;
+            gameOver(reason);
+            return;
         }
         d_.targetScreen();
         panel_.drawZones(1, 1);

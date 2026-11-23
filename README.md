@@ -54,7 +54,9 @@ and touch controls.
 > may meet a worm), prospect places, train for the army, build wind-traps
 > and make the desert green. Send them to attack a Harkonnen place and
 > they fight it out hour by hour: they may win it, flee, or lose a place
-> of yours. The map shows your troops' marks, by what they do. Once the
+> of yours. The Harkonnens grow stronger and attack your sietches, the
+> green you planted fades, and each day the spice and land accounts are
+> kept. The map shows your troops' marks, by what they do. Once the
 > story gets that far, "See spice density" on the map opens that small
 > map of the regions you know, coloured by their spice or, with a click on
 > its bar, by the work of your troops there; point at a place to see who
