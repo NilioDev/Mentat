@@ -20,6 +20,8 @@ namespace mentat {
 namespace {
 
 constexpr int kPanelSheet = 0;
+// The prospectors' troop, whose way goes through its route.
+constexpr int kRouteTroop = 3;
 
 // Where the window stands: the state keeps its top-left corner.
 constexpr std::size_t kWindowX = 0x11C1;
@@ -542,8 +544,14 @@ void SpiceMap::drawRoute() {
     };
     const std::size_t t = World::troopRecord(troop_);
     add(world_.u16(t + 6), s16(world_.u16(t + 8)));
-    const std::size_t place = world_.u16(t + 4);
-    add(world_.u16(place + 2), s16(world_.u16(place + 4)));
+    if (troop_ == kRouteTroop) {
+        for (const std::size_t place : route) {
+            add(world_.u16(place + 2), s16(world_.u16(place + 4)));
+        }
+    } else {
+        const std::size_t place = world_.u16(t + 4);
+        add(world_.u16(place + 2), s16(world_.u16(place + 4)));
+    }
     const ClipRect v = view();
     for (std::size_t i = 0; i + 1 < points.size(); ++i) {
         Point a = points[i];

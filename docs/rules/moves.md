@@ -136,7 +136,16 @@ mark.
 When the small map of the regions is open for a troop to be shown where
 to go (see [spice_map.md](spice_map.md)), the troop's way is drawn in it.
 
+## The prospectors' route
+
+For troop 3, setting off goes by its route (state words `0x11D3`, three;
+see [orders.md](orders.md#the-prospectors-route)), whatever place it was
+sent to: while the route's first place is where the troop stands and the
+troop is not on the move, the route moves up a word (the word after the
+three comes in at the end), and the troop sets off for the first place
+then; with none, it does not set off. Arriving at the route's first place
+moves the route up a word too.
+
 ## Not built yet
 
-The troop shown three sietches, and what the original does when a troop
-arrives where Paul is.
+What the original does when a troop arrives where Paul is.

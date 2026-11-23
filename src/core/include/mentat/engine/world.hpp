@@ -225,6 +225,9 @@ public:
     int linkTroop(int troop, std::size_t place);
     // The troop sets off for `place`, and makes its first steps.
     void startMove(int troop, std::size_t place, FlatMap& map);
+    // The prospectors' route (state word 0x11D3, three places).
+    std::size_t nextOnRoute(int troop);
+    void shiftRoute();
     // The equipment at `place` that none of the troops there holds, by kind.
     std::array<int, 7> freeEquipment(std::size_t place) const;
     // Where a troop at `from` would go to fetch a piece of kind `kind`

@@ -18,6 +18,9 @@ constexpr std::uint8_t kCannot = 0x10;
 constexpr std::uint8_t kOwnFremen = 0x20;
 constexpr std::uint8_t kMoving = 0x40;
 constexpr std::uint8_t kNotPauls = 0x80;
+// The prospectors' troop and its route: up to three places in turn.
+constexpr int kRouteTroop = 3;
+constexpr std::size_t kRoute = 0x11D3;
 constexpr int kProspecting = 1;
 constexpr int kAttacking = 5;
 constexpr int kFighting = 6;
@@ -139,8 +142,36 @@ void World::heldEquipment(std::size_t t, std::size_t place, int change) {
     }
 }
 
+// The prospectors' route: its first place that is not where the troop
+// stands (places it stands at are taken off, unless it is on the move);
+// 0 when the route is empty.
+std::size_t World::nextOnRoute(int troop) {
+    const std::size_t t = troopRecord(troop);
+    for (int i = 0; i < 3; ++i) {
+        const std::size_t first = u16(kRoute);
+        if (first == 0 || first != u16(t + 4) || (u8(t + 3) & kMoving)) {
+            return first;
+        }
+        shiftRoute();
+    }
+    return u16(kRoute);
+}
+
+void World::shiftRoute() {
+    for (std::size_t i = 0; i < 3; ++i) {
+        setU16(kRoute + 2 * i, u16(kRoute + 2 * i + 2));
+    }
+}
+
 void World::startMove(int troop, std::size_t place, FlatMap& map) {
     const std::size_t t = troopRecord(troop);
+    if (troop == kRouteTroop) {
+        // The prospectors go where their route says, or nowhere.
+        place = nextOnRoute(troop);
+        if (place == 0) {
+            return;
+        }
+    }
     if (u8(t + 3) & kMoving) {
         // Already on the way: only the destination changes.
         setU16(t + 4, static_cast<std::uint16_t>(place));
@@ -243,6 +274,9 @@ bool World::stepTroop(int troop, int steps, FlatMap& map) {
 // The troop reaches its destination.
 void World::arrive(int troop, FlatMap& map) {
     const std::size_t t = troopRecord(troop);
+    if (troop == kRouteTroop && u16(kRoute) == u16(t + 4)) {
+        shiftRoute(); // the first place of the route is reached
+    }
     int occupation = u8(t + 3) & kOccupation;
     const std::size_t place = u16(t + 4);
     setU16(t + 6, u16(place + 2));

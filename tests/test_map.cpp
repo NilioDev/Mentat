@@ -1373,3 +1373,26 @@ MTT_TEST("world: a massive attack fights the rounds at once") {
     MTT_CHECK(w.u16(0x9A) != 0); // what Paul's side lost
     MTT_CHECK(w.u16(0x98) == 0); // the Harkonnens lost nothing
 }
+
+MTT_TEST("world: the prospectors go to the places of their route in turn") {
+    World w;
+    const std::size_t a = World::placeRecord(1);
+    const std::size_t b = World::placeRecord(2);
+    const std::size_t c = World::placeRecord(3);
+    const std::size_t t = World::troopRecord(3);
+    w.setU16(t + 4, static_cast<std::uint16_t>(a));
+    // Their route starts where they stand: that place is taken off.
+    w.setU16(0x11D3, static_cast<std::uint16_t>(a));
+    w.setU16(0x11D5, static_cast<std::uint16_t>(b));
+    w.setU16(0x11D7, static_cast<std::uint16_t>(c));
+    MTT_CHECK(w.nextOnRoute(3) == b);
+    MTT_CHECK(w.u16(0x11D3) == b && w.u16(0x11D5) == c && w.u16(0x11D7) == 0);
+    // On the move, nothing is taken off.
+    w.setU8(t + 3, 0x40);
+    w.setU16(t + 4, static_cast<std::uint16_t>(b));
+    MTT_CHECK(w.nextOnRoute(3) == b && w.u16(0x11D3) == b);
+    // An empty route: they stay.
+    w.setU8(t + 3, 0);
+    w.setU16(0x11D3, 0);
+    MTT_CHECK(w.nextOnRoute(3) == 0);
+}

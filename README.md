@@ -61,7 +61,8 @@ and touch controls.
 > or take some back, send it to fetch the equipment it lacks from the
 > nearest place that has it, or send it somewhere: point at a
 > place on the small map of the regions, and if the chief agrees the troop
-> sets off and walks there hour by hour, its mark crossing the map. A
+> sets off and walks there hour by hour, its mark crossing the map. The
+> prospectors can be given up to three sietches to visit in turn. A
 > troop that reaches a Harkonnen fort, or a place being fought over,
 > where nobody else is takes it. As Jessica teaches Paul her powers he
 > reaches his troops from further off: "CONTACT FREMEN TROOPS" on the map

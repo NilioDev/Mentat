@@ -69,6 +69,10 @@ public:
     // The place the mouse points at, 0 for none.
     std::size_t pointed() const { return pointed_; }
 
+    // For the prospectors' troop, the places of its route in turn: its way
+    // goes through them instead of to its place.
+    std::vector<std::size_t> route;
+
     // The colouring: false the spice of each region, true the work of
     // Paul's troops in it.
     bool occupations = false;
