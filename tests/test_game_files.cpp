@@ -9,6 +9,7 @@
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -215,5 +216,59 @@ MTT_TEST("game files: copies the player's extra files under the names they are w
     }
     MTT_CHECK(importExtraFiles({root / "from" / "notes.txt"}, root / "to", nameFor).empty());
     MTT_CHECK(!std::filesystem::exists(root / "to" / "MT32_PCM.ROM.part"));
+    std::filesystem::remove_all(root);
+}
+
+MTT_TEST("game files: copies the Mega CD music out of an image of its disc") {
+    const auto root = std::filesystem::temp_directory_path() / "mtt_test_megacd";
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+    // Our own image again, made into a Mega CD's: the console's mark in
+    // the first sector, and in DUNE.DAT the file table, the main program
+    // (file 1) with the sound program in it, and nine pieces (files 2-10).
+    constexpr std::size_t kDat = 20 * 2048;
+    auto image = makeImage(false, 0x2E000);
+    MTT_CHECK(!isMegaCdImage(root / "missing.iso"));
+    writeAll(root / "pc.iso", image);
+    MTT_CHECK(!isMegaCdImage(root / "pc.iso"));
+    std::memcpy(image.data(), "SEGADISCSYSTEM  ", 16);
+    const auto entry = [&](std::uint32_t n, std::uint32_t sector, std::uint32_t size) {
+        std::uint8_t* e = image.data() + kDat + 0x19354 + 6 * n;
+        const std::uint8_t bytes[6] = {static_cast<std::uint8_t>(sector >> 16), static_cast<std::uint8_t>(sector >> 8),
+                                       static_cast<std::uint8_t>(sector), static_cast<std::uint8_t>(size >> 16),
+                                       static_cast<std::uint8_t>(size >> 8), static_cast<std::uint8_t>(size)};
+        std::memcpy(e, bytes, 6);
+    };
+    entry(1, 0x40, 0x441D);
+    image[kDat + 0x40 * 2048 + 0x24AA] = 0xC3;
+    for (std::uint32_t n = 2; n <= 10; ++n) {
+        entry(n, 0x50 + n, 0x40 + n);
+        std::uint8_t* piece = image.data() + kDat + (0x50 + n) * 2048;
+        piece[2] = 0x32;
+        piece[3] = 0x00;
+        piece[4] = static_cast<std::uint8_t>(n);
+        image[kDat + 0x18168 + 2 * (n - 2)] = 0;
+        image[kDat + 0x18168 + 2 * (n - 2) + 1] = static_cast<std::uint8_t>(n);
+    }
+    writeAll(root / "megacd.iso", image);
+    MTT_CHECK(isMegaCdImage(root / "megacd.iso"));
+    MTT_CHECK(!findMegaCdMusic({root / "music"}).has_value());
+    importMegaCdMusic(root / "megacd.iso", root / "music");
+    MTT_CHECK(findMegaCdMusic({root, root / "music"}) == std::optional(root / "music"));
+    const auto program = readAll(root / "music" / "MCDPROG.BIN");
+    MTT_CHECK(program.size() == 0x1F73 && program[0] == 0xC3);
+    const auto third = readAll(root / "music" / "MCDSONG3.BIN");
+    MTT_CHECK(third.size() == 0x44 && third[4] == 4);
+
+    // A disc whose pieces are not where they should be is refused.
+    image[kDat + 0x18168 + 1] = 1; // the main program, not a piece
+    writeAll(root / "bad.iso", image);
+    bool refused = false;
+    try {
+        importMegaCdMusic(root / "bad.iso", root / "bad");
+    } catch (const FormatError&) {
+        refused = true;
+    }
+    MTT_CHECK(refused && !std::filesystem::exists(root / "bad" / "MCDPROG.BIN"));
     std::filesystem::remove_all(root);
 }

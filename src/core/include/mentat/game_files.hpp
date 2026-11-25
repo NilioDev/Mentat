@@ -51,4 +51,17 @@ using NameFor = std::function<std::string(const std::filesystem::path&)>;
 std::vector<std::string> importExtraFiles(const std::vector<std::filesystem::path>& files,
                                           const std::filesystem::path& folder, const NameFor& nameFor);
 
+// The Mega CD version's disc, for its music: an image of it starts with
+// "SEGADISCSYSTEM".
+bool isMegaCdImage(const std::filesystem::path& source);
+
+// Copies the Mega CD version's sound program and pieces out of an image of
+// its disc into `folder` (made when missing), as MCDPROG.BIN and
+// MCDSONG1.BIN to MCDSONG9.BIN (see docs/rules/music-megacd.md). Throws
+// FormatError with a message meant for the player.
+void importMegaCdMusic(const std::filesystem::path& source, const std::filesystem::path& folder);
+
+// The first folder that holds all the Mega CD music files.
+std::optional<std::filesystem::path> findMegaCdMusic(const std::vector<std::filesystem::path>& folders);
+
 } // namespace mentat

@@ -186,4 +186,30 @@ void CdImage::copyOut(const CdEntry& entry, const std::filesystem::path& to,
     }
 }
 
+std::vector<std::uint8_t> CdImage::read(const CdEntry& entry, std::uint64_t offset, std::size_t size) {
+    std::vector<std::uint8_t> out;
+    if (offset >= entry.size) {
+        return out;
+    }
+    const std::uint64_t end = std::min<std::uint64_t>(entry.size, offset + size);
+    out.reserve(static_cast<std::size_t>(end - offset));
+    std::array<std::uint8_t, kSectorData> sector{};
+    for (std::uint64_t at = offset; at < end;) {
+        const auto index = static_cast<std::uint32_t>(at / kSectorData);
+        readSector(entry.sector + index, sector.data());
+        const auto from = static_cast<std::size_t>(at % kSectorData);
+        const auto take = static_cast<std::size_t>(std::min<std::uint64_t>(kSectorData - from, end - at));
+        out.insert(out.end(), sector.begin() + static_cast<std::ptrdiff_t>(from),
+                   sector.begin() + static_cast<std::ptrdiff_t>(from + take));
+        at += take;
+    }
+    return out;
+}
+
+std::vector<std::uint8_t> CdImage::firstSector() {
+    std::vector<std::uint8_t> out(kSectorData);
+    readSector(0, out.data());
+    return out;
+}
+
 } // namespace mentat

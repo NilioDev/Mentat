@@ -110,3 +110,11 @@ if(TARGET MT32Emu::mt32emu)
     mtt_set_warnings(mtt_mt32)
     target_compile_definitions(mtt_mt32 PUBLIC MENTAT_WITH_MT32=1)
 endif()
+
+# The Mega CD music on the Z80 and YM2612 emulators, when they are built.
+if(TARGET mtt_nuked_opn2)
+    add_library(mtt_megacd STATIC src/audio/megacd_music.cpp)
+    target_link_libraries(mtt_megacd PUBLIC mtt_core PRIVATE mtt_z80 mtt_nuked_opn2)
+    mtt_set_warnings(mtt_megacd)
+    target_compile_definitions(mtt_megacd PUBLIC MENTAT_WITH_MEGACD=1)
+endif()

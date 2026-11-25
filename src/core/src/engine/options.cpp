@@ -10,10 +10,11 @@ namespace mentat {
 
 namespace {
 
-constexpr std::array<std::pair<std::string_view, MusicChoice>, 3> kMusic{{
+constexpr std::array<std::pair<std::string_view, MusicChoice>, 4> kMusic{{
     {"adlib", MusicChoice::AdLib},
     {"adlib-gold", MusicChoice::AdLibGold},
     {"mt32", MusicChoice::Mt32},
+    {"megacd", MusicChoice::MegaCd},
 }};
 
 // Lower case, without spaces or tabs.

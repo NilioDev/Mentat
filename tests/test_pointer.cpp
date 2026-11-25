@@ -68,7 +68,8 @@ MTT_TEST("options: music choice is read, written back and defaults to the AdLib 
     MTT_CHECK(Options::read("music = AdLib\n").music == MusicChoice::AdLib);
     MTT_CHECK(Options::read("# note\r\n  MUSIC=mt32 # Roland\r\n").music == MusicChoice::Mt32);
     MTT_CHECK(Options::read("music = loud\nvolume = 3\n").music == MusicChoice::AdLibGold);
-    for (const auto c : {MusicChoice::AdLib, MusicChoice::AdLibGold, MusicChoice::Mt32}) {
+    MTT_CHECK(Options::read("music = MegaCD\n").music == MusicChoice::MegaCd);
+    for (const auto c : {MusicChoice::AdLib, MusicChoice::AdLibGold, MusicChoice::Mt32, MusicChoice::MegaCd}) {
         Options o;
         o.music = c;
         MTT_CHECK(Options::read(o.write()).music == c);
