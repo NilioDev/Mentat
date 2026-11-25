@@ -28,13 +28,16 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -68,7 +71,24 @@ struct App {
     mentat::PadButtons buttons;  // what each button does
     Uint64 lastFrameNs = 0;
 
+    // Copying the game files from the player's CD image, when they are not
+    // found: see setupEvent.
+    std::thread copier;
+    std::atomic<std::uint64_t> copied{0};
+    std::atomic<std::uint64_t> toCopy{0};
+    std::atomic<bool> copying{false};
+    std::atomic<bool> copyDone{false};
+    std::string copyError; // set before copyDone
+    std::atomic<bool> dialogOpen{false};
+    std::mutex pickedLock; // the file dialog answers on its own thread
+    std::optional<std::string> picked;
+    int argc = 0;
+    char** argv = nullptr;
+
     ~App() {
+        if (copier.joinable()) {
+            copier.join();
+        }
         game.reset(); // stop the game thread before what it uses goes away
         for (auto* stream : streams) {
             if (stream != nullptr) {
@@ -103,14 +123,34 @@ std::vector<std::filesystem::path> gameFolders(int argc, char** argv) {
     return folders;
 }
 
+// Where game files copied from the player's CD go.
+std::filesystem::path copiedGameFolder() {
+    std::filesystem::path folder = "gamedata";
+    if (char* pref = SDL_GetPrefPath("NilioDev", "Mentat")) {
+        folder = std::filesystem::path(pref) / "gamedata";
+        SDL_free(pref);
+    }
+    return folder;
+}
+
+bool isFile(const char* path) {
+    std::error_code ec;
+    return std::filesystem::is_regular_file(path, ec);
+}
+
 void openGameFiles(App& app, int argc, char** argv) {
-    const auto files = mentat::findGameFiles(gameFolders(argc, argv));
+    app.problem.clear();
+    app.archive.reset();
+    app.program.reset();
+    // A CD image given to start with is copied first.
+    const bool imageGiven = argc > 1 && isFile(argv[1]);
+    const auto files = mentat::findGameFiles(gameFolders(imageGiven ? 1 : argc, argv));
     if (!files) {
-        app.problem = "DUNE.DAT not found: put it in a folder named gamedata next to the program";
+        app.problem = "DUNE.DAT is not found.";
         return;
     }
     if (files->program.empty()) {
-        app.problem = "DNCDPRG.EXE not found: copy it from the CD next to DUNE.DAT";
+        app.problem = "DNCDPRG.EXE is not found next to DUNE.DAT.";
         return;
     }
     try {
@@ -344,6 +384,191 @@ void readPadButtons(App& app) {
     }
 }
 
+void startGame(App& app) {
+    App* raw = &app;
+    app.game = std::make_unique<mentat::Fiber>([raw] { runGame(*raw); });
+    app.platform.fiber = app.game.get();
+    app.startNs = SDL_GetTicksNS();
+}
+
+// Copies the game files from a CD image or folder the player gave, on a
+// thread of its own: the window keeps showing how far it is.
+void startCopy(App& app, const std::string& source) {
+    if (app.copying) {
+        return;
+    }
+    if (app.copier.joinable()) {
+        app.copier.join();
+    }
+    app.copyError.clear();
+    app.copied = 0;
+    app.toCopy = 0;
+    app.copyDone = false;
+    app.copying = true;
+    App* raw = &app;
+    app.copier = std::thread([raw, source] {
+        try {
+            mentat::importGameFiles(source, copiedGameFolder(), [raw](std::uint64_t done, std::uint64_t total) {
+                raw->copied = done;
+                raw->toCopy = total;
+            });
+        } catch (const std::exception& e) {
+            raw->copyError = e.what();
+        }
+        raw->copyDone = true;
+    });
+}
+
+void SDLCALL picked(void* userdata, const char* const* files, int) {
+    auto* app = static_cast<App*>(userdata);
+    const std::lock_guard lock(app->pickedLock);
+    app->dialogOpen = false;
+    if (files != nullptr && files[0] != nullptr) {
+        app->picked = files[0];
+    }
+}
+
+void pickImage(App& app) {
+    if (app.copying || app.dialogOpen) {
+        return;
+    }
+    static const SDL_DialogFileFilter kFilters[] = {
+        {"CD image", "iso;bin;img"},
+        {"All files", "*"},
+    };
+    app.dialogOpen = true;
+    SDL_ShowOpenFileDialog(picked, &app, app.window, kFilters, 2, nullptr, false);
+}
+
+// The events while there is no game yet: the player gives the CD image by
+// dropping it on the window, or picks it with a click, Enter or a gamepad
+// button.
+SDL_AppResult setupEvent(App& app, const SDL_Event& event) {
+    switch (event.type) {
+    case SDL_EVENT_QUIT:
+        return SDL_APP_SUCCESS;
+    case SDL_EVENT_KEY_DOWN:
+        if (event.key.key == SDLK_ESCAPE) {
+            return SDL_APP_SUCCESS;
+        }
+        if (event.key.key == SDLK_RETURN || event.key.key == SDLK_SPACE || event.key.key == SDLK_KP_ENTER) {
+            pickImage(app);
+        }
+        break;
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        pickImage(app);
+        break;
+    case SDL_EVENT_GAMEPAD_ADDED:
+        SDL_OpenGamepad(event.gdevice.which);
+        break;
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+        if (app.buttons.action(event.gbutton.button) == mentat::PadAction::Quit) {
+            return SDL_APP_SUCCESS;
+        }
+        pickImage(app);
+        break;
+    case SDL_EVENT_DROP_FILE:
+        if (event.drop.data != nullptr) {
+            startCopy(app, event.drop.data);
+        }
+        break;
+    default:
+        break;
+    }
+    return SDL_APP_CONTINUE;
+}
+
+// Called each frame while there is no game: starts a copy the dialog
+// picked, and the game once a copy is done.
+void checkCopy(App& app) {
+    std::optional<std::string> source;
+    {
+        const std::lock_guard lock(app.pickedLock);
+        source.swap(app.picked);
+    }
+    if (source) {
+        startCopy(app, *source);
+    }
+    if (!app.copyDone) {
+        return;
+    }
+    app.copier.join();
+    app.copyDone = false;
+    app.copying = false;
+    if (!app.copyError.empty()) {
+        SDL_Log("copying the game files: %s", app.copyError.c_str());
+        return;
+    }
+    openGameFiles(app, app.argc, app.argv);
+    if (app.problem.empty()) {
+        startGame(app);
+    } else {
+        app.copyError = app.problem;
+    }
+}
+
+// Writes text in SDL's own small font, broken into lines that fit the
+// screen; returns the y under it.
+float writeText(SDL_Renderer* renderer, float y, const std::string& text) {
+    constexpr std::size_t kColumns = (kScreenW - 16) / SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE;
+    std::size_t start = 0;
+    while (start < text.size()) {
+        std::size_t end = std::min(text.size(), start + kColumns);
+        if (end < text.size()) {
+            const std::size_t space = text.rfind(' ', end);
+            if (space != std::string::npos && space > start) {
+                end = space;
+            }
+        }
+        const std::string line = text.substr(start, end - start);
+        SDL_RenderDebugText(renderer, 8, y, line.c_str());
+        y += SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE + 3;
+        start = end;
+        while (start < text.size() && text[start] == ' ') {
+            ++start;
+        }
+    }
+    return y;
+}
+
+// The screen while there is no game: what is missing, and how to give it.
+void drawSetup(App& app) {
+    SDL_Renderer* r = app.renderer;
+    SDL_SetRenderDrawColor(r, 0xE8, 0xC0, 0x70, 255);
+    float y = writeText(r, 12, std::string(mentat::kProjectName));
+    y += 8;
+    SDL_SetRenderDrawColor(r, 0xF0, 0xE6, 0xD2, 255);
+    if (app.copying) {
+        const std::uint64_t total = app.toCopy;
+        const std::uint64_t done = app.copied;
+        const int percent = total == 0 ? 0 : static_cast<int>(done * 100 / total);
+        y = writeText(r, y, "Copying the game files from your CD... " + std::to_string(percent) + "%");
+        y += 6;
+        SDL_SetRenderDrawColor(r, 0x50, 0x40, 0x30, 255);
+        const SDL_FRect back{8, y, kScreenW - 16.0f, 8};
+        SDL_RenderFillRect(r, &back);
+        SDL_SetRenderDrawColor(r, 0xE8, 0xC0, 0x70, 255);
+        const SDL_FRect bar{8, y, (kScreenW - 16.0f) * static_cast<float>(percent) / 100.0f, 8};
+        SDL_RenderFillRect(r, &bar);
+        return;
+    }
+    if (!app.copyError.empty()) {
+        SDL_SetRenderDrawColor(r, 0xF0, 0x70, 0x60, 255);
+        y = writeText(r, y, "That did not work: " + app.copyError);
+        SDL_SetRenderDrawColor(r, 0xF0, 0xE6, 0xD2, 255);
+    } else {
+        y = writeText(r, y, app.problem);
+    }
+    y += 6;
+    y = writeText(r, y, "Mentat needs DUNE.DAT and DNCDPRG.EXE from your game CD.");
+    y += 6;
+    y = writeText(r, y, "Drop your CD image (.iso or .bin) or the CD itself on this window, or click, press Enter or "
+                        "a gamepad button to pick it. Mentat copies the two files and starts.");
+    y += 6;
+    SDL_SetRenderDrawColor(r, 0xA0, 0x98, 0x88, 255);
+    writeText(r, y, "Esc quits.");
+}
+
 SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
     auto app = std::make_unique<App>();
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD)) {
@@ -364,21 +589,26 @@ SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
     openAudio(*app);
     readPadButtons(*app);
 
+    app->argc = argc;
+    app->argv = argv;
     openGameFiles(*app, argc, argv);
     if (app->problem.empty()) {
-        App* raw = app.get();
-        app->game = std::make_unique<mentat::Fiber>([raw] { runGame(*raw); });
-        app->platform.fiber = app->game.get();
+        startGame(*app);
     } else {
         SDL_Log("%s", app->problem.c_str());
+        if (argc > 1 && isFile(argv[1])) {
+            startCopy(*app, argv[1]);
+        }
     }
-    app->startNs = SDL_GetTicksNS();
     *state = app.release();
     return SDL_APP_CONTINUE;
 }
 
 SDL_AppResult SDL_AppEvent(void* state, SDL_Event* event) {
     auto* app = static_cast<App*>(state);
+    if (app->game == nullptr) {
+        return setupEvent(*app, *event);
+    }
     switch (event->type) {
     case SDL_EVENT_QUIT:
         return SDL_APP_SUCCESS;
@@ -431,6 +661,9 @@ SDL_AppResult SDL_AppEvent(void* state, SDL_Event* event) {
 
 SDL_AppResult SDL_AppIterate(void* state) {
     auto* app = static_cast<App*>(state);
+    if (app->game == nullptr) {
+        checkCopy(*app);
+    }
     if (app->game != nullptr) {
         updateInput(*app);
         try {
@@ -449,10 +682,7 @@ SDL_AppResult SDL_AppIterate(void* state) {
     if (app->game != nullptr) {
         drawScreen(*app);
     } else {
-        // Our own colour: red when something is missing.
-        SDL_SetRenderDrawColor(app->renderer, 0xA0, 0x30, 0x30, 255);
-        const SDL_FRect bar{0, kScreenH - 8.0f, kScreenW, 8.0f};
-        SDL_RenderFillRect(app->renderer, &bar);
+        drawSetup(*app);
     }
     SDL_RenderPresent(app->renderer);
     return SDL_APP_CONTINUE;

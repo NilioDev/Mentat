@@ -134,9 +134,9 @@ jobs:
           cat > notes.md <<'NOTES'
           Download the file for your system below. Mentat needs your own copy
           of the original CD's `DUNE.DAT` and `DNCDPRG.EXE`; none are
-          included. Put them in a folder named `gamedata` next to the
-          program (for the AppImage: next to the `.AppImage` file). See the
-          README for more.
+          included. On its first start, drop your CD image (`.iso` or
+          `.bin`) on Mentat's window, or click to pick it: Mentat copies the
+          two files and starts. See the README for more.
 
           - **Linux:** the `.AppImage`. Make it executable
             (`chmod +x`, or right-click, Properties, Allow executing file as

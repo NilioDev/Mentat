@@ -136,10 +136,21 @@ Get the newest build from the
 
 ## Add your game
 
-Copy `DUNE.DAT` and `DNCDPRG.EXE` from the root of your CD into a folder
-named `gamedata` next to the program (for the AppImage: next to the
-`.AppImage` file), or start it with the folder: `./Mentat path/to/folder`.
-Without it, Mentat says what is missing.
+The easiest way: start Mentat and give it your CD. Drop the CD image
+(`.iso` or `.bin`), or the CD itself, on the window, or click to pick it.
+Mentat copies the two files it needs, `DUNE.DAT` and `DNCDPRG.EXE`, to its
+own folder and starts; next time it finds them there. You can also start it
+with the image: `./Mentat path/to/game.iso`.
+
+Mentat keeps the copied files where your system keeps settings for programs:
+
+- Windows: `%APPDATA%\NilioDev\Mentat\gamedata`
+- macOS: `~/Library/Application Support/NilioDev/Mentat/gamedata`
+- Linux: `~/.local/share/NilioDev/Mentat/gamedata`
+
+Or copy the two files from the root of your CD yourself, into a folder named
+`gamedata` next to the program (for the AppImage: next to the `.AppImage`
+file), or start it with the folder: `./Mentat path/to/folder`.
 
 ## Saved games
 
