@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.niliodev.mentat</id>
+  <name>Mentat</name>
+  <summary>Play the 1992 desert adventure-strategy game with your own CD files</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <description>
+    <p>Mentat is a free, from-scratch engine for the 1992 desert
+    adventure-strategy game, CD version. Bring your own copy of the original
+    game files.</p>
+  </description>
+  <launchable type="desktop-id">io.github.niliodev.mentat.desktop</launchable>
+  <url type="homepage">https://github.com/NilioDev/Mentat</url>
+  <content_rating type="oars-1.1"/>
+</component>

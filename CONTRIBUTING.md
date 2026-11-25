@@ -46,3 +46,12 @@ ctest --test-dir build --output-on-failure
 
 SDL3 is used from the system when found, otherwise the pinned release is
 downloaded and built (`-DMTT_USE_SYSTEM_SDL3=OFF` forces that).
+
+## Releases
+
+`.github/workflows/release.yml` builds the Linux AppImage
+(`packaging/linux/make-appimage.sh`), the Windows zip and the macOS zip and
+puts them on a GitHub release. Start it by pushing a tag `vX.Y.Z` that
+matches `VERSION` in `CMakeLists.txt`, or by hand from the Actions tab. The
+packages hold only Mentat itself, never files from the original game. The
+icon in `packaging/linux` is our own drawing.

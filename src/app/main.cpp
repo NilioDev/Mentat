@@ -86,6 +86,11 @@ std::vector<std::filesystem::path> gameFolders(int argc, char** argv) {
     if (argc > 1) {
         folders.emplace_back(argv[1]);
     }
+    // Next to the AppImage file: the program itself runs from a read-only
+    // mount.
+    if (const char* appImage = SDL_getenv("APPIMAGE")) {
+        folders.emplace_back(std::filesystem::path(appImage).parent_path() / "gamedata");
+    }
     if (const char* base = SDL_GetBasePath()) {
         folders.emplace_back(std::filesystem::path(base) / "gamedata");
         folders.emplace_back(base);
