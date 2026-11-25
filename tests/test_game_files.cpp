@@ -209,8 +209,10 @@ MTT_TEST("game files: copies the player's extra files under the names they are w
     MTT_CHECK(names == std::vector<std::string>({"MT32_PCM.ROM", "MT32_CONTROL.ROM"}));
     const auto roms = findMt32Roms({root / "to"});
     MTT_CHECK(roms && roms->control.filename() == "MT32_CONTROL.ROM" && roms->pcm.filename() == "MT32_PCM.ROM");
-    std::ifstream in(roms->pcm, std::ios::binary);
-    MTT_CHECK(std::string((std::istreambuf_iterator<char>(in)), {}) == "pcm");
+    {
+        std::ifstream in(roms->pcm, std::ios::binary); // closed before the folder goes
+        MTT_CHECK(std::string((std::istreambuf_iterator<char>(in)), {}) == "pcm");
+    }
     MTT_CHECK(importExtraFiles({root / "from" / "notes.txt"}, root / "to", nameFor).empty());
     MTT_CHECK(!std::filesystem::exists(root / "to" / "MT32_PCM.ROM.part"));
     std::filesystem::remove_all(root);
