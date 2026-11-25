@@ -14,6 +14,7 @@ enum class MusicChoice {
     AdLib,     // the .HSQ music on the Sound Blaster player
     AdLibGold, // the .AGD music on the AdLib Gold player
     Mt32,      // the .M32 music on a Roland MT-32
+    MegaCd,    // the Mega CD version's own music
 };
 
 struct Options {
@@ -24,7 +25,7 @@ struct Options {
     std::string write() const;
 };
 
-// The word for a choice in the file ("adlib", "adlib-gold", "mt32").
+// The word for a choice in the file ("adlib", "adlib-gold", "mt32", "megacd").
 std::string_view musicWord(MusicChoice choice);
 
 } // namespace mentat

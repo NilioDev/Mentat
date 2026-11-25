@@ -109,9 +109,12 @@ the language (American, English, French, German, Italian, Spanish or
 Fremen) and the subtitles, turns the music off, or plays it as a CD would,
 in order or shuffled. Mentat's own options (F2, or Start on a gamepad)
 choose which of the CD's arrangements of the music plays: AdLib, AdLib
-Gold (the default) or Roland MT-32. The MT-32 is emulated (with Munt) and
-needs your own MT-32 ROM files (the control ROM and the PCM ROM); none come
-with Mentat. Add them as described under [Add your game](#add-your-game). Reach the Harkonnens' throne room and the story ends as the
+Gold (the default), Roland MT-32, or the Mega CD version's own music. The
+MT-32 is emulated (with Munt) and needs your own MT-32 ROM files (the control
+ROM and the PCM ROM); none come with Mentat. The Mega CD music is played by
+the Mega CD's own sound program on an emulated Mega Drive sound chip, and
+needs your own image of the Mega CD disc. Add either as described under
+[Add your game](#add-your-game). Reach the Harkonnens' throne room and the story ends as the
 original's does: the last scene, "THE END" and the cast, after which the
 game starts again from its opening.
 
@@ -154,6 +157,12 @@ files..." in Mentat's options (F2, or Start on a gamepad). Mentat knows them
 by their contents, so their names do not matter, and keeps them as
 `MT32_CONTROL.ROM` and `MT32_PCM.ROM` (or the CM-32L's) beside the game
 files.
+
+For the Mega CD music, add an image of your Mega CD disc (`.iso` or `.bin`)
+the same way. Mentat copies only the music out of it (the sound program as
+`MCDPROG.BIN` and the nine pieces as `MCDSONG1.BIN` to `MCDSONG9.BIN`) and
+keeps those beside the game files; the image itself is not needed after
+that. The Cryo logo has no Mega CD piece, so it plays without music.
 
 Mentat keeps the copied files where your system keeps settings for programs:
 
@@ -213,7 +222,7 @@ every button and action.
 | After the game ends | "RESTART GAME", "LOAD GAME" or "EXIT GAME"; " WHAT ? " says it again | | |
 | Save or load a game | On the globe, or in the mirror of Paul's room ("LOOK AT MIRROR"), "SAVE GAME" or "LOAD GAME", then a log; "Cancel" goes back | | |
 | Change volumes, language, subtitles or music | Click "Mixer Panel"; drag a slider or turn a knob, click a language or a way to show lines, "Done" closes | | |
-| Choose the music (AdLib, AdLib Gold or MT-32) | F2 opens Mentat's options; click a line | F2, arrows, Enter; Esc closes | Start, direction pad, A; B or Start closes |
+| Choose the music (AdLib, AdLib Gold, MT-32 or Mega CD) | F2 opens Mentat's options; click a line | F2, arrows, Enter; Esc closes | Start, direction pad, A; B or Start closes |
 | Full screen or a window | The window opens as large as fits on your screen | F11 or Alt+Enter | |
 | Close Mentat | Window's close button, or "EXIT GAME" on the Mixer Panel | | "EXIT GAME" on the Mixer Panel |
 

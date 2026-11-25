@@ -14,6 +14,9 @@
 #ifdef MENTAT_WITH_MT32
 #include "mentat/audio/mt32_music.hpp"
 #endif
+#ifdef MENTAT_WITH_MEGACD
+#include "mentat/audio/megacd_music.hpp"
+#endif
 #include "mentat/data/dat_archive.hpp"
 #include "mentat/data/program_file.hpp"
 #include "mentat/data/program_tables.hpp"
@@ -89,6 +92,7 @@ struct App {
     std::vector<std::string> picked; // files the player dropped or picked
     bool gameFound = false;          // the game CD's files
     bool romsFound = false;          // the MT-32 ROMs
+    bool megaCdFound = false;        // the Mega CD music
     bool filesOpen = false;          // the game files screen, over the menu
     int filesItem = 0;               // its button with the focus
     std::string filesNote;           // what adding files came to
@@ -242,6 +246,19 @@ std::unique_ptr<mentat::MusicSystem> makeMusic(App& app, mentat::MusicChoice cho
             return std::make_unique<Mt32Music>(roms->control, roms->pcm);
 #else
             app.menuNote = "This Mentat is built without the MT-32.";
+            return nullptr;
+#endif
+        }
+        case MusicChoice::MegaCd: {
+#ifdef MENTAT_WITH_MEGACD
+            const auto folder = findMegaCdMusic(gameFolders(app.argc, app.argv));
+            if (!folder) {
+                app.menuNote = "Add the Mega CD image under Game files.";
+                return nullptr;
+            }
+            return std::make_unique<MegaCdMusic>(readMegaCdMusic(*folder));
+#else
+            app.menuNote = "This Mentat is built without the Mega CD music.";
             return nullptr;
 #endif
         }
@@ -536,16 +553,29 @@ std::string extraFileName(const std::filesystem::path& file) {
 #endif
 }
 
-void findExtras(App& app) { app.romsFound = mentat::findMt32Roms(gameFolders(app.argc, app.argv)).has_value(); }
+void findExtras(App& app) {
+    const auto folders = gameFolders(app.argc, app.argv);
+    app.romsFound = mentat::findMt32Roms(folders).has_value();
+    app.megaCdFound = mentat::findMegaCdMusic(folders).has_value();
+}
 
-// Once the MT-32 ROMs are added, the MT-32 music the player chose before
-// plays instead of the AdLib Gold's that stood in for it.
+mentat::MusicCard cardOf(mentat::MusicChoice choice) {
+    switch (choice) {
+    case mentat::MusicChoice::AdLib: return mentat::MusicCard::SoundBlasterPro;
+    case mentat::MusicChoice::AdLibGold: return mentat::MusicCard::AdLibGold;
+    case mentat::MusicChoice::Mt32: return mentat::MusicCard::Mt32;
+    case mentat::MusicChoice::MegaCd: return mentat::MusicCard::MegaCd;
+    }
+    return mentat::MusicCard::AdLibGold;
+}
+
+// Once the files are added, the music the player chose before plays instead
+// of the AdLib Gold's that stood in for it.
 void retryMusic(App& app) {
-    if (app.liveGame == nullptr || app.music == nullptr || app.options.music != mentat::MusicChoice::Mt32 ||
-        app.music->card() == mentat::MusicCard::Mt32) {
+    if (app.liveGame == nullptr || app.music == nullptr || app.music->card() == cardOf(app.options.music)) {
         return;
     }
-    if (auto next = makeMusic(app, mentat::MusicChoice::Mt32)) {
+    if (auto next = makeMusic(app, app.options.music)) {
         app.liveGame->switchMusic(next.get());
         app.music = std::move(next);
     }
@@ -567,6 +597,17 @@ void addFiles(App& app, const std::vector<std::string>& sources) {
             }
         } else if (!extraFileName(source).empty()) {
             extras.emplace_back(source);
+        } else if (mentat::isMegaCdImage(source)) {
+            try {
+                mentat::importMegaCdMusic(source, copiedGameFolder());
+                app.filesNote = "Added the Mega CD music.";
+                app.noteIsError = false;
+            } catch (const std::exception& e) {
+                app.filesNote = e.what();
+                app.noteIsError = true;
+            }
+            findExtras(app);
+            retryMusic(app);
         } else if (needGame) {
             image = source;
         } else {
@@ -847,7 +888,7 @@ void drawFiles(App& app) {
     SDL_RenderDebugText(r, kFilesLeft, 13, (std::string(mentat::kProjectName) + " - game files").c_str());
 
     setColor(r, kGold);
-    SDL_RenderDebugText(r, kFilesLeft, 31, "Needed to play");
+    SDL_RenderDebugText(r, kFilesLeft, 29, "Needed to play");
     std::string gameState = app.gameFound || inGame(app) ? "Found" : "Missing";
     Uint32 gameColor = app.gameFound || inGame(app) ? kGood : kBad;
     if (app.copying) {
@@ -856,7 +897,7 @@ void drawFiles(App& app) {
         gameState = "Copying " + std::to_string(total == 0 ? 0 : done * 100 / total) + "%";
         gameColor = kText;
     }
-    float y = drawFileLine(r, 43, "Game CD", gameState, gameColor, app.gameFound || inGame(app),
+    float y = drawFileLine(r, 40, "Game CD", gameState, gameColor, app.gameFound || inGame(app),
                            "DUNE.DAT and DNCDPRG.EXE");
     if (app.copying && app.toCopy > 0) {
         const float width = kFilesRight - kFilesLeft - 18;
@@ -870,7 +911,7 @@ void drawFiles(App& app) {
     }
 
     setColor(r, kGold);
-    SDL_RenderDebugText(r, kFilesLeft, 74, "Optional");
+    SDL_RenderDebugText(r, kFilesLeft, 70, "Optional");
 #ifdef MENTAT_WITH_MT32
     const std::string romState = app.romsFound ? "Found" : "Not added";
     const Uint32 romColor = app.romsFound ? kGood : kDim;
@@ -878,7 +919,16 @@ void drawFiles(App& app) {
     const std::string romState = "Not built in";
     const Uint32 romColor = kDim;
 #endif
-    drawFileLine(r, 86, "Roland MT-32", romState, romColor, app.romsFound, "Its two ROMs, for its music");
+    drawFileLine(r, 81, "Roland MT-32", romState, romColor, app.romsFound, "Its two ROMs, for its music");
+#ifdef MENTAT_WITH_MEGACD
+    const std::string megaCdState = app.megaCdFound ? "Found" : "Not added";
+    const Uint32 megaCdColor = app.megaCdFound ? kGood : kDim;
+#else
+    const std::string megaCdState = "Not built in";
+    const Uint32 megaCdColor = kDim;
+#endif
+    drawFileLine(r, 104, "Mega CD music", megaCdState, megaCdColor, app.megaCdFound,
+                 "From the Mega CD version's image");
 
     for (int i = 0; i < kFilesButtonCount; ++i) {
         const SDL_FRect& b = kFilesButtons[i];
@@ -896,7 +946,7 @@ void drawFiles(App& app) {
     }
 
     setColor(r, kDim);
-    writeText(r, 117, "Drop your CD image (.iso, .bin), the CD or the ROMs on this window, or:",
+    writeText(r, 132, "Drop CD images or ROMs here, or:",
                   kFilesLeft, static_cast<std::size_t>((kFilesRight - kFilesLeft) / SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE));
     if (!app.filesNote.empty()) {
         setColor(r, app.noteIsError ? kBad : kGood);
@@ -1011,14 +1061,15 @@ constexpr MenuItem kMenuItems[] = {
     {"AdLib", MenuKind::Music, mentat::MusicChoice::AdLib},
     {"AdLib Gold", MenuKind::Music, mentat::MusicChoice::AdLibGold},
     {"Roland MT-32", MenuKind::Music, mentat::MusicChoice::Mt32},
+    {"Mega CD", MenuKind::Music, mentat::MusicChoice::MegaCd},
     {"Game files...", MenuKind::Files, mentat::MusicChoice::AdLib},
     {"Back to the game", MenuKind::Back, mentat::MusicChoice::AdLib},
 };
 constexpr int kMenuCount = static_cast<int>(std::size(kMenuItems));
 constexpr float kMenuLeft = 40;
-constexpr float kMenuTop = 36;
+constexpr float kMenuTop = 28;
 constexpr float kMenuWidth = kScreenW - 2 * kMenuLeft;
-constexpr float kMenuHeight = 150;
+constexpr float kMenuHeight = 162;
 constexpr float kItemTop = kMenuTop + 44;
 constexpr float kItemHeight = 13;
 

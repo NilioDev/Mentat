@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(Mentat
-    VERSION 0.4.0
+    VERSION 0.5.0
     DESCRIPTION "Clean-room engine that plays the 1992 desert adventure-strategy game from your own files"
     LANGUAGES C CXX)
 
@@ -15,6 +15,7 @@ option(MTT_BUILD_TESTS "Build the unit tests" ${PROJECT_IS_TOP_LEVEL})
 option(MTT_BUILD_TOOLS "Build the developer tools" ${PROJECT_IS_TOP_LEVEL})
 option(MTT_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(MTT_WITH_MT32 "Build the Roland MT-32 music (downloads Munt's emulator)" ON)
+option(MTT_WITH_MEGACD "Build the Mega CD music (downloads Z80 and YM2612 emulators)" ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(MttWarnings)
@@ -23,6 +24,9 @@ include(MttWarnings)
 # without a screen lives here.
 if(MTT_WITH_MT32)
     include(MttMt32)
+endif()
+if(MTT_WITH_MEGACD)
+    include(MttMegaCd)
 endif()
 add_subdirectory(src/core)
 

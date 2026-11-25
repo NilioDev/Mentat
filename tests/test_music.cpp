@@ -9,6 +9,10 @@
 #ifdef MENTAT_WITH_MT32
 #include "mentat/audio/mt32_music.hpp"
 #endif
+#ifdef MENTAT_WITH_MEGACD
+#include "mentat/audio/megacd_music.hpp"
+#include "mentat/game_files.hpp"
+#endif
 #include "mentat/engine/platform.hpp"
 #include "mentat/data/reader.hpp"
 
@@ -389,5 +393,105 @@ MTT_TEST("mt32 music: the ROMs are known by their contents, not their names") {
     MTT_CHECK(mt32RomName(other).empty());
     MTT_CHECK(mt32RomName(other.parent_path() / "mtt_missing.rom").empty());
     std::filesystem::remove(other);
+}
+#endif
+
+#ifdef MENTAT_WITH_MEGACD
+namespace {
+
+// A sound program of our own for the emulated Z80: it sets one FM channel
+// up, starts its note and waits.
+MegaCdMusicFiles toneProgram() {
+    MegaCdMusicFiles files;
+    files.program.assign(0x1F73, 0);
+    const std::uint8_t code[] = {
+        0x21, 0x00, 0x02,       // ld hl,0x0200
+        0x7E,                   // next: ld a,(hl)
+        0xFE, 0xFF,             // cp 0xFF
+        0x28, 0x0D,             // jr z,done
+        0x32, 0x00, 0x40,       // ld (0x4000),a   the register
+        0x23,                   // inc hl
+        0x7E,                   // ld a,(hl)
+        0x32, 0x01, 0x40,       // ld (0x4001),a   its value
+        0x23,                   // inc hl
+        0x00, 0x00,             // nop, nop
+        0x18, 0xEE,             // jr next
+        0x18, 0xFE,             // done: jr done
+    };
+    files.program[0] = 0xC3; // jp 0x0100
+    files.program[1] = 0x00;
+    files.program[2] = 0x01;
+    std::copy(std::begin(code), std::end(code), files.program.begin() + 0x100);
+    const std::uint8_t registers[] = {
+        0x22, 0x00, 0x27, 0x00, 0x28, 0x00, 0xB0, 0x07, 0xB4, 0xC0, // algorithm 7, both sides
+        0x30, 0x01, 0x34, 0x01, 0x38, 0x01, 0x3C, 0x01,             // multiples
+        0x40, 0x7F, 0x44, 0x7F, 0x48, 0x7F, 0x4C, 0x00,             // only the fourth sounds
+        0x50, 0x1F, 0x54, 0x1F, 0x58, 0x1F, 0x5C, 0x1F,             // fastest attack
+        0x60, 0x00, 0x64, 0x00, 0x68, 0x00, 0x6C, 0x00, 0x70, 0x00, 0x74, 0x00, 0x78, 0x00, 0x7C, 0x00,
+        0x80, 0x0F, 0x84, 0x0F, 0x88, 0x0F, 0x8C, 0x0F,             // held
+        0xA4, 0x22, 0xA0, 0x69, 0x28, 0xF0, 0xFF,                   // A 440, key on
+    };
+    std::copy(std::begin(registers), std::end(registers), files.program.begin() + 0x200);
+    for (auto& piece : files.pieces) {
+        piece.assign(0x40, 0);
+        piece[2] = 0x32;
+    }
+    return files;
+}
+
+} // namespace
+
+MTT_TEST("megacd music: the emulated Z80 plays a note on the emulated FM chip") {
+    MegaCdMusic music(toneProgram());
+    MTT_CHECK(music.card() == MusicCard::MegaCd && music.playsOwnPieces());
+    MTT_CHECK(music.rate() == 53267);
+    std::vector<std::int16_t> out;
+    music.runSeconds(0.25, out);
+    MTT_CHECK(out.size() > 2 * 13000);
+    int loudest = 0;
+    for (std::size_t i = out.size() / 2; i < out.size(); ++i) {
+        loudest = std::max(loudest, std::abs(static_cast<int>(out[i])));
+    }
+    MTT_CHECK(loudest > 1000);
+    // Its pieces stand in for the CD version's tracks in the same order;
+    // the Cryo logo's music has none.
+    MTT_CHECK(MegaCdMusic::pieceFor(6) == 6 && MegaCdMusic::pieceFor(9) == 9);
+    MTT_CHECK(MegaCdMusic::pieceFor(10) == 0 && MegaCdMusic::pieceFor(0) == 0 && MegaCdMusic::pieceFor(42) == 0);
+}
+
+MTT_TEST("megacd music: files that are not the disc's are refused") {
+    auto files = toneProgram();
+    files.pieces[4][2] = 0x31;
+    bool refused = false;
+    try {
+        MegaCdMusic music(std::move(files));
+    } catch (const FormatError&) {
+        refused = true;
+    }
+    MTT_CHECK(refused);
+}
+
+MTT_TEST("megacd music: the disc's morning piece plays") {
+    const auto folder = findMegaCdMusic({MENTAT_GAMEDATA_DIR});
+    if (!folder) {
+        MTT_SKIP("no Mega CD music");
+        return;
+    }
+    MegaCdMusic music(readMegaCdMusic(*folder));
+    std::vector<std::int16_t> out;
+    music.runTo(0, out);
+    music.setVolume(0xFF, 0x78);
+    music.startPiece(6, 0);
+    music.runTo(static_cast<std::uint32_t>(kTicksPerSecond * 4), out);
+    int loudest = 0;
+    for (const auto s : out) {
+        loudest = std::max(loudest, std::abs(static_cast<int>(s)));
+    }
+    MTT_CHECK(out.size() > 2 * 53267 * 3);
+    MTT_CHECK(loudest > 2000);
+    MTT_CHECK(music.status().playing());
+    music.stop();
+    music.runTo(static_cast<std::uint32_t>(kTicksPerSecond * 5), out);
+    MTT_CHECK(!music.status().playing());
 }
 #endif

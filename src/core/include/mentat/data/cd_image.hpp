@@ -44,6 +44,14 @@ public:
     void copyOut(const CdEntry& entry, const std::filesystem::path& to,
                  const std::function<void(std::uint64_t)>& progress);
 
+    // Reads `size` bytes of a file from `offset` on; fewer when the file
+    // ends first. Throws FormatError on a read failure.
+    std::vector<std::uint8_t> read(const CdEntry& entry, std::uint64_t offset, std::size_t size);
+
+    // The data of the disc's first sector, where a console disc says what
+    // it is.
+    std::vector<std::uint8_t> firstSector();
+
 private:
     // Reads the 2048 data bytes of one sector.
     void readSector(std::uint32_t sector, std::uint8_t* out);

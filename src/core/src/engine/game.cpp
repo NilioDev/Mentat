@@ -162,6 +162,10 @@ void Game::playTrack(int n) {
         return;
     }
     track_ = n;
+    if (music_->playsOwnPieces()) {
+        music_->startPiece(n, playTracksOnce ? 1 : 0);
+        return;
+    }
     const int index = resource::kFirstMusic + n;
     std::vector<std::uint8_t> bytes;
     if (music_->card() != MusicCard::SoundBlasterPro) {

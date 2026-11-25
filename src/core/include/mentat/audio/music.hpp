@@ -59,6 +59,7 @@ enum class MusicCard {
     SoundBlasterPro, // DNADP.HSQ with the .HSQ music
     AdLibGold,       // DNADG.HSQ with the .AGD music
     Mt32,            // DNMID.HSQ with the .M32 music, on a Roland MT-32
+    MegaCd,          // the Mega CD version's own music, from its disc
 };
 
 // The tables inside one of the original's FM music players.

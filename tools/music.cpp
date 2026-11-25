@@ -7,12 +7,21 @@
 //
 //   mentat-music DUNE.DAT ARRAKIS.AGD out.wav [seconds]
 //   mentat-music DUNE.DAT ARRAKIS.HSQ --trace [ticks]
+//   mentat-music --megacd-import MEGACD.iso folder
+//   mentat-music --megacd folder TRACK out.wav [seconds]
+//
+// The last two copy the Mega CD version's music out of an image of its disc
+// and play the piece it has for the CD version's track 1-10.
 #include "mentat/audio/music.hpp"
 #include "mentat/audio/music_driver.hpp"
 #include "mentat/audio/opl.hpp"
 #include "mentat/data/dat_archive.hpp"
 #include "mentat/data/reader.hpp"
 #include "mentat/engine/platform.hpp"
+#include "mentat/game_files.hpp"
+#ifdef MENTAT_WITH_MEGACD
+#include "mentat/audio/megacd_music.hpp"
+#endif
 
 #include <cstdio>
 #include <cstdlib>
@@ -49,9 +58,64 @@ void put16(std::ofstream& out, std::uint16_t v) {
     out.write(b, 2);
 }
 
+void writeWav(const char* path, const std::vector<std::int16_t>& samples, int rate) {
+    std::ofstream out(path, std::ios::binary);
+    out.write("RIFF", 4);
+    put32(out, static_cast<std::uint32_t>(36 + samples.size() * 2));
+    out.write("WAVEfmt ", 8);
+    put32(out, 16);
+    put16(out, 1);
+    put16(out, 2);
+    put32(out, static_cast<std::uint32_t>(rate));
+    put32(out, static_cast<std::uint32_t>(rate) * 4);
+    put16(out, 4);
+    put16(out, 16);
+    out.write("data", 4);
+    put32(out, static_cast<std::uint32_t>(samples.size() * 2));
+    for (const auto s : samples) {
+        put16(out, static_cast<std::uint16_t>(s));
+    }
+}
+
+int megaCd(int argc, char** argv) {
+    const std::string mode = argv[1];
+    if (mode == "--megacd-import" && argc >= 4) {
+        importMegaCdMusic(argv[2], argv[3]);
+        std::printf("copied the Mega CD music to %s\n", argv[3]);
+        return 0;
+    }
+#ifdef MENTAT_WITH_MEGACD
+    if (mode == "--megacd" && argc >= 5) {
+        MegaCdMusic music(readMegaCdMusic(argv[2]));
+        const double seconds = argc > 5 ? std::atof(argv[5]) : 60;
+        std::vector<std::int16_t> samples;
+        music.runTo(0, samples);
+        music.setVolume(0xFF, 0x78);
+        music.startPiece(std::atoi(argv[3]), 0);
+        const auto ticks = static_cast<std::uint32_t>(seconds * kTicksPerSecond);
+        for (std::uint32_t t = 1; t <= ticks; ++t) {
+            music.runTo(t, samples);
+        }
+        writeWav(argv[4], samples, music.rate());
+        std::printf("track %s: %.1f s\n", argv[3], static_cast<double>(samples.size()) / 2 / music.rate());
+        return 0;
+    }
+#endif
+    std::fprintf(stderr, "usage: mentat-music --megacd-import IMAGE folder | --megacd folder TRACK out.wav [seconds]\n");
+    return 2;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
+    if (argc > 1 && std::string(argv[1]).rfind("--megacd", 0) == 0) {
+        try {
+            return megaCd(argc, argv);
+        } catch (const FormatError& e) {
+            std::fprintf(stderr, "%s\n", e.what());
+            return 1;
+        }
+    }
     if (argc < 4) {
         std::fprintf(stderr, "usage: mentat-music DUNE.DAT NAME.HSQ out.wav [seconds] | --trace [ticks]\n");
         return 2;
@@ -83,22 +147,7 @@ int main(int argc, char** argv) {
         for (std::uint32_t t = 1; t <= ticks && music.driver().status().playing(); ++t) {
             music.runTo(t, samples);
         }
-        std::ofstream out(argv[3], std::ios::binary);
-        out.write("RIFF", 4);
-        put32(out, static_cast<std::uint32_t>(36 + samples.size() * 2));
-        out.write("WAVEfmt ", 8);
-        put32(out, 16);
-        put16(out, 1);
-        put16(out, 2);
-        put32(out, Opl::kRate);
-        put32(out, Opl::kRate * 4);
-        put16(out, 4);
-        put16(out, 16);
-        out.write("data", 4);
-        put32(out, static_cast<std::uint32_t>(samples.size() * 2));
-        for (const auto s : samples) {
-            put16(out, static_cast<std::uint16_t>(s));
-        }
+        writeWav(argv[3], samples, Opl::kRate);
         std::printf("%s: %.1f s\n", argv[2], static_cast<double>(samples.size()) / 2 / Opl::kRate);
     } catch (const FormatError& e) {
         std::fprintf(stderr, "%s\n", e.what());

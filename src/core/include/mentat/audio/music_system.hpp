@@ -23,6 +23,10 @@ public:
     virtual MusicCard card() const = 0;
     // Starts a piece. `plays` 0 repeats it forever.
     virtual void start(std::shared_ptr<const Song> song, int plays) = 0;
+    // A player with pieces of its own (the Mega CD's) is not handed the CD
+    // version's: the game names the piece by its number instead.
+    virtual bool playsOwnPieces() const { return false; }
+    virtual void startPiece(int /*track*/, int /*plays*/) {}
     virtual void stop() = 0;
     // Lets the piece end after the play that is running.
     virtual void endAfterThisPlay() = 0;
