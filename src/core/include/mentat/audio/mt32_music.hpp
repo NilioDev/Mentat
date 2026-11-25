@@ -11,8 +11,15 @@
 
 #include <filesystem>
 #include <memory>
+#include <string>
 
 namespace mentat {
+
+// Tells from its contents whether a file is a whole MT-32 or CM-32L ROM,
+// and returns the name Mentat keeps it under (see findMt32Roms):
+// MT32_CONTROL.ROM, MT32_PCM.ROM, CM32L_CONTROL.ROM or CM32L_PCM.ROM. Empty
+// for any other file, so the player's files can be named anything.
+std::string mt32RomName(const std::filesystem::path& file);
 
 class Mt32Music : public MusicSystem {
 public:

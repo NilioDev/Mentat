@@ -7,6 +7,8 @@
 #include <mt32emu.h>
 
 #include <fstream>
+#include <string>
+#include <system_error>
 #include <iterator>
 #include <vector>
 
@@ -23,6 +25,37 @@ std::vector<MT32Emu::Bit8u> readRom(const std::filesystem::path& path) {
 }
 
 } // namespace
+
+std::string mt32RomName(const std::filesystem::path& file) {
+    // The largest whole ROM, the CM-32L's PCM, is 1 MB.
+    std::error_code ec;
+    const auto size = std::filesystem::file_size(file, ec);
+    if (ec || size == 0 || size > (1u << 20) || !std::filesystem::is_regular_file(file, ec)) {
+        return {};
+    }
+    std::vector<MT32Emu::Bit8u> bytes;
+    try {
+        bytes = readRom(file);
+    } catch (const FormatError&) {
+        return {};
+    }
+    MT32Emu::ArrayFile data(bytes.data(), bytes.size());
+    const MT32Emu::ROMInfo* info = MT32Emu::ROMInfo::getROMInfo(&data, MT32Emu::ROMInfo::getFullROMInfos());
+    if (info == nullptr || info->shortName == nullptr) {
+        return {};
+    }
+    const std::string kind = info->shortName;
+    const bool cm32l = kind.rfind("ctrl_cm32l", 0) == 0 || kind.rfind("pcm_cm32l", 0) == 0;
+    const std::string machine = cm32l ? "CM32L" : "MT32";
+    switch (info->type) {
+    case MT32Emu::ROMInfo::Control:
+        return machine + "_CONTROL.ROM";
+    case MT32Emu::ROMInfo::PCM:
+        return machine + "_PCM.ROM";
+    default:
+        return {};
+    }
+}
 
 struct Mt32Music::Synth : MidiSink {
     std::vector<MT32Emu::Bit8u> controlBytes;

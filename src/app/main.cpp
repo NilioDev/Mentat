@@ -34,6 +34,7 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -76,7 +77,7 @@ struct App {
     Uint64 lastFrameNs = 0;
 
     // Copying the game files from the player's CD image, when they are not
-    // found: see setupEvent.
+    // found: see addFiles.
     std::thread copier;
     std::atomic<std::uint64_t> copied{0};
     std::atomic<std::uint64_t> toCopy{0};
@@ -85,7 +86,13 @@ struct App {
     std::string copyError; // set before copyDone
     std::atomic<bool> dialogOpen{false};
     std::mutex pickedLock; // the file dialog answers on its own thread
-    std::optional<std::string> picked;
+    std::vector<std::string> picked; // files the player dropped or picked
+    bool gameFound = false;          // the game CD's files
+    bool romsFound = false;          // the MT-32 ROMs
+    bool filesOpen = false;          // the game files screen, over the menu
+    int filesItem = 0;               // its button with the focus
+    std::string filesNote;           // what adding files came to
+    bool noteIsError = false;
     int argc = 0;
     char** argv = nullptr;
 
@@ -229,7 +236,7 @@ std::unique_ptr<mentat::MusicSystem> makeMusic(App& app, mentat::MusicChoice cho
 #ifdef MENTAT_WITH_MT32
             const auto roms = findMt32Roms(gameFolders(app.argc, app.argv));
             if (!roms) {
-                app.menuNote = "Put MT32_CONTROL.ROM and MT32_PCM.ROM beside DUNE.DAT.";
+                app.menuNote = "Add the MT-32 ROMs under Game files.";
                 return nullptr;
             }
             return std::make_unique<Mt32Music>(roms->control, roms->pcm);
@@ -501,71 +508,108 @@ void SDLCALL picked(void* userdata, const char* const* files, int) {
     auto* app = static_cast<App*>(userdata);
     const std::lock_guard lock(app->pickedLock);
     app->dialogOpen = false;
-    if (files != nullptr && files[0] != nullptr) {
-        app->picked = files[0];
+    for (int i = 0; files != nullptr && files[i] != nullptr; ++i) {
+        app->picked.emplace_back(files[i]);
     }
 }
 
-void pickImage(App& app) {
+void pickFiles(App& app) {
     if (app.copying || app.dialogOpen) {
         return;
     }
     static const SDL_DialogFileFilter kFilters[] = {
-        {"CD image", "iso;bin;img"},
+        {"CD image or MT-32 ROM", "iso;bin;img;rom"},
         {"All files", "*"},
     };
     app.dialogOpen = true;
-    SDL_ShowOpenFileDialog(picked, &app, app.window, kFilters, 2, nullptr, false);
+    SDL_ShowOpenFileDialog(picked, &app, app.window, kFilters, 2, nullptr, true);
 }
 
-// The events while there is no game yet: the player gives the CD image by
-// dropping it on the window, or picks it with a click, Enter or a gamepad
-// button.
-SDL_AppResult setupEvent(App& app, const SDL_Event& event) {
-    switch (event.type) {
-    case SDL_EVENT_QUIT:
-        return SDL_APP_SUCCESS;
-    case SDL_EVENT_KEY_DOWN:
-        if (event.key.key == SDLK_ESCAPE) {
-            return SDL_APP_SUCCESS;
-        }
-        if (event.key.key == SDLK_RETURN || event.key.key == SDLK_SPACE || event.key.key == SDLK_KP_ENTER) {
-            pickImage(app);
-        }
-        break;
-    case SDL_EVENT_MOUSE_BUTTON_DOWN:
-        pickImage(app);
-        break;
-    case SDL_EVENT_GAMEPAD_ADDED:
-        SDL_OpenGamepad(event.gdevice.which);
-        break;
-    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
-        if (app.buttons.action(event.gbutton.button) == mentat::PadAction::Quit) {
-            return SDL_APP_SUCCESS;
-        }
-        pickImage(app);
-        break;
-    case SDL_EVENT_DROP_FILE:
-        if (event.drop.data != nullptr) {
-            startCopy(app, event.drop.data);
-        }
-        break;
-    default:
-        break;
+// The name an optional file the player gave is kept under; empty for any
+// other file.
+std::string extraFileName(const std::filesystem::path& file) {
+#ifdef MENTAT_WITH_MT32
+    return mentat::mt32RomName(file);
+#else
+    (void)file;
+    return {};
+#endif
+}
+
+void findExtras(App& app) { app.romsFound = mentat::findMt32Roms(gameFolders(app.argc, app.argv)).has_value(); }
+
+// Once the MT-32 ROMs are added, the MT-32 music the player chose before
+// plays instead of the AdLib Gold's that stood in for it.
+void retryMusic(App& app) {
+    if (app.liveGame == nullptr || app.music == nullptr || app.options.music != mentat::MusicChoice::Mt32 ||
+        app.music->card() == mentat::MusicCard::Mt32) {
+        return;
     }
-    return SDL_APP_CONTINUE;
+    if (auto next = makeMusic(app, mentat::MusicChoice::Mt32)) {
+        app.liveGame->switchMusic(next.get());
+        app.music = std::move(next);
+    }
 }
 
-// Called each frame while there is no game: starts a copy the dialog
-// picked, and the game once a copy is done.
+// Files the player dropped on the window or picked: the MT-32 ROMs (by
+// their contents, whatever their names) are copied at once, and the game
+// CD's files on a thread of their own. A folder can hold both.
+void addFiles(App& app, const std::vector<std::string>& sources) {
+    std::vector<std::filesystem::path> extras;
+    std::optional<std::string> image;
+    const bool needGame = app.game == nullptr && !app.gameFound;
+    for (const auto& source : sources) {
+        std::error_code ec;
+        if (std::filesystem::is_directory(source, ec)) {
+            extras.emplace_back(source);
+            if (needGame && mentat::findGameFiles({source})) {
+                image = source;
+            }
+        } else if (!extraFileName(source).empty()) {
+            extras.emplace_back(source);
+        } else if (needGame) {
+            image = source;
+        } else {
+            app.filesNote = "Mentat already has the game CD's files.";
+            app.noteIsError = false;
+        }
+    }
+    if (!extras.empty()) {
+        try {
+            const auto names = mentat::importExtraFiles(extras, copiedGameFolder(), extraFileName);
+            if (!names.empty()) {
+                std::string text = "Added";
+                for (std::size_t i = 0; i < names.size(); ++i) {
+                    text += (i == 0 ? " " : (i + 1 == names.size() ? " and " : ", ")) + names[i];
+                }
+                app.filesNote = text + ".";
+                app.noteIsError = false;
+            } else if (!image) {
+                app.filesNote = "There are no MT-32 ROMs in that folder.";
+                app.noteIsError = true;
+            }
+        } catch (const std::exception& e) {
+            app.filesNote = e.what();
+            app.noteIsError = true;
+        }
+        findExtras(app);
+        retryMusic(app);
+    }
+    if (image) {
+        startCopy(app, *image);
+    }
+}
+
+// Called each frame: takes the files the player gave, and finishes a copy
+// of the game CD's files.
 void checkCopy(App& app) {
-    std::optional<std::string> source;
+    std::vector<std::string> sources;
     {
         const std::lock_guard lock(app.pickedLock);
-        source.swap(app.picked);
+        sources.swap(app.picked);
     }
-    if (source) {
-        startCopy(app, *source);
+    if (!sources.empty()) {
+        addFiles(app, sources);
     }
     if (!app.copyDone) {
         return;
@@ -575,14 +619,23 @@ void checkCopy(App& app) {
     app.copying = false;
     if (!app.copyError.empty()) {
         SDL_Log("copying the game files: %s", app.copyError.c_str());
+        app.filesNote = "That did not work: " + app.copyError;
+        app.noteIsError = true;
         return;
     }
     openGameFiles(app, app.argc, app.argv);
-    if (app.problem.empty()) {
-        startGame(app);
+    app.gameFound = app.problem.empty();
+    if (app.gameFound) {
+        // Keeps saying which ROMs were added with them.
+        app.filesNote = "The game CD's files are copied." +
+                        (app.filesNote.empty() || app.noteIsError ? std::string() : " " + app.filesNote);
+        app.noteIsError = false;
+        app.filesItem = 1; // Play
     } else {
-        app.copyError = app.problem;
+        app.filesNote = "That did not work: " + app.problem;
+        app.noteIsError = true;
     }
+    findExtras(app);
 }
 
 // Writes text in SDL's own small font, broken into lines that fit the
@@ -609,42 +662,250 @@ float writeText(SDL_Renderer* renderer, float y, const std::string& text, float 
     return y;
 }
 
-// The screen while there is no game: what is missing, and how to give it.
-void drawSetup(App& app) {
+// The game files screen: what Mentat needs to play, what it can use besides,
+// and the way to add both. It is the first screen while the game CD's files
+// are missing, and is opened from the options menu later.
+constexpr float kFilesLeft = 12;
+constexpr float kFilesRight = kScreenW - 12;
+constexpr SDL_FRect kFilesButtons[] = {
+    {kFilesLeft, 150, 136, 15},
+    {kFilesRight - 136, 150, 136, 15},
+};
+constexpr int kFilesButtonCount = static_cast<int>(std::size(kFilesButtons));
+
+int filesButtonAt(float x, float y) {
+    for (int i = 0; i < kFilesButtonCount; ++i) {
+        const SDL_FRect& b = kFilesButtons[i];
+        if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+bool inGame(const App& app) { return app.game != nullptr; }
+
+bool canPlay(const App& app) { return inGame(app) || (app.gameFound && !app.copying); }
+
+void openFiles(App& app) {
+    app.filesOpen = true;
+    app.filesItem = 0;
+    app.filesNote.clear();
+    findExtras(app);
+}
+
+void closeMenu(App& app);
+
+void chooseFilesButton(App& app, int button) {
+    if (button < 0 || button >= kFilesButtonCount) {
+        return;
+    }
+    app.filesItem = button;
+    if (button == 0) {
+        pickFiles(app);
+    } else if (inGame(app)) {
+        app.filesOpen = false;
+    } else if (canPlay(app)) {
+        if (app.menuOpen) {
+            closeMenu(app);
+        }
+        startGame(app);
+    }
+}
+
+// The events on the game files screen; returns false for the ones it
+// leaves alone, and sets `quit` when the player quits.
+bool filesEvent(App& app, SDL_Event& event, bool& quit) {
+    const auto back = [&] {
+        if (inGame(app)) {
+            app.filesOpen = false;
+        } else {
+            quit = true;
+        }
+    };
+    switch (event.type) {
+    case SDL_EVENT_KEY_DOWN:
+        if (event.key.repeat && event.key.key != SDLK_LEFT && event.key.key != SDLK_RIGHT) {
+            return true;
+        }
+        switch (event.key.key) {
+        case SDLK_ESCAPE:
+            back();
+            break;
+        case SDLK_LEFT:
+        case SDLK_RIGHT:
+        case SDLK_UP:
+        case SDLK_DOWN:
+        case SDLK_TAB:
+        case SDLK_A:
+        case SDLK_D:
+            app.filesItem = 1 - app.filesItem;
+            break;
+        case SDLK_RETURN:
+        case SDLK_KP_ENTER:
+        case SDLK_SPACE:
+            chooseFilesButton(app, app.filesItem);
+            break;
+        default:
+            break;
+        }
+        return true;
+    case SDL_EVENT_MOUSE_MOTION: {
+        SDL_ConvertEventToRenderCoordinates(app.renderer, &event);
+        if (const int button = filesButtonAt(event.motion.x, event.motion.y); button >= 0) {
+            app.filesItem = button;
+        }
+        return true;
+    }
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        SDL_ConvertEventToRenderCoordinates(app.renderer, &event);
+        if (event.button.button == SDL_BUTTON_LEFT) {
+            chooseFilesButton(app, filesButtonAt(event.button.x, event.button.y));
+        } else if (event.button.button == SDL_BUTTON_RIGHT && inGame(app)) {
+            app.filesOpen = false;
+        }
+        return true;
+    case SDL_EVENT_GAMEPAD_ADDED:
+        SDL_OpenGamepad(event.gdevice.which);
+        return true;
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+        switch (event.gbutton.button) {
+        case SDL_GAMEPAD_BUTTON_DPAD_LEFT:
+        case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
+        case SDL_GAMEPAD_BUTTON_DPAD_UP:
+        case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
+            app.filesItem = 1 - app.filesItem;
+            return true;
+        default:
+            break;
+        }
+        switch (app.buttons.action(event.gbutton.button)) {
+        case mentat::PadAction::Quit:
+            quit = true;
+            break;
+        case mentat::PadAction::Click:
+            chooseFilesButton(app, app.filesItem);
+            break;
+        case mentat::PadAction::RightClick:
+            if (inGame(app)) {
+                app.filesOpen = false;
+            }
+            break;
+        default:
+            break;
+        }
+        return true;
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+    case SDL_EVENT_KEY_UP:
+    case SDL_EVENT_GAMEPAD_BUTTON_UP:
+    case SDL_EVENT_MOUSE_WHEEL:
+        return true;
+    default:
+        return false;
+    }
+}
+
+void setColor(SDL_Renderer* r, Uint32 rgb) {
+    SDL_SetRenderDrawColor(r, static_cast<Uint8>(rgb >> 16), static_cast<Uint8>(rgb >> 8), static_cast<Uint8>(rgb),
+                           255);
+}
+
+constexpr Uint32 kGold = 0xE8C070;
+constexpr Uint32 kText = 0xF0E6D2;
+constexpr Uint32 kDim = 0xA09888;
+constexpr Uint32 kGood = 0x90D070;
+constexpr Uint32 kBad = 0xF07060;
+
+// One file line: a mark, its name, how it stands and what it is.
+float drawFileLine(SDL_Renderer* r, float y, const char* name, const std::string& state, Uint32 stateColor,
+                   bool have, const std::string& about) {
+    const SDL_FRect mark{kFilesLeft + 4, y, 7, 7};
+    setColor(r, have ? kGood : kDim);
+    if (have) {
+        SDL_RenderFillRect(r, &mark);
+    } else {
+        SDL_RenderRect(r, &mark);
+    }
+    setColor(r, kText);
+    SDL_RenderDebugText(r, kFilesLeft + 18, y, name);
+    setColor(r, stateColor);
+    const float stateX = kFilesRight - static_cast<float>(state.size()) * SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE;
+    SDL_RenderDebugText(r, stateX, y, state.c_str());
+    setColor(r, kDim);
+    SDL_RenderDebugText(r, kFilesLeft + 18, y + 11, about.c_str());
+    return y + 22;
+}
+
+void drawFiles(App& app) {
     SDL_Renderer* r = app.renderer;
-    SDL_SetRenderDrawColor(r, 0xE8, 0xC0, 0x70, 255);
-    float y = writeText(r, 12, std::string(mentat::kProjectName));
-    y += 8;
-    SDL_SetRenderDrawColor(r, 0xF0, 0xE6, 0xD2, 255);
+    SDL_SetRenderDrawColor(r, 0x10, 0x0C, 0x08, 255);
+    const SDL_FRect all{0, 0, kScreenW, kScreenH};
+    SDL_RenderFillRect(r, &all);
+    setColor(r, kGold);
+    const SDL_FRect frame{4, 4, kScreenW - 8, kScreenH - 8};
+    SDL_RenderRect(r, &frame);
+    SDL_RenderDebugText(r, kFilesLeft, 13, (std::string(mentat::kProjectName) + " - game files").c_str());
+
+    setColor(r, kGold);
+    SDL_RenderDebugText(r, kFilesLeft, 31, "Needed to play");
+    std::string gameState = app.gameFound || inGame(app) ? "Found" : "Missing";
+    Uint32 gameColor = app.gameFound || inGame(app) ? kGood : kBad;
     if (app.copying) {
         const std::uint64_t total = app.toCopy;
         const std::uint64_t done = app.copied;
-        const int percent = total == 0 ? 0 : static_cast<int>(done * 100 / total);
-        y = writeText(r, y, "Copying the game files from your CD... " + std::to_string(percent) + "%");
-        y += 6;
+        gameState = "Copying " + std::to_string(total == 0 ? 0 : done * 100 / total) + "%";
+        gameColor = kText;
+    }
+    float y = drawFileLine(r, 43, "Game CD", gameState, gameColor, app.gameFound || inGame(app),
+                           "DUNE.DAT and DNCDPRG.EXE");
+    if (app.copying && app.toCopy > 0) {
+        const float width = kFilesRight - kFilesLeft - 18;
         SDL_SetRenderDrawColor(r, 0x50, 0x40, 0x30, 255);
-        const SDL_FRect back{8, y, kScreenW - 16.0f, 8};
-        SDL_RenderFillRect(r, &back);
-        SDL_SetRenderDrawColor(r, 0xE8, 0xC0, 0x70, 255);
-        const SDL_FRect bar{8, y, (kScreenW - 16.0f) * static_cast<float>(percent) / 100.0f, 8};
+        const SDL_FRect barBack{kFilesLeft + 18, y, width, 3};
+        SDL_RenderFillRect(r, &barBack);
+        setColor(r, kGold);
+        const SDL_FRect bar{kFilesLeft + 18, y,
+                            width * static_cast<float>(app.copied.load()) / static_cast<float>(app.toCopy.load()), 3};
         SDL_RenderFillRect(r, &bar);
-        return;
     }
-    if (!app.copyError.empty()) {
-        SDL_SetRenderDrawColor(r, 0xF0, 0x70, 0x60, 255);
-        y = writeText(r, y, "That did not work: " + app.copyError);
-        SDL_SetRenderDrawColor(r, 0xF0, 0xE6, 0xD2, 255);
+
+    setColor(r, kGold);
+    SDL_RenderDebugText(r, kFilesLeft, 74, "Optional");
+#ifdef MENTAT_WITH_MT32
+    const std::string romState = app.romsFound ? "Found" : "Not added";
+    const Uint32 romColor = app.romsFound ? kGood : kDim;
+#else
+    const std::string romState = "Not built in";
+    const Uint32 romColor = kDim;
+#endif
+    drawFileLine(r, 86, "Roland MT-32", romState, romColor, app.romsFound, "Its two ROMs, for its music");
+
+    for (int i = 0; i < kFilesButtonCount; ++i) {
+        const SDL_FRect& b = kFilesButtons[i];
+        const bool enabled = i == 0 ? !app.copying : canPlay(app);
+        const char* label = i == 0 ? "Add files..." : (inGame(app) ? "Back" : "Play");
+        if (i == app.filesItem && enabled) {
+            SDL_SetRenderDrawColor(r, 0x50, 0x3C, 0x20, 255);
+            SDL_RenderFillRect(r, &b);
+        }
+        setColor(r, enabled ? kGold : 0x504030);
+        SDL_RenderRect(r, &b);
+        setColor(r, enabled ? kText : 0x605848);
+        const float width = static_cast<float>(std::strlen(label)) * SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE;
+        SDL_RenderDebugText(r, b.x + (b.w - width) / 2, b.y + 4, label);
+    }
+
+    setColor(r, kDim);
+    writeText(r, 117, "Drop your CD image (.iso, .bin), the CD or the ROMs on this window, or:",
+                  kFilesLeft, static_cast<std::size_t>((kFilesRight - kFilesLeft) / SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE));
+    if (!app.filesNote.empty()) {
+        setColor(r, app.noteIsError ? kBad : kGood);
+        writeText(r, 172, app.filesNote, kFilesLeft,
+                  static_cast<std::size_t>((kFilesRight - kFilesLeft) / SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE));
     } else {
-        y = writeText(r, y, app.problem);
+        setColor(r, kDim);
+        SDL_RenderDebugText(r, kFilesLeft, 178, inGame(app) ? "Esc goes back." : "Esc quits.");
     }
-    y += 6;
-    y = writeText(r, y, "Mentat needs DUNE.DAT and DNCDPRG.EXE from your game CD.");
-    y += 6;
-    y = writeText(r, y, "Drop your CD image (.iso or .bin) or the CD itself on this window, or click, press Enter or "
-                        "a gamepad button to pick it. Mentat copies the two files and starts.");
-    y += 6;
-    SDL_SetRenderDrawColor(r, 0xA0, 0x98, 0x88, 255);
-    writeText(r, y, "Esc quits.");
 }
 
 // The largest whole scale at which the game fits in `usable`, leaving room
@@ -738,29 +999,33 @@ bool windowKey(App& app, const SDL_KeyboardEvent& key) {
 // --- Mentat's options menu (F2, or Start on a gamepad). The game waits
 // while it is open.
 
+enum class MenuKind { Music, Files, Back };
+
 struct MenuItem {
     const char* label;
+    MenuKind kind;
     mentat::MusicChoice music; // for the music lines
-    bool isMusic;
 };
 
 constexpr MenuItem kMenuItems[] = {
-    {"AdLib", mentat::MusicChoice::AdLib, true},
-    {"AdLib Gold", mentat::MusicChoice::AdLibGold, true},
-    {"Roland MT-32", mentat::MusicChoice::Mt32, true},
-    {"Back to the game", mentat::MusicChoice::AdLib, false},
+    {"AdLib", MenuKind::Music, mentat::MusicChoice::AdLib},
+    {"AdLib Gold", MenuKind::Music, mentat::MusicChoice::AdLibGold},
+    {"Roland MT-32", MenuKind::Music, mentat::MusicChoice::Mt32},
+    {"Game files...", MenuKind::Files, mentat::MusicChoice::AdLib},
+    {"Back to the game", MenuKind::Back, mentat::MusicChoice::AdLib},
 };
 constexpr int kMenuCount = static_cast<int>(std::size(kMenuItems));
 constexpr float kMenuLeft = 40;
 constexpr float kMenuTop = 36;
 constexpr float kMenuWidth = kScreenW - 2 * kMenuLeft;
-constexpr float kMenuHeight = 140;
+constexpr float kMenuHeight = 150;
 constexpr float kItemTop = kMenuTop + 44;
 constexpr float kItemHeight = 13;
 
 float menuItemY(int item) {
-    // A gap before "Back".
-    return kItemTop + static_cast<float>(item) * kItemHeight + (kMenuItems[item].isMusic ? 0.0f : 8.0f);
+    // A gap after the music.
+    return kItemTop + static_cast<float>(item) * kItemHeight +
+           (kMenuItems[item].kind == MenuKind::Music ? 0.0f : 8.0f);
 }
 
 int menuItemAt(float x, float y) {
@@ -779,7 +1044,7 @@ void openMenu(App& app) {
     app.menuNote.clear();
     app.menuItem = 0;
     for (int i = 0; i < kMenuCount; ++i) {
-        if (kMenuItems[i].isMusic && kMenuItems[i].music == app.options.music) {
+        if (kMenuItems[i].kind == MenuKind::Music && kMenuItems[i].music == app.options.music) {
             app.menuItem = i;
         }
     }
@@ -788,6 +1053,7 @@ void openMenu(App& app) {
 
 void closeMenu(App& app) {
     app.menuOpen = false;
+    app.filesOpen = false;
     // The game's clock goes on from where it stopped.
     app.startNs += SDL_GetTicksNS() - app.menuOpenedNs;
     app.lastFrameNs = 0;
@@ -823,10 +1089,20 @@ void chooseMenuItem(App& app, int item) {
         return;
     }
     app.menuItem = item;
-    if (kMenuItems[item].isMusic) {
+    switch (kMenuItems[item].kind) {
+    case MenuKind::Music:
         chooseMusic(app, kMenuItems[item].music);
-    } else {
+        break;
+    case MenuKind::Files:
+        if (inGame(app)) {
+            openFiles(app);
+        } else {
+            closeMenu(app); // the game files screen is behind the menu
+        }
+        break;
+    case MenuKind::Back:
         closeMenu(app);
+        break;
     }
 }
 
@@ -945,7 +1221,7 @@ void drawMenu(App& app) {
             SDL_RenderFillRect(r, &bar);
         }
         std::string text;
-        if (item.isMusic) {
+        if (item.kind == MenuKind::Music) {
             text = std::string(item.music == app.options.music ? "(*) " : "( ) ") + item.label;
         } else {
             text = item.label;
@@ -955,7 +1231,7 @@ void drawMenu(App& app) {
     }
     if (!app.menuNote.empty()) {
         SDL_SetRenderDrawColor(r, 0xF0, 0x90, 0x70, 255);
-        writeText(r, menuItemY(kMenuCount - 1) + 16, app.menuNote, left,
+        writeText(r, menuItemY(kMenuCount - 1) + 14, app.menuNote, left,
                   static_cast<std::size_t>((kMenuWidth - 20) / SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE));
     }
 }
@@ -986,7 +1262,9 @@ SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
     app->argc = argc;
     app->argv = argv;
     openGameFiles(*app, argc, argv);
-    if (app->problem.empty()) {
+    app->gameFound = app->problem.empty();
+    findExtras(*app);
+    if (app->gameFound) {
         startGame(*app);
     } else {
         SDL_Log("%s", app->problem.c_str());
@@ -1003,7 +1281,19 @@ SDL_AppResult SDL_AppEvent(void* state, SDL_Event* event) {
     if (event->type == SDL_EVENT_KEY_DOWN && windowKey(*app, event->key)) {
         return SDL_APP_CONTINUE;
     }
-    if (app->menuOpen) {
+    if (event->type == SDL_EVENT_DROP_FILE) {
+        if (event->drop.data != nullptr) {
+            const std::lock_guard lock(app->pickedLock);
+            app->picked.emplace_back(event->drop.data);
+        }
+        return SDL_APP_CONTINUE;
+    }
+    if (app->filesOpen && app->menuOpen) {
+        bool quit = false;
+        if (filesEvent(*app, *event, quit)) {
+            return quit ? SDL_APP_SUCCESS : SDL_APP_CONTINUE;
+        }
+    } else if (app->menuOpen) {
         if (menuEvent(*app, *event)) {
             return SDL_APP_CONTINUE;
         }
@@ -1021,7 +1311,9 @@ SDL_AppResult SDL_AppEvent(void* state, SDL_Event* event) {
         return SDL_APP_CONTINUE;
     }
     if (app->game == nullptr) {
-        return setupEvent(*app, *event);
+        bool quit = event->type == SDL_EVENT_QUIT;
+        filesEvent(*app, *event, quit);
+        return quit ? SDL_APP_SUCCESS : SDL_APP_CONTINUE;
     }
     switch (event->type) {
     case SDL_EVENT_QUIT:
@@ -1081,9 +1373,7 @@ SDL_AppResult SDL_AppEvent(void* state, SDL_Event* event) {
 
 SDL_AppResult SDL_AppIterate(void* state) {
     auto* app = static_cast<App*>(state);
-    if (app->game == nullptr) {
-        checkCopy(*app);
-    }
+    checkCopy(*app);
     if (app->game != nullptr && !app->menuOpen) {
         updateInput(*app);
         try {
@@ -1102,10 +1392,14 @@ SDL_AppResult SDL_AppIterate(void* state) {
     if (app->game != nullptr) {
         drawScreen(*app);
     } else {
-        drawSetup(*app);
+        drawFiles(*app);
     }
     if (app->menuOpen) {
-        drawMenu(*app);
+        if (app->filesOpen) {
+            drawFiles(*app);
+        } else {
+            drawMenu(*app);
+        }
     }
     SDL_RenderPresent(app->renderer);
     return SDL_APP_CONTINUE;
