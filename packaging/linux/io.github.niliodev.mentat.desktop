@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Mentat
+GenericName=Desert adventure-strategy game engine
+Comment=Play the 1992 desert adventure-strategy game with your own CD files
+Exec=Mentat
+Icon=io.github.niliodev.mentat
+Terminal=false
+Categories=Game;StrategyGame;AdventureGame;
+Keywords=strategy;adventure;desert;spice;
