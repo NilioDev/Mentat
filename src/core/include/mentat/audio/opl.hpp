@@ -7,6 +7,7 @@
 #pragma once
 
 #include "mentat/audio/music_driver.hpp"
+#include "mentat/audio/music_system.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -74,18 +75,24 @@ private:
     std::unique_ptr<GoldOutput> gold_;
 };
 
-// The music player on the timer: one driver tick per timer tick, and the
+// The FM music player on the timer: one driver tick per timer tick, and the
 // chips' sound for the time in between.
-class MusicSystem {
+class FmMusic : public MusicSystem {
 public:
-    explicit MusicSystem(const MusicTables& tables);
+    explicit FmMusic(const MusicTables& tables);
 
     MusicDriver& driver() { return driver_; }
     OplSink& opl() { return chips_; }
 
-    // Runs every timer tick up to `tick` and appends the sound for them, as
-    // stereo frames at Opl::kRate.
-    void runTo(std::uint32_t tick, std::vector<std::int16_t>& out);
+    MusicCard card() const override { return driver_.card(); }
+    void start(std::shared_ptr<const Song> song, int plays) override { driver_.start(chips_, std::move(song), plays); }
+    void stop() override { driver_.stop(chips_); }
+    void endAfterThisPlay() override { driver_.endAfterThisPlay(); }
+    void setVolume(std::uint8_t volume, std::uint8_t balance) override { driver_.setVolume(chips_, volume, balance); }
+    void fade(int ticks, std::uint8_t volume, std::uint8_t balance) override { driver_.fade(ticks, volume, balance); }
+    const MusicStatus& status() const override { return driver_.status(); }
+    void runTo(std::uint32_t tick, std::vector<std::int16_t>& out) override;
+    int rate() const override { return Opl::kRate; }
 
     // The gain of the Sound Blaster Pro mixer's FM levels.
     static double gainOf(std::uint8_t mixer);

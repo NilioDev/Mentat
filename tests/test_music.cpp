@@ -193,8 +193,8 @@ MTT_TEST("music: volume levels and fades") {
     }
     MTT_CHECK(driver.mixer() == 0);
     MTT_CHECK(!driver.status().playing());
-    MTT_CHECK(MusicSystem::gainOf(0xFF) == 1.0);
-    MTT_CHECK(MusicSystem::gainOf(0) == 0.0);
+    MTT_CHECK(FmMusic::gainOf(0xFF) == 1.0);
+    MTT_CHECK(FmMusic::gainOf(0) == 0.0);
 }
 
 MTT_TEST("music: the AdLib Gold player gives voices channels and sides") {

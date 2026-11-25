@@ -107,7 +107,9 @@ is in them. The "Mixer Panel" sets the volume and balance of the voices and
 the music (and of the music while someone speaks), tests a voice, switches
 the language (American, English, French, German, Italian, Spanish or
 Fremen) and the subtitles, turns the music off, or plays it as a CD would,
-in order or shuffled. Reach the Harkonnens' throne room and the story ends as the
+in order or shuffled. Mentat's own options (F2, or Start on a gamepad)
+choose which of the CD's arrangements of the music plays: AdLib, or AdLib
+Gold (the default); the Roland MT-32 one is on its way. Reach the Harkonnens' throne room and the story ends as the
 original's does: the last scene, "THE END" and the cast, after which the
 game starts again from its opening.
 
@@ -200,6 +202,7 @@ every button and action.
 | After the game ends | "RESTART GAME", "LOAD GAME" or "EXIT GAME"; " WHAT ? " says it again | | |
 | Save or load a game | On the globe, or in the mirror of Paul's room ("LOOK AT MIRROR"), "SAVE GAME" or "LOAD GAME", then a log; "Cancel" goes back | | |
 | Change volumes, language, subtitles or music | Click "Mixer Panel"; drag a slider or turn a knob, click a language or a way to show lines, "Done" closes | | |
+| Choose the music (AdLib or AdLib Gold) | F2 opens Mentat's options; click a line | F2, arrows, Enter; Esc closes | Start, direction pad, A; B or Start closes |
 | Full screen or a window | The window opens as large as fits on your screen | F11 or Alt+Enter | |
 | Close Mentat | Window's close button, or "EXIT GAME" on the Mixer Panel | | "EXIT GAME" on the Mixer Panel |
 

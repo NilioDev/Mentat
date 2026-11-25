@@ -27,8 +27,10 @@ same pointer, so everything works the same way.
   and X on most pads) are the left mouse button, and the right and top
   buttons (B and Y) the right mouse button; both are held for as long as
   they are pressed. Back does nothing, so Mentat never closes by accident
-  (EXIT GAME on the mixer panel ends it). Every other button acts as a key
-  press, which skips a video or a pause.
+  (EXIT GAME on the mixer panel ends it). Start opens Mentat's own
+  options (the music to play); there the direction pad moves, A chooses
+  and B or Start closes. Every other button acts as a key press, which
+  skips a video or a pause.
 - The gamepad takes over the pointer when it moves it or clicks, starting
   from where the mouse pointer was. The mouse takes it back as soon as it
   moves.
@@ -46,7 +48,8 @@ are left out (Mentat logs how many).
   `right stick`, `left shoulder`/`lb`, `right shoulder`/`rb`, `dp up`/`up`,
   `dp down`/`down`, `dp left`/`left`, `dp right`/`right`.
 - Actions: `click`, `right click`, `key` (or `skip`), `jump up`,
-  `jump down`, `jump left`, `jump right`, `quit`, `none`.
+  `jump down`, `jump left`, `jump right`, `quit`, `menu` (or `options`),
+  `none`.
 
 For example, to click with B, right-click with A and close Mentat with
 Back:

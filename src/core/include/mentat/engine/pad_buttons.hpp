@@ -21,6 +21,7 @@ enum class PadAction {
     Left,
     Right,
     Quit,       // Mentat closes
+    Menu,       // Mentat's own options open or close
 };
 
 class PadButtons {
@@ -29,7 +30,8 @@ public:
     static constexpr std::size_t kButtons = 26;
 
     // As Mentat comes: A and X click, B and Y right-click, the direction
-    // pad jumps, Back does nothing and the rest press a key.
+    // pad jumps, Start opens Mentat's options, Back does nothing and the
+    // rest press a key.
     PadButtons();
 
     PadAction action(std::size_t button) const {

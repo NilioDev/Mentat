@@ -19,6 +19,7 @@
 #include "mentat/engine/fiber.hpp"
 #include "mentat/engine/game.hpp"
 #include "mentat/engine/intro.hpp"
+#include "mentat/engine/options.hpp"
 #include "mentat/engine/pad_buttons.hpp"
 #include "mentat/engine/platform.hpp"
 #include "mentat/engine/play.hpp"
@@ -84,6 +85,15 @@ struct App {
     std::optional<std::string> picked;
     int argc = 0;
     char** argv = nullptr;
+
+    // Mentat's own options and the menu that sets them (see drawMenu).
+    mentat::Options options;
+    std::unique_ptr<mentat::MusicSystem> music;
+    mentat::Game* liveGame = nullptr; // while the game runs
+    bool menuOpen = false;
+    int menuItem = 0;
+    Uint64 menuOpenedNs = 0;
+    std::string menuNote;
 
     ~App() {
         if (copier.joinable()) {
@@ -178,21 +188,66 @@ void openAudio(App& app) {
     }
 }
 
-// The game: for now the opening, which starts over until a key is pressed,
-// like the original's.
+std::filesystem::path prefFile(const char* name) {
+    std::filesystem::path path = name;
+    if (char* pref = SDL_GetPrefPath("NilioDev", "Mentat")) {
+        path = std::filesystem::path(pref) / name;
+        SDL_free(pref);
+    }
+    return path;
+}
+
+void readOptions(App& app) {
+    std::ifstream in(prefFile("options.txt"), std::ios::binary);
+    if (in) {
+        const std::string text((std::istreambuf_iterator<char>(in)), {});
+        app.options = mentat::Options::read(text);
+    }
+}
+
+void writeOptions(const App& app) {
+    std::ofstream out(prefFile("options.txt"), std::ios::binary | std::ios::trunc);
+    out << app.options.write();
+    if (!out) {
+        SDL_Log("cannot save the options");
+    }
+}
+
+// The music player for a choice; null when it cannot play here.
+std::unique_ptr<mentat::MusicSystem> makeMusic(App& app, mentat::MusicChoice choice) {
+    using namespace mentat;
+    try {
+        switch (choice) {
+        case MusicChoice::AdLib:
+            return std::make_unique<FmMusic>(MusicTables::load(*app.archive, MusicCard::SoundBlasterPro));
+        case MusicChoice::AdLibGold:
+            return std::make_unique<FmMusic>(MusicTables::load(*app.archive, MusicCard::AdLibGold));
+        case MusicChoice::Mt32:
+            return nullptr;
+        }
+    } catch (const std::exception& e) {
+        SDL_Log("no music player: %s", e.what());
+    }
+    return nullptr;
+}
+
+// The game: the opening, which starts over until a key is pressed, like the
+// original's, then the story and play.
 void runGame(App& app) {
     using namespace mentat;
-    // The music as on the AdLib Gold when the game files have it (the CD
-    // version does).
-    MusicSystem music(MusicTables::load(*app.archive, MusicCard::AdLibGold));
-    app.platform.music = &music;
+    app.music = makeMusic(app, app.options.music);
+    if (app.music == nullptr) {
+        app.music = makeMusic(app, MusicChoice::AdLibGold);
+    }
+    app.platform.music = app.music.get();
     // Saved games go beside the player's own settings.
     if (char* pref = SDL_GetPrefPath("NilioDev", "Mentat")) {
         app.platform.saveFolder = std::filesystem::path(pref) / "saves";
         SDL_free(pref);
     }
     Game game(app.platform, *app.archive, *app.program, DisplayTables::fromDriver(app.archive->load("DNVGA.HSQ")),
-              &music);
+              app.music.get());
+    app.liveGame = &game;
     // After the end of the story the whole program starts over, from the
     // opening.
     do {
@@ -201,6 +256,7 @@ void runGame(App& app) {
         runCredits(game);
         runStory(game, game.language);
     } while (mentat::runGame(game, game.language) == GameEnd::Won);
+    app.liveGame = nullptr;
     app.platform.music = nullptr;
 }
 
@@ -218,7 +274,14 @@ void playQueuedSound(App& app) {
             // The game makes music as its clock runs, so the stream is kept a
             // little ahead to cover uneven frames.
             constexpr int kFrame = 4; // bytes of one stereo frame
-            constexpr int kAhead = mentat::Opl::kRate / 20 * kFrame;
+            if (command.rate != app.streamRates[channel]) {
+                // Another player, at its own rate.
+                const SDL_AudioSpec spec{SDL_AUDIO_S16, 2, command.rate};
+                SDL_ClearAudioStream(stream);
+                SDL_SetAudioStreamFormat(stream, &spec, nullptr);
+                app.streamRates[channel] = command.rate;
+            }
+            const int kAhead = command.rate / 20 * kFrame;
             const int queued = SDL_GetAudioStreamQueued(stream);
             if (queued < kAhead / 4) {
                 const std::vector<Sint16> silence(static_cast<std::size_t>((kAhead / 2 - queued) / kFrame * 2), 0);
@@ -657,6 +720,236 @@ bool windowKey(App& app, const SDL_KeyboardEvent& key) {
     return false;
 }
 
+// --- Mentat's options menu (F2, or Start on a gamepad). The game waits
+// while it is open.
+
+struct MenuItem {
+    const char* label;
+    mentat::MusicChoice music; // for the music lines
+    bool isMusic;
+};
+
+constexpr MenuItem kMenuItems[] = {
+    {"AdLib", mentat::MusicChoice::AdLib, true},
+    {"AdLib Gold", mentat::MusicChoice::AdLibGold, true},
+    {"Roland MT-32", mentat::MusicChoice::Mt32, true},
+    {"Back to the game", mentat::MusicChoice::AdLib, false},
+};
+constexpr int kMenuCount = static_cast<int>(std::size(kMenuItems));
+constexpr float kMenuLeft = 40;
+constexpr float kMenuTop = 36;
+constexpr float kMenuWidth = kScreenW - 2 * kMenuLeft;
+constexpr float kMenuHeight = 128;
+constexpr float kItemTop = kMenuTop + 44;
+constexpr float kItemHeight = 13;
+
+float menuItemY(int item) {
+    // A gap before "Back".
+    return kItemTop + static_cast<float>(item) * kItemHeight + (kMenuItems[item].isMusic ? 0.0f : 8.0f);
+}
+
+int menuItemAt(float x, float y) {
+    for (int i = 0; i < kMenuCount; ++i) {
+        const float top = menuItemY(i) - 3;
+        if (x >= kMenuLeft + 4 && x < kMenuLeft + kMenuWidth - 4 && y >= top && y < top + kItemHeight) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void openMenu(App& app) {
+    app.menuOpen = true;
+    app.menuOpenedNs = SDL_GetTicksNS();
+    app.menuNote.clear();
+    app.menuItem = 0;
+    for (int i = 0; i < kMenuCount; ++i) {
+        if (kMenuItems[i].isMusic && kMenuItems[i].music == app.options.music) {
+            app.menuItem = i;
+        }
+    }
+    SDL_ShowCursor();
+}
+
+void closeMenu(App& app) {
+    app.menuOpen = false;
+    // The game's clock goes on from where it stopped.
+    app.startNs += SDL_GetTicksNS() - app.menuOpenedNs;
+    app.lastFrameNs = 0;
+    app.systemCursor = true;
+}
+
+void chooseMusic(App& app, mentat::MusicChoice choice) {
+    if (choice == app.options.music) {
+        return;
+    }
+    if (app.archive) {
+        auto next = makeMusic(app, choice);
+        if (next == nullptr) {
+            app.menuNote = choice == mentat::MusicChoice::Mt32 ? "The MT-32 music is not ready yet."
+                                                               : "That music cannot play here.";
+            return;
+        }
+        if (app.liveGame != nullptr) {
+            // The game thread waits while the menu is open, so it can be
+            // handed the new player here.
+            app.liveGame->switchMusic(next.get());
+        }
+        app.music = std::move(next);
+    } else if (choice == mentat::MusicChoice::Mt32) {
+        app.menuNote = "The MT-32 music is not ready yet.";
+        return;
+    }
+    app.options.music = choice;
+    writeOptions(app);
+}
+
+void chooseMenuItem(App& app, int item) {
+    if (item < 0 || item >= kMenuCount) {
+        return;
+    }
+    app.menuItem = item;
+    if (kMenuItems[item].isMusic) {
+        chooseMusic(app, kMenuItems[item].music);
+    } else {
+        closeMenu(app);
+    }
+}
+
+void moveMenu(App& app, int by) {
+    app.menuItem = (app.menuItem + by + kMenuCount) % kMenuCount;
+}
+
+// The events while the menu is open; returns false for the ones it leaves
+// alone (quitting, windows).
+bool menuEvent(App& app, SDL_Event& event) {
+    switch (event.type) {
+    case SDL_EVENT_KEY_DOWN:
+        switch (event.key.key) {
+        case SDLK_F2:
+        case SDLK_ESCAPE:
+            if (!event.key.repeat) {
+                closeMenu(app);
+            }
+            break;
+        case SDLK_UP:
+        case SDLK_W:
+            moveMenu(app, -1);
+            break;
+        case SDLK_DOWN:
+        case SDLK_S:
+            moveMenu(app, 1);
+            break;
+        case SDLK_RETURN:
+        case SDLK_KP_ENTER:
+        case SDLK_SPACE:
+            if (!event.key.repeat) {
+                chooseMenuItem(app, app.menuItem);
+            }
+            break;
+        default:
+            break;
+        }
+        return true;
+    case SDL_EVENT_MOUSE_MOTION: {
+        SDL_ConvertEventToRenderCoordinates(app.renderer, &event);
+        if (const int item = menuItemAt(event.motion.x, event.motion.y); item >= 0) {
+            app.menuItem = item;
+        }
+        return true;
+    }
+    case SDL_EVENT_MOUSE_BUTTON_DOWN: {
+        SDL_ConvertEventToRenderCoordinates(app.renderer, &event);
+        const float x = event.button.x;
+        const float y = event.button.y;
+        if (event.button.button != SDL_BUTTON_LEFT || x < kMenuLeft || x >= kMenuLeft + kMenuWidth ||
+            y < kMenuTop || y >= kMenuTop + kMenuHeight) {
+            closeMenu(app);
+        } else {
+            chooseMenuItem(app, menuItemAt(x, y));
+        }
+        return true;
+    }
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+        switch (event.gbutton.button) {
+        case SDL_GAMEPAD_BUTTON_DPAD_UP:
+            moveMenu(app, -1);
+            return true;
+        case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
+            moveMenu(app, 1);
+            return true;
+        default:
+            break;
+        }
+        switch (app.buttons.action(event.gbutton.button)) {
+        case mentat::PadAction::Quit:
+            return false;
+        case mentat::PadAction::Click:
+            chooseMenuItem(app, app.menuItem);
+            break;
+        case mentat::PadAction::RightClick:
+        case mentat::PadAction::Menu:
+            closeMenu(app);
+            break;
+        default:
+            break;
+        }
+        return true;
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+    case SDL_EVENT_KEY_UP:
+    case SDL_EVENT_GAMEPAD_BUTTON_UP:
+    case SDL_EVENT_MOUSE_WHEEL:
+        return true;
+    default:
+        return false;
+    }
+}
+
+void drawMenu(App& app) {
+    SDL_Renderer* r = app.renderer;
+    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(r, 0, 0, 0, 0x90);
+    const SDL_FRect all{0, 0, kScreenW, kScreenH};
+    SDL_RenderFillRect(r, &all);
+    SDL_SetRenderDrawColor(r, 0x18, 0x12, 0x0C, 0xF0);
+    const SDL_FRect box{kMenuLeft, kMenuTop, kMenuWidth, kMenuHeight};
+    SDL_RenderFillRect(r, &box);
+    SDL_SetRenderDrawColor(r, 0xE8, 0xC0, 0x70, 255);
+    SDL_RenderRect(r, &box);
+    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
+
+    const float left = kMenuLeft + 10;
+    SDL_RenderDebugText(r, left, kMenuTop + 10, "Mentat options");
+    SDL_SetRenderDrawColor(r, 0xA0, 0x98, 0x88, 255);
+    SDL_RenderDebugText(r, left, kMenuTop + 28, "Music");
+    for (int i = 0; i < kMenuCount; ++i) {
+        const MenuItem& item = kMenuItems[i];
+        const float y = menuItemY(i);
+        if (i == app.menuItem) {
+            SDL_SetRenderDrawColor(r, 0x50, 0x3C, 0x20, 255);
+            const SDL_FRect bar{kMenuLeft + 4, y - 3, kMenuWidth - 8, kItemHeight};
+            SDL_RenderFillRect(r, &bar);
+        }
+        std::string text;
+        if (item.isMusic) {
+            text = std::string(item.music == app.options.music ? "(*) " : "( ) ") + item.label;
+        } else {
+            text = item.label;
+        }
+        if (item.isMusic && item.music == mentat::MusicChoice::Mt32) {
+            SDL_SetRenderDrawColor(r, 0x80, 0x78, 0x6C, 255);
+            text += " - soon";
+        } else {
+            SDL_SetRenderDrawColor(r, 0xF0, 0xE6, 0xD2, 255);
+        }
+        SDL_RenderDebugText(r, left, y, text.c_str());
+    }
+    if (!app.menuNote.empty()) {
+        SDL_SetRenderDrawColor(r, 0xF0, 0x90, 0x70, 255);
+        SDL_RenderDebugText(r, left, kMenuTop + kMenuHeight - 14, app.menuNote.c_str());
+    }
+}
+
 SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
     auto app = std::make_unique<App>();
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD)) {
@@ -678,6 +971,7 @@ SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
     SDL_SetTextureScaleMode(app->texture, SDL_SCALEMODE_NEAREST);
     openAudio(*app);
     readPadButtons(*app);
+    readOptions(*app);
 
     app->argc = argc;
     app->argv = argv;
@@ -697,6 +991,18 @@ SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
 SDL_AppResult SDL_AppEvent(void* state, SDL_Event* event) {
     auto* app = static_cast<App*>(state);
     if (event->type == SDL_EVENT_KEY_DOWN && windowKey(*app, event->key)) {
+        return SDL_APP_CONTINUE;
+    }
+    if (app->menuOpen) {
+        if (menuEvent(*app, *event)) {
+            return SDL_APP_CONTINUE;
+        }
+    } else if ((event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_F2 && !event->key.repeat) ||
+               (event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN &&
+                app->buttons.action(event->gbutton.button) == mentat::PadAction::Menu)) {
+        if (!app->copying) {
+            openMenu(*app);
+        }
         return SDL_APP_CONTINUE;
     }
     if (event->type == SDL_EVENT_WINDOW_DISPLAY_CHANGED || event->type == SDL_EVENT_DISPLAY_CURRENT_MODE_CHANGED ||
@@ -747,6 +1053,7 @@ SDL_AppResult SDL_AppEvent(void* state, SDL_Event* event) {
             app->platform.keys.push_back(mentat::KeyPress{0x39, ' '});
             break;
         case mentat::PadAction::None:
+        case mentat::PadAction::Menu:
             break;
         }
         return SDL_APP_CONTINUE;
@@ -767,7 +1074,7 @@ SDL_AppResult SDL_AppIterate(void* state) {
     if (app->game == nullptr) {
         checkCopy(*app);
     }
-    if (app->game != nullptr) {
+    if (app->game != nullptr && !app->menuOpen) {
         updateInput(*app);
         try {
             app->game->resume();
@@ -786,6 +1093,9 @@ SDL_AppResult SDL_AppIterate(void* state) {
         drawScreen(*app);
     } else {
         drawSetup(*app);
+    }
+    if (app->menuOpen) {
+        drawMenu(*app);
     }
     SDL_RenderPresent(app->renderer);
     return SDL_APP_CONTINUE;

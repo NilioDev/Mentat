@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
             return 0;
         }
         const double seconds = argc > 4 ? std::atof(argv[4]) : 60;
-        MusicSystem music(tables);
+        FmMusic music(tables);
         std::vector<std::int16_t> samples;
         music.runTo(0, samples);
         music.driver().start(music.opl(), song, 1);

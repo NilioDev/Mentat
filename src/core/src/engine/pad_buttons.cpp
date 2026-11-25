@@ -51,6 +51,7 @@ PadButtons::PadButtons() {
     actions_[kEast] = PadAction::RightClick;
     actions_[kNorth] = PadAction::RightClick;
     actions_[kBack] = PadAction::None;
+    actions_[kStart] = PadAction::Menu;
     actions_[kDpadUp] = PadAction::Up;
     actions_[kDpadDown] = PadAction::Down;
     actions_[kDpadLeft] = PadAction::Left;
@@ -113,6 +114,8 @@ bool PadButtons::actionNamed(std::string_view name, PadAction& out) {
         {"jumpleft", PadAction::Left},
         {"jumpright", PadAction::Right},
         {"quit", PadAction::Quit},
+        {"menu", PadAction::Menu},
+        {"options", PadAction::Menu},
     };
     const std::string n = plain(name);
     for (const auto& [text, action] : kNames) {

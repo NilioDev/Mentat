@@ -5,7 +5,7 @@
 // waits, and the sprite sheet in use. See docs/rules/waiting.md.
 #pragma once
 
-#include "mentat/audio/opl.hpp"
+#include "mentat/audio/music_system.hpp"
 #include "mentat/engine/display.hpp"
 #include "mentat/engine/hnm_player.hpp"
 #include "mentat/engine/platform.hpp"
@@ -122,6 +122,9 @@ public:
     // Plays track `n` (1..10); nothing changes when it plays already.
     void playTrack(int n);
     void stopMusic();
+    // Plays the music on `next` from now on (null: none): a piece that was
+    // playing starts again there, at the volume of the moment.
+    void switchMusic(MusicSystem* next);
     // Moves the music's volume to `volume` and `balance` (0x78 is the
     // middle) over `ticks` timer ticks, as the player's fade does.
     void fadeMusic(int ticks, std::uint8_t volume, std::uint8_t balance);

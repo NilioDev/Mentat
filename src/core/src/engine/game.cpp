@@ -52,7 +52,7 @@ void Game::applyVoiceLevels() {
 
 void Game::applyMusicLevels() {
     if (music_ != nullptr) {
-        music_->driver().setVolume(music_->opl(), std::max<std::uint8_t>(levels.music, 4), levels.musicBalance);
+        music_->setVolume(std::max<std::uint8_t>(levels.music, 4), levels.musicBalance);
     }
 }
 
@@ -164,7 +164,7 @@ void Game::playTrack(int n) {
     track_ = n;
     const int index = resource::kFirstMusic + n;
     std::vector<std::uint8_t> bytes;
-    if (music_->driver().card() == MusicCard::AdLibGold) {
+    if (music_->card() == MusicCard::AdLibGold) {
         // The AdLib Gold plays its own arrangement: the same name with .AGD.
         std::string name = resources_.name(index);
         name = name.substr(0, name.rfind('.')) + ".AGD";
@@ -173,28 +173,50 @@ void Game::playTrack(int n) {
         bytes = resources_.load(index);
     }
     auto song = std::make_shared<const Song>(Song::parse(std::move(bytes)));
-    music_->driver().start(music_->opl(), std::move(song), playTracksOnce ? 1 : 0);
+    music_->start(std::move(song), playTracksOnce ? 1 : 0);
 }
 
 void Game::stopMusic() {
     track_ = 0;
     if (music_ != nullptr) {
-        music_->driver().stop(music_->opl());
+        music_->stop();
+    }
+}
+
+void Game::switchMusic(MusicSystem* next) {
+    const int piece = track_;
+    const bool playing = musicPlaying();
+    if (music_ != nullptr) {
+        music_->stop();
+    }
+    music_ = next;
+    platform_.music = next;
+    track_ = 0;
+    if (music_ == nullptr) {
+        return;
+    }
+    if (quietForVoice_) {
+        music_->setVolume(std::max<std::uint8_t>(levels.quietMusic, 4), levels.quietBalance);
+    } else {
+        applyMusicLevels();
+    }
+    if (playing && piece != 0) {
+        playTrack(piece);
     }
 }
 
 void Game::fadeMusic(int ticks, std::uint8_t volume, std::uint8_t balance) {
     if (music_ != nullptr) {
         // The player takes no volume below 4.
-        music_->driver().fade(ticks, std::max<std::uint8_t>(volume, 4), balance);
+        music_->fade(ticks, std::max<std::uint8_t>(volume, 4), balance);
     }
 }
 
-bool Game::musicPlaying() const { return music_ != nullptr && music_->driver().status().playing(); }
+bool Game::musicPlaying() const { return music_ != nullptr && music_->status().playing(); }
 
-int Game::musicMeasure() const { return music_ != nullptr ? music_->driver().status().measure : 0; }
+int Game::musicMeasure() const { return music_ != nullptr ? music_->status().measure : 0; }
 
-int Game::musicPosition() const { return music_ != nullptr ? music_->driver().status().position() : 0; }
+int Game::musicPosition() const { return music_ != nullptr ? music_->status().position() : 0; }
 
 // --- Timers
 
