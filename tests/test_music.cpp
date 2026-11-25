@@ -3,11 +3,19 @@
 #include "test.hpp"
 
 #include "mentat/audio/music.hpp"
+#include "mentat/audio/midi_driver.hpp"
 #include "mentat/audio/music_driver.hpp"
 #include "mentat/audio/opl.hpp"
+#ifdef MENTAT_WITH_MT32
+#include "mentat/audio/mt32_music.hpp"
+#endif
+#include "mentat/engine/platform.hpp"
 #include "mentat/data/reader.hpp"
 
+#include <algorithm>
+#include <cstdlib>
 #include <memory>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -281,3 +289,90 @@ MTT_TEST("real data: every piece of music plays") {
     }
     MTT_CHECK(fourOps); // the worm pieces use four-operator sounds
 }
+
+namespace {
+
+struct MidiLog : MidiSink {
+    std::vector<std::vector<std::uint8_t>> messages;
+    void send(std::span<const std::uint8_t> message) override { messages.emplace_back(message.begin(), message.end()); }
+};
+
+// A piece of our own in the .M32 layout: one list on channel 1 that sets
+// the volume, picks a sound and plays a note for 10 steps.
+std::shared_ptr<const Song> midiSong() {
+    std::vector<std::uint8_t> b(52, 0);
+    const std::uint8_t list[] = {0x00, 0xB0, 0x07, 0x64, 0x00, 0xC0, 0x05, 0x00, 0x90,
+                                 0x3C, 0x64, 0x0A, 0x80, 0x3C, 0x00, 0x00, 0xF0, 0x00};
+    b.insert(b.end(), std::begin(list), std::end(list));
+    b[2] = 50;                                                 // voice 0 starts at 2 + 50
+    b[44] = 0xFF;                                              // no repeated part
+    b[50] = 0x00;                                              // tempo 0x100: a step a tick
+    b[51] = 0x01;
+    const auto size = static_cast<std::uint16_t>(b.size());
+    b[0] = static_cast<std::uint8_t>(size & 0xFF); // no instruments
+    b[1] = static_cast<std::uint8_t>(size >> 8);
+    return std::make_shared<const Song>(Song::parse(std::move(b)));
+}
+
+} // namespace
+
+MTT_TEST("mt32 music: the MIDI player sends the piece's messages, its volume scaled by the game's") {
+    MidiLog log;
+    MidiMusicDriver driver;
+    driver.init(log);
+    MTT_CHECK(log.messages.size() == 20); // notes off and bend for ten channels
+    MTT_CHECK(log.messages[0] == std::vector<std::uint8_t>({0xB0, 0x7B, 0x00}));
+    MTT_CHECK(log.messages[19] == std::vector<std::uint8_t>({0xE9, 0x00, 0x40}));
+    log.messages.clear();
+    driver.start(log, midiSong(), 1);
+    MTT_CHECK(driver.status().playing());
+    // 20 messages of silence, then the volume (0x64 scaled by 0xE6), the
+    // sound and the note.
+    MTT_CHECK(log.messages.size() == 23);
+    MTT_CHECK(log.messages[20] == std::vector<std::uint8_t>({0xB0, 0x07, 0x59}));
+    MTT_CHECK(log.messages[21] == std::vector<std::uint8_t>({0xC0, 0x05}));
+    MTT_CHECK(log.messages[22] == std::vector<std::uint8_t>({0x90, 0x3C, 0x64}));
+    log.messages.clear();
+    // The first tick only counts down; a step a tick after that.
+    for (int t = 0; t < 10; ++t) {
+        driver.tick(log);
+    }
+    MTT_CHECK(log.messages.empty());
+    driver.tick(log); // the note's 10 steps are up; then the end: played once
+    MTT_CHECK(!log.messages.empty() && log.messages[0] == std::vector<std::uint8_t>({0x80, 0x3C, 0x00}));
+    MTT_CHECK(!driver.status().playing());
+
+    // A fade moves the volume 3 a step and sends it on all ten channels.
+    driver.start(log, midiSong(), 0);
+    log.messages.clear();
+    driver.fade(0x10, 0xE0);
+    driver.tick(log);
+    MTT_CHECK(driver.volume() == 0xE3);
+    MTT_CHECK(log.messages.size() == 10 && log.messages[0] == std::vector<std::uint8_t>({0xB0, 0x07, 0x58}));
+    MTT_CHECK(log.messages[9] == std::vector<std::uint8_t>({0xB9, 0x07, 0x44})); // 0x4D scaled
+}
+
+#ifdef MENTAT_WITH_MT32
+MTT_TEST("mt32 music: the CD's opening music sounds on the emulator") {
+    auto archive = test::openGameData();
+    const auto roms = findMt32Roms({MENTAT_GAMEDATA_DIR});
+    if (!archive || !roms) {
+        MTT_SKIP("no game data or MT-32 ROMs");
+        return;
+    }
+    Mt32Music music(roms->control, roms->pcm);
+    MTT_CHECK(music.rate() == 32000);
+    music.setVolume(0xE6, 0x78);
+    music.start(std::make_shared<const Song>(Song::parse(archive->load("CRYOMUS.M32"))), 1);
+    std::vector<std::int16_t> out;
+    music.runTo(0, out);
+    music.runTo(static_cast<std::uint32_t>(kTicksPerSecond * 3), out);
+    int loudest = 0;
+    for (const auto s : out) {
+        loudest = std::max(loudest, std::abs(static_cast<int>(s)));
+    }
+    MTT_CHECK(out.size() > 2 * 32000 * 2);
+    MTT_CHECK(loudest > 1000);
+    MTT_CHECK(music.status().playing());
+}
+#endif

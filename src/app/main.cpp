@@ -11,6 +11,9 @@
 
 #include "mentat/audio/music.hpp"
 #include "mentat/audio/opl.hpp"
+#ifdef MENTAT_WITH_MT32
+#include "mentat/audio/mt32_music.hpp"
+#endif
 #include "mentat/data/dat_archive.hpp"
 #include "mentat/data/program_file.hpp"
 #include "mentat/data/program_tables.hpp"
@@ -222,11 +225,23 @@ std::unique_ptr<mentat::MusicSystem> makeMusic(App& app, mentat::MusicChoice cho
             return std::make_unique<FmMusic>(MusicTables::load(*app.archive, MusicCard::SoundBlasterPro));
         case MusicChoice::AdLibGold:
             return std::make_unique<FmMusic>(MusicTables::load(*app.archive, MusicCard::AdLibGold));
-        case MusicChoice::Mt32:
+        case MusicChoice::Mt32: {
+#ifdef MENTAT_WITH_MT32
+            const auto roms = findMt32Roms(gameFolders(app.argc, app.argv));
+            if (!roms) {
+                app.menuNote = "Put MT32_CONTROL.ROM and MT32_PCM.ROM beside DUNE.DAT.";
+                return nullptr;
+            }
+            return std::make_unique<Mt32Music>(roms->control, roms->pcm);
+#else
+            app.menuNote = "This Mentat is built without the MT-32.";
             return nullptr;
+#endif
+        }
         }
     } catch (const std::exception& e) {
         SDL_Log("no music player: %s", e.what());
+        app.menuNote = e.what();
     }
     return nullptr;
 }
@@ -572,11 +587,11 @@ void checkCopy(App& app) {
 
 // Writes text in SDL's own small font, broken into lines that fit the
 // screen; returns the y under it.
-float writeText(SDL_Renderer* renderer, float y, const std::string& text) {
-    constexpr std::size_t kColumns = (kScreenW - 16) / SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE;
+float writeText(SDL_Renderer* renderer, float y, const std::string& text, float x = 8,
+                std::size_t columns = (kScreenW - 16) / SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE) {
     std::size_t start = 0;
     while (start < text.size()) {
-        std::size_t end = std::min(text.size(), start + kColumns);
+        std::size_t end = std::min(text.size(), start + columns);
         if (end < text.size()) {
             const std::size_t space = text.rfind(' ', end);
             if (space != std::string::npos && space > start) {
@@ -584,7 +599,7 @@ float writeText(SDL_Renderer* renderer, float y, const std::string& text) {
             }
         }
         const std::string line = text.substr(start, end - start);
-        SDL_RenderDebugText(renderer, 8, y, line.c_str());
+        SDL_RenderDebugText(renderer, x, y, line.c_str());
         y += SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE + 3;
         start = end;
         while (start < text.size() && text[start] == ' ') {
@@ -739,7 +754,7 @@ constexpr int kMenuCount = static_cast<int>(std::size(kMenuItems));
 constexpr float kMenuLeft = 40;
 constexpr float kMenuTop = 36;
 constexpr float kMenuWidth = kScreenW - 2 * kMenuLeft;
-constexpr float kMenuHeight = 128;
+constexpr float kMenuHeight = 140;
 constexpr float kItemTop = kMenuTop + 44;
 constexpr float kItemHeight = 13;
 
@@ -784,10 +799,12 @@ void chooseMusic(App& app, mentat::MusicChoice choice) {
         return;
     }
     if (app.archive) {
+        app.menuNote.clear();
         auto next = makeMusic(app, choice);
         if (next == nullptr) {
-            app.menuNote = choice == mentat::MusicChoice::Mt32 ? "The MT-32 music is not ready yet."
-                                                               : "That music cannot play here.";
+            if (app.menuNote.empty()) {
+                app.menuNote = "That music cannot play here.";
+            }
             return;
         }
         if (app.liveGame != nullptr) {
@@ -796,9 +813,6 @@ void chooseMusic(App& app, mentat::MusicChoice choice) {
             app.liveGame->switchMusic(next.get());
         }
         app.music = std::move(next);
-    } else if (choice == mentat::MusicChoice::Mt32) {
-        app.menuNote = "The MT-32 music is not ready yet.";
-        return;
     }
     app.options.music = choice;
     writeOptions(app);
@@ -936,17 +950,13 @@ void drawMenu(App& app) {
         } else {
             text = item.label;
         }
-        if (item.isMusic && item.music == mentat::MusicChoice::Mt32) {
-            SDL_SetRenderDrawColor(r, 0x80, 0x78, 0x6C, 255);
-            text += " - soon";
-        } else {
-            SDL_SetRenderDrawColor(r, 0xF0, 0xE6, 0xD2, 255);
-        }
+        SDL_SetRenderDrawColor(r, 0xF0, 0xE6, 0xD2, 255);
         SDL_RenderDebugText(r, left, y, text.c_str());
     }
     if (!app.menuNote.empty()) {
         SDL_SetRenderDrawColor(r, 0xF0, 0x90, 0x70, 255);
-        SDL_RenderDebugText(r, left, kMenuTop + kMenuHeight - 14, app.menuNote.c_str());
+        writeText(r, menuItemY(kMenuCount - 1) + 16, app.menuNote, left,
+                  static_cast<std::size_t>((kMenuWidth - 20) / SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE));
     }
 }
 

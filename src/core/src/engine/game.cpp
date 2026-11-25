@@ -164,10 +164,11 @@ void Game::playTrack(int n) {
     track_ = n;
     const int index = resource::kFirstMusic + n;
     std::vector<std::uint8_t> bytes;
-    if (music_->card() == MusicCard::AdLibGold) {
-        // The AdLib Gold plays its own arrangement: the same name with .AGD.
+    if (music_->card() != MusicCard::SoundBlasterPro) {
+        // The AdLib Gold and the MT-32 play their own arrangements: the same
+        // name with .AGD or .M32.
         std::string name = resources_.name(index);
-        name = name.substr(0, name.rfind('.')) + ".AGD";
+        name = name.substr(0, name.rfind('.')) + (music_->card() == MusicCard::AdLibGold ? ".AGD" : ".M32");
         bytes = resources_.archive().load(name);
     } else {
         bytes = resources_.load(index);

@@ -18,6 +18,9 @@ add_executable(mtt_tests
     test_saves.cpp
 )
 target_link_libraries(mtt_tests PRIVATE mentat::core)
+if(TARGET mtt_mt32)
+    target_link_libraries(mtt_tests PRIVATE mtt_mt32)
+endif()
 target_compile_definitions(mtt_tests PRIVATE MENTAT_GAMEDATA_DIR="${PROJECT_SOURCE_DIR}/gamedata")
 mtt_set_warnings(mtt_tests)
 
