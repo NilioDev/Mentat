@@ -569,6 +569,94 @@ void drawSetup(App& app) {
     writeText(r, y, "Esc quits.");
 }
 
+// The largest whole scale at which the game fits in `usable`, leaving room
+// for the desktop's panels and the window's title bar.
+int scaleToFit(const SDL_Rect& usable) {
+    if (usable.w <= 0 || usable.h <= 0) {
+        return 3;
+    }
+    const int across = usable.w * 9 / 10 / kScreenW;
+    const int down = usable.h * 9 / 10 / kScreenH;
+    return std::max(1, std::min(across, down));
+}
+
+SDL_Rect usableBounds(SDL_DisplayID display) {
+    SDL_Rect usable{};
+    if (display == 0 || !SDL_GetDisplayUsableBounds(display, &usable)) {
+        usable = SDL_Rect{0, 0, 0, 0};
+    }
+    return usable;
+}
+
+// Makes the window as large as fits on the screen it is on, and puts it in
+// the middle: on start, and when it moves to another screen or the screen
+// changes. Full screen is left alone.
+void fitWindow(SDL_Window* window) {
+    if ((SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0) {
+        return;
+    }
+    const SDL_Rect usable = usableBounds(SDL_GetDisplayForWindow(window));
+    if (usable.w <= 0) {
+        return;
+    }
+    const int scale = scaleToFit(usable);
+    const int w = kScreenW * scale;
+    const int h = kScreenH * scale;
+    SDL_SetWindowSize(window, w, h);
+    SDL_SetWindowPosition(window, usable.x + (usable.w - w) / 2, usable.y + (usable.h - h) / 2);
+}
+
+// A window that no longer fits on its screen is made to fit again.
+void keepOnScreen(SDL_Window* window) {
+    if ((SDL_GetWindowFlags(window) & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_MAXIMIZED)) != 0) {
+        return;
+    }
+    const SDL_Rect usable = usableBounds(SDL_GetDisplayForWindow(window));
+    int w = 0;
+    int h = 0;
+    SDL_GetWindowSize(window, &w, &h);
+    if (usable.w > 0 && (w > usable.w || h > usable.h)) {
+        fitWindow(window);
+    }
+}
+
+bool isModifier(SDL_Keycode key) {
+    switch (key) {
+    case SDLK_LSHIFT:
+    case SDLK_RSHIFT:
+    case SDLK_LCTRL:
+    case SDLK_RCTRL:
+    case SDLK_LALT:
+    case SDLK_RALT:
+    case SDLK_LGUI:
+    case SDLK_RGUI:
+    case SDLK_MODE:
+    case SDLK_CAPSLOCK:
+    case SDLK_NUMLOCKCLEAR:
+    case SDLK_SCROLLLOCK:
+        return true;
+    default:
+        return false;
+    }
+}
+
+void toggleFullscreen(SDL_Window* window) {
+    const bool full = (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0;
+    SDL_SetWindowFullscreen(window, !full);
+}
+
+// Window keys that work everywhere: F11 or Alt+Enter for full screen.
+bool windowKey(App& app, const SDL_KeyboardEvent& key) {
+    const bool enter = key.key == SDLK_RETURN || key.key == SDLK_KP_ENTER;
+    if (key.key == SDLK_F11 || (enter && (key.mod & SDL_KMOD_ALT) != 0)) {
+        if (!key.repeat) {
+            toggleFullscreen(app.window);
+        }
+        return true;
+    }
+    return false;
+}
+
 SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
     auto app = std::make_unique<App>();
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD)) {
@@ -576,11 +664,13 @@ SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
         return SDL_APP_FAILURE;
     }
     const std::string title(mentat::kProjectName);
-    if (!SDL_CreateWindowAndRenderer(title.c_str(), kScreenW * 4, kScreenH * 4, SDL_WINDOW_RESIZABLE,
+    const int scale = scaleToFit(usableBounds(SDL_GetPrimaryDisplay()));
+    if (!SDL_CreateWindowAndRenderer(title.c_str(), kScreenW * scale, kScreenH * scale, SDL_WINDOW_RESIZABLE,
                                      &app->window, &app->renderer)) {
         SDL_Log("cannot open a window: %s", SDL_GetError());
         return SDL_APP_FAILURE;
     }
+    fitWindow(app->window);
     SDL_SetRenderLogicalPresentation(app->renderer, kScreenW, kScreenH, SDL_LOGICAL_PRESENTATION_LETTERBOX);
     SDL_SetRenderVSync(app->renderer, 1);
     app->texture =
@@ -606,6 +696,14 @@ SDL_AppResult SDL_AppInit(void** state, int argc, char** argv) {
 
 SDL_AppResult SDL_AppEvent(void* state, SDL_Event* event) {
     auto* app = static_cast<App*>(state);
+    if (event->type == SDL_EVENT_KEY_DOWN && windowKey(*app, event->key)) {
+        return SDL_APP_CONTINUE;
+    }
+    if (event->type == SDL_EVENT_WINDOW_DISPLAY_CHANGED || event->type == SDL_EVENT_DISPLAY_CURRENT_MODE_CHANGED ||
+        event->type == SDL_EVENT_DISPLAY_USABLE_BOUNDS_CHANGED) {
+        keepOnScreen(app->window);
+        return SDL_APP_CONTINUE;
+    }
     if (app->game == nullptr) {
         return setupEvent(*app, *event);
     }
@@ -615,6 +713,11 @@ SDL_AppResult SDL_AppEvent(void* state, SDL_Event* event) {
     case SDL_EVENT_KEY_DOWN:
         if (event->key.key == SDLK_ESCAPE && app->game == nullptr) {
             return SDL_APP_SUCCESS;
+        }
+        // Shift, Ctrl, Alt and the system key alone are not presses for the
+        // game: switching windows with Alt+Tab must not skip the opening.
+        if (isModifier(event->key.key)) {
+            return SDL_APP_CONTINUE;
         }
         app->platform.keys.push_back(mentat::KeyPress{static_cast<std::uint8_t>(event->key.raw), 0});
         return SDL_APP_CONTINUE;

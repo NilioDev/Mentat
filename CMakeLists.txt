@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(Mentat
-    VERSION 0.2.0
+    VERSION 0.2.1
     DESCRIPTION "Clean-room engine that plays the 1992 desert adventure-strategy game from your own files"
     LANGUAGES C CXX)
 

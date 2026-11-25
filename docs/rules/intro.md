@@ -46,6 +46,8 @@ The music pieces of the opening play once (not looped).
 
 ## The steps' work
 
+- **The logos.** Their videos fill the screen from its top row: their
+  steps set the origin to 0.
 - **The publisher's logo.** Stops the music, starts piece 6 and opens its
   video; the video plays in the back picture, each new frame copied to the
   screen. When the music reaches its 8th measure it stops.
