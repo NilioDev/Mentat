@@ -6,7 +6,7 @@
 // See docs/rules/timing.md for the clock.
 #pragma once
 
-#include "mentat/audio/opl.hpp"
+#include "mentat/audio/music_system.hpp"
 #include "mentat/engine/fiber.hpp"
 #include "mentat/gfx/palette.hpp"
 #include "mentat/gfx/scene.hpp"
@@ -32,7 +32,7 @@ struct KeyPress {
 
 enum class SoundChannel : std::uint8_t {
     Digital, // voices, video sound and effects: one at a time, like the original
-    Music,   // the FM chip, 16-bit stereo frames at Opl::kRate
+    Music,   // the music, 16-bit stereo frames at its player's rate
     Count,
 };
 
@@ -131,7 +131,7 @@ public:
         }
         SoundCommand command;
         command.channel = SoundChannel::Music;
-        command.rate = Opl::kRate;
+        command.rate = music->rate();
         music->runTo(ticks, command.wide);
         if (!command.wide.empty()) {
             sound.push_back(std::move(command));

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "test.hpp"
 
+#include "mentat/engine/options.hpp"
 #include "mentat/engine/pad_buttons.hpp"
 #include "mentat/engine/pointer_jump.hpp"
 
@@ -45,17 +46,33 @@ MTT_TEST("gamepad: the buttons as Mentat comes, and as the player's file sets th
     MTT_CHECK(b.action(0) == PadAction::Click && b.action(1) == PadAction::RightClick);
     MTT_CHECK(b.action(2) == PadAction::Click && b.action(3) == PadAction::RightClick);
     MTT_CHECK(b.action(4) == PadAction::None && b.action(11) == PadAction::Up && b.action(14) == PadAction::Right);
-    MTT_CHECK(b.action(6) == PadAction::Key && b.action(99) == PadAction::Key);
+    MTT_CHECK(b.action(6) == PadAction::Menu && b.action(5) == PadAction::Key && b.action(99) == PadAction::Key);
     const int bad = b.read("# my pad\n"
                            "B = click\n"
                            "a = Right click   # swapped\n"
                            "Back = quit\r\n"
                            "left shoulder = jump left\n"
                            "start = fly\n"
+                           "guide = options\n"
                            "nonsense\n"
                            "\n");
     MTT_CHECK(bad == 2);
     MTT_CHECK(b.action(1) == PadAction::Click && b.action(0) == PadAction::RightClick);
-    MTT_CHECK(b.action(4) == PadAction::Quit && b.action(9) == PadAction::Left && b.action(6) == PadAction::Key);
+    MTT_CHECK(b.action(4) == PadAction::Quit && b.action(9) == PadAction::Left && b.action(6) == PadAction::Menu);
+    MTT_CHECK(b.action(5) == PadAction::Menu);
     MTT_CHECK(PadButtons::buttonNamed("DP-Up") == 11 && PadButtons::buttonNamed("z") == -1);
+}
+
+MTT_TEST("options: music choice is read, written back and defaults to the AdLib Gold") {
+    MTT_CHECK(Options{}.music == MusicChoice::AdLibGold);
+    MTT_CHECK(Options::read("music = AdLib\n").music == MusicChoice::AdLib);
+    MTT_CHECK(Options::read("# note\r\n  MUSIC=mt32 # Roland\r\n").music == MusicChoice::Mt32);
+    MTT_CHECK(Options::read("music = loud\nvolume = 3\n").music == MusicChoice::AdLibGold);
+    for (const auto c : {MusicChoice::AdLib, MusicChoice::AdLibGold, MusicChoice::Mt32}) {
+        Options o;
+        o.music = c;
+        MTT_CHECK(Options::read(o.write()).music == c);
+    }
+    PadButtons buttons;
+    MTT_CHECK(buttons.action(6) == PadAction::Menu); // Start
 }

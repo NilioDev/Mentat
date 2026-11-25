@@ -2,6 +2,7 @@
 #include "game_data.hpp"
 #include "test.hpp"
 
+#include "mentat/audio/opl.hpp"
 #include "mentat/audio/music.hpp"
 #include "mentat/engine/display.hpp"
 #include "mentat/engine/fiber.hpp"
@@ -273,7 +274,7 @@ MTT_TEST("real data: the whole opening plays, and a key skips it") {
     MTT_CHECK(dt.dissolveOrder[0] == tables().dissolveOrder[0]);
     {
         Platform p;
-        MusicSystem music(MusicTables::fromPlayer(archive->load("DNADP.HSQ")));
+        FmMusic music(MusicTables::fromPlayer(archive->load("DNADP.HSQ")));
         p.music = &music;
         Game g(p, *archive, *program, dt, &music);
         IntroEnd end = IntroEnd::Skipped;

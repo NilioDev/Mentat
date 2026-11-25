@@ -194,17 +194,17 @@ void MusicChips::generate(std::size_t count, double gain, std::vector<std::int16
     }
 }
 
-MusicSystem::MusicSystem(const MusicTables& tables) : chips_(tables.card), driver_(tables) {
+FmMusic::FmMusic(const MusicTables& tables) : chips_(tables.card), driver_(tables) {
     driver_.init(chips_);
 }
 
-double MusicSystem::gainOf(std::uint8_t mixer) {
+double FmMusic::gainOf(std::uint8_t mixer) {
     // Mentat's choice: about 2 dB a level, both sides averaged; 0 is silent.
     const auto gain = [](int level) { return level == 0 ? 0.0 : std::pow(10.0, -2.0 * (15 - level) / 20.0); };
     return (gain(mixer >> 4) + gain(mixer & 0x0F)) * 0.5;
 }
 
-void MusicSystem::runTo(std::uint32_t tick, std::vector<std::int16_t>& out) {
+void FmMusic::runTo(std::uint32_t tick, std::vector<std::int16_t>& out) {
     if (!started_) {
         started_ = true;
         tick_ = tick;
