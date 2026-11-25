@@ -165,3 +165,17 @@ MTT_TEST("game files: refuses images that are not CDs, are cut short or lack a f
     MTT_CHECK(fails(root / "empty"));
     std::filesystem::remove_all(root);
 }
+
+MTT_TEST("game files: finds the MT-32 ROMs in any case, as a pair") {
+    const auto root = std::filesystem::temp_directory_path() / "mtt_test_mt32_roms";
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root / "half");
+    std::filesystem::create_directories(root / "both");
+    std::ofstream(root / "half" / "MT32_CONTROL.ROM") << "x";
+    std::ofstream(root / "both" / "mt32_control.rom") << "x";
+    std::ofstream(root / "both" / "Mt32_Pcm.Rom") << "x";
+    const auto found = findMt32Roms({root / "missing", root / "half", root / "both"});
+    MTT_CHECK(found && found->control.filename() == "mt32_control.rom" && found->pcm.filename() == "Mt32_Pcm.Rom");
+    MTT_CHECK(!findMt32Roms({root / "half"}).has_value());
+    std::filesystem::remove_all(root);
+}

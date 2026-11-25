@@ -2,6 +2,7 @@ configure_file(version.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/generated/mentat/vers
 
 add_library(mtt_core STATIC
     src/game_files.cpp
+    src/audio/midi_driver.cpp
     src/audio/music.cpp
     src/audio/music_driver.cpp
     src/audio/opl.cpp
@@ -98,3 +99,14 @@ target_include_directories(mtt_core PUBLIC
 target_compile_features(mtt_core PUBLIC cxx_std_20)
 set_target_properties(mtt_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 mtt_set_warnings(mtt_core)
+
+# The MT-32 music on Munt's emulator (LGPL 2.1+), when it is built.
+if(TARGET MT32Emu::mt32emu)
+    add_library(mtt_mt32 STATIC src/audio/mt32_music.cpp)
+    target_link_libraries(mtt_mt32 PUBLIC mtt_core PRIVATE MT32Emu::mt32emu)
+    # Third-party headers: not held to our warnings.
+    target_include_directories(mtt_mt32 SYSTEM PRIVATE
+        $<TARGET_PROPERTY:MT32Emu::mt32emu,INTERFACE_INCLUDE_DIRECTORIES>)
+    mtt_set_warnings(mtt_mt32)
+    target_compile_definitions(mtt_mt32 PUBLIC MENTAT_WITH_MT32=1)
+endif()

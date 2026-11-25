@@ -14,12 +14,16 @@ option(MTT_BUILD_APP "Build the game executable (needs SDL3)" ON)
 option(MTT_BUILD_TESTS "Build the unit tests" ${PROJECT_IS_TOP_LEVEL})
 option(MTT_BUILD_TOOLS "Build the developer tools" ${PROJECT_IS_TOP_LEVEL})
 option(MTT_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+option(MTT_WITH_MT32 "Build the Roland MT-32 music (downloads Munt's emulator)" ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(MttWarnings)
 
 # Engine core: platform independent, no SDL. Everything that can be tested
 # without a screen lives here.
+if(MTT_WITH_MT32)
+    include(MttMt32)
+endif()
 add_subdirectory(src/core)
 
 if(MTT_BUILD_APP)

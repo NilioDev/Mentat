@@ -97,6 +97,23 @@ std::optional<GameFiles> findGameFiles(const std::vector<std::filesystem::path>&
     return std::nullopt;
 }
 
+std::optional<Mt32Roms> findMt32Roms(const std::vector<std::filesystem::path>& folders) {
+    for (const auto& folder : folders) {
+        std::error_code ec;
+        if (!std::filesystem::is_directory(folder, ec)) {
+            continue;
+        }
+        for (const std::string_view kind : {"MT32", "CM32L"}) {
+            auto control = findIn(folder, std::string(kind) + "_CONTROL.ROM");
+            auto pcm = findIn(folder, std::string(kind) + "_PCM.ROM");
+            if (!control.empty() && !pcm.empty()) {
+                return Mt32Roms{std::move(control), std::move(pcm)};
+            }
+        }
+    }
+    return std::nullopt;
+}
+
 void importGameFiles(const std::filesystem::path& source, const std::filesystem::path& folder,
                      const CopyProgress& progress) {
     static constexpr std::array<std::string_view, 2> kNames{"DUNE.DAT", "DNCDPRG.EXE"};

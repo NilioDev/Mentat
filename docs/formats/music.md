@@ -7,7 +7,9 @@ AdLib and Sound Blaster FM chip. The original's music players for this chip
 names are the same music for the AdLib Gold, in the same layout with the
 differences in [AdLib Gold files](#adlib-gold-files); its player
 (`DNADG.HSQ`) is in [../rules/music-gold.md](../rules/music-gold.md). The
-`.M32` files are for the Roland MT-32.
+`.M32` files are for the Roland MT-32 (see [MT-32 files](#mt-32-files));
+their player (`DNMID.HSQ`) is in
+[../rules/music-mt32.md](../rules/music-mt32.md).
 
 | Number | File |
 | --- | --- |
@@ -100,3 +102,18 @@ differences:
   operators 1 and 2.
 - Instrument byte 17 says which sides play the sound: bit 0 left, bit 1
   right.
+
+## MT-32 files
+
+The `.M32` files are packed too (the archive's directory still calls them
+`.M32`) and use the same header, with these differences:
+
+- Only the first voice has an event list. It carries the whole piece, for
+  every MIDI channel at once: the low nibble of each event's first byte is
+  the channel, and the byte goes to the synthesizer as it is.
+- There are no instruments: the offset at 0 is the file's size. The pieces
+  use the MT-32's own sounds, picked with program changes.
+- Events are MIDI messages with their usual lengths: note off and on,
+  controller and pitch bend take two bytes after the first, program change
+  and channel pressure one. Key pressure (`A`) also takes one, and `F` ends
+  the list as in the other files.

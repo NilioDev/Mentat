@@ -17,4 +17,7 @@ else()
 endif()
 
 target_link_libraries(mtt_app PRIVATE mentat::core SDL3::SDL3)
+if(TARGET mtt_mt32)
+    target_link_libraries(mtt_app PRIVATE mtt_mt32)
+endif()
 mtt_set_warnings(mtt_app)
