@@ -178,7 +178,7 @@ every button and action.
 
 | Action | Mouse | Keyboard | Gamepad |
 | --- | --- | --- | --- |
-| Skip a video | Click | Any key | Any button |
+| Skip a video | Click | Any key but Shift, Ctrl and Alt | Any button |
 | Walk to another room, or out into the desert | Click an arrow | | |
 | Let the hours pass | In the desert, click "WAIT FOR EVENING" or "WAIT FOR MORNING" | | |
 | Talk to someone | Click the person or their name | | |
@@ -200,6 +200,7 @@ every button and action.
 | After the game ends | "RESTART GAME", "LOAD GAME" or "EXIT GAME"; " WHAT ? " says it again | | |
 | Save or load a game | On the globe, or in the mirror of Paul's room ("LOOK AT MIRROR"), "SAVE GAME" or "LOAD GAME", then a log; "Cancel" goes back | | |
 | Change volumes, language, subtitles or music | Click "Mixer Panel"; drag a slider or turn a knob, click a language or a way to show lines, "Done" closes | | |
+| Full screen or a window | The window opens as large as fits on your screen | F11 or Alt+Enter | |
 | Close Mentat | Window's close button, or "EXIT GAME" on the Mixer Panel | | "EXIT GAME" on the Mixer Panel |
 
 ## Build from source

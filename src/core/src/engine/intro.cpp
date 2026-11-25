@@ -667,6 +667,8 @@ private:
             d_.clear(d_.target());
             return true;
         case kVirginOpen:
+            // The logos fill the screen from its top row.
+            d_.setOriginRows(0);
             g_.stopMusic();
             g_.playTrack(6);
             g_.openVideo(video::kVirgin);
@@ -674,12 +676,14 @@ private:
         case kVirginPlay:
             return playToEnd(true);
         case kCryoOpen:
+            d_.setOriginRows(0);
             g_.playTrack(10);
             g_.openVideo(video::kCryo);
             return true;
         case kPlayToEnd:
             return playToEnd(false);
         case kCryo2Open:
+            d_.setOriginRows(0);
             d_.clear(d_.target());
             g_.openVideo(video::kCryo2);
             return true;
