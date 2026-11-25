@@ -5,6 +5,7 @@ add_library(mtt_core STATIC
     src/audio/music.cpp
     src/audio/music_driver.cpp
     src/audio/opl.cpp
+    src/data/cd_image.cpp
     src/data/dat_archive.cpp
     src/data/hsq.cpp
     src/data/hnm.cpp
