@@ -375,4 +375,19 @@ MTT_TEST("mt32 music: the CD's opening music sounds on the emulator") {
     MTT_CHECK(loudest > 1000);
     MTT_CHECK(music.status().playing());
 }
+
+MTT_TEST("mt32 music: the ROMs are known by their contents, not their names") {
+    const auto roms = findMt32Roms({MENTAT_GAMEDATA_DIR});
+    if (!roms) {
+        MTT_SKIP("no MT-32 ROMs");
+        return;
+    }
+    MTT_CHECK(mt32RomName(roms->control).find("_CONTROL.ROM") != std::string::npos);
+    MTT_CHECK(mt32RomName(roms->pcm).find("_PCM.ROM") != std::string::npos);
+    const auto other = std::filesystem::temp_directory_path() / "mtt_test_not_a_rom.rom";
+    std::ofstream(other) << "not a ROM";
+    MTT_CHECK(mt32RomName(other).empty());
+    MTT_CHECK(mt32RomName(other.parent_path() / "mtt_missing.rom").empty());
+    std::filesystem::remove(other);
+}
 #endif

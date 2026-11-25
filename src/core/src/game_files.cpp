@@ -167,4 +167,45 @@ void importGameFiles(const std::filesystem::path& source, const std::filesystem:
     }
 }
 
+std::vector<std::string> importExtraFiles(const std::vector<std::filesystem::path>& files,
+                                          const std::filesystem::path& folder, const NameFor& nameFor) {
+    std::vector<std::filesystem::path> candidates;
+    for (const auto& file : files) {
+        std::error_code ec;
+        if (std::filesystem::is_directory(file, ec)) {
+            for (const auto& item : std::filesystem::directory_iterator(file, ec)) {
+                if (item.is_regular_file(ec)) {
+                    candidates.push_back(item.path());
+                }
+            }
+        } else if (std::filesystem::is_regular_file(file, ec)) {
+            candidates.push_back(file);
+        }
+    }
+    std::vector<std::string> copied;
+    for (const auto& from : candidates) {
+        const std::string name = nameFor(from);
+        if (name.empty() || std::find(copied.begin(), copied.end(), name) != copied.end()) {
+            continue;
+        }
+        std::error_code ec;
+        std::filesystem::create_directories(folder, ec);
+        if (ec) {
+            throw FormatError("cannot make the folder " + folder.string());
+        }
+        const auto part = folder / (name + ".part");
+        dropOnFailure(part, [&] { copyFile(from, part, [](std::uint64_t) {}); });
+        // A file found here with the same name in another case would be
+        // found before the new one.
+        for (const auto& item : std::filesystem::directory_iterator(folder, ec)) {
+            if (hasName(item.path(), name) && item.path().filename() != name) {
+                std::filesystem::remove(item.path(), ec);
+            }
+        }
+        finish(part, folder / name);
+        copied.push_back(name);
+    }
+    return copied;
+}
+
 } // namespace mentat

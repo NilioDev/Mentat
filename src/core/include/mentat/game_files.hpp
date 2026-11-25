@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace mentat {
@@ -39,5 +40,15 @@ std::optional<Mt32Roms> findMt32Roms(const std::vector<std::filesystem::path>& f
 using CopyProgress = std::function<void(std::uint64_t done, std::uint64_t total)>;
 void importGameFiles(const std::filesystem::path& source, const std::filesystem::path& folder,
                      const CopyProgress& progress);
+
+// Copies the player's own files that are not on the game CD, such as the
+// MT-32 ROMs, into `folder` (made when missing). Each of `files` is looked
+// at, and for a folder each file directly in it; `nameFor` gives the name a
+// file is kept under, or an empty name for a file that is not wanted.
+// Returns the names copied, in order, each once. Throws FormatError when a
+// wanted file cannot be copied.
+using NameFor = std::function<std::string(const std::filesystem::path&)>;
+std::vector<std::string> importExtraFiles(const std::vector<std::filesystem::path>& files,
+                                          const std::filesystem::path& folder, const NameFor& nameFor);
 
 } // namespace mentat

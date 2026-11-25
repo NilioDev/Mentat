@@ -9,6 +9,7 @@
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -177,5 +178,42 @@ MTT_TEST("game files: finds the MT-32 ROMs in any case, as a pair") {
     const auto found = findMt32Roms({root / "missing", root / "half", root / "both"});
     MTT_CHECK(found && found->control.filename() == "mt32_control.rom" && found->pcm.filename() == "Mt32_Pcm.Rom");
     MTT_CHECK(!findMt32Roms({root / "half"}).has_value());
+    std::filesystem::remove_all(root);
+}
+
+MTT_TEST("game files: copies the player's extra files under the names they are wanted by") {
+    const auto root = std::filesystem::temp_directory_path() / "mtt_test_extra_files";
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root / "from" / "inner");
+    std::filesystem::create_directories(root / "to");
+    std::ofstream(root / "from" / "control.bin") << "control";
+    std::ofstream(root / "from" / "pcm.bin") << "pcm";
+    std::ofstream(root / "from" / "notes.txt") << "notes";
+    std::ofstream(root / "from" / "inner" / "deep.bin") << "control";
+    std::ofstream(root / "to" / "mt32_pcm.rom") << "old";
+    const NameFor nameFor = [](const std::filesystem::path& file) -> std::string {
+        std::ifstream in(file, std::ios::binary);
+        const std::string text((std::istreambuf_iterator<char>(in)), {});
+        if (text == "control") {
+            return "MT32_CONTROL.ROM";
+        }
+        if (text == "pcm") {
+            return "MT32_PCM.ROM";
+        }
+        return {};
+    };
+    // A file by itself and the files in a folder, but not in its folders;
+    // the second control ROM is left alone.
+    const auto names =
+        importExtraFiles({root / "from" / "pcm.bin", root / "from", root / "missing"}, root / "to", nameFor);
+    MTT_CHECK(names == std::vector<std::string>({"MT32_PCM.ROM", "MT32_CONTROL.ROM"}));
+    const auto roms = findMt32Roms({root / "to"});
+    MTT_CHECK(roms && roms->control.filename() == "MT32_CONTROL.ROM" && roms->pcm.filename() == "MT32_PCM.ROM");
+    {
+        std::ifstream in(roms->pcm, std::ios::binary); // closed before the folder goes
+        MTT_CHECK(std::string((std::istreambuf_iterator<char>(in)), {}) == "pcm");
+    }
+    MTT_CHECK(importExtraFiles({root / "from" / "notes.txt"}, root / "to", nameFor).empty());
+    MTT_CHECK(!std::filesystem::exists(root / "to" / "MT32_PCM.ROM.part"));
     std::filesystem::remove_all(root);
 }

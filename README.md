@@ -110,8 +110,8 @@ Fremen) and the subtitles, turns the music off, or plays it as a CD would,
 in order or shuffled. Mentat's own options (F2, or Start on a gamepad)
 choose which of the CD's arrangements of the music plays: AdLib, AdLib
 Gold (the default) or Roland MT-32. The MT-32 is emulated (with Munt) and
-needs your own MT-32 ROM files, `MT32_CONTROL.ROM` and `MT32_PCM.ROM`, in
-the same folder as `DUNE.DAT`; none come with Mentat. Reach the Harkonnens' throne room and the story ends as the
+needs your own MT-32 ROM files (the control ROM and the PCM ROM); none come
+with Mentat. Add them as described under [Add your game](#add-your-game). Reach the Harkonnens' throne room and the story ends as the
 original's does: the last scene, "THE END" and the cast, after which the
 game starts again from its opening.
 
@@ -140,11 +140,20 @@ Get the newest build from the
 
 ## Add your game
 
-The easiest way: start Mentat and give it your CD. Drop the CD image
-(`.iso` or `.bin`), or the CD itself, on the window, or click to pick it.
-Mentat copies the two files it needs, `DUNE.DAT` and `DNCDPRG.EXE`, to its
-own folder and starts; next time it finds them there. You can also start it
-with the image: `./Mentat path/to/game.iso`.
+The easiest way: start Mentat and give it your CD. Its game files screen
+shows what it needs to play and what it can use besides. Drop the CD image
+(`.iso` or `.bin`), or the CD itself, on the window, or press "Add files..."
+to pick it. Mentat copies the two files it needs, `DUNE.DAT` and
+`DNCDPRG.EXE`, to its own folder; press "Play" to start. Next time it finds
+them there and starts at once. You can also start it with the image:
+`./Mentat path/to/game.iso`.
+
+For the Roland MT-32 music, add your MT-32 ROM files the same way, together
+with the CD or later: drop them on the window at any time, or open "Game
+files..." in Mentat's options (F2, or Start on a gamepad). Mentat knows them
+by their contents, so their names do not matter, and keeps them as
+`MT32_CONTROL.ROM` and `MT32_PCM.ROM` (or the CM-32L's) beside the game
+files.
 
 Mentat keeps the copied files where your system keeps settings for programs:
 
